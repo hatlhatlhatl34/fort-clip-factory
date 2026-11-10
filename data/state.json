@@ -2,9 +2,15 @@
  "version": 1,
  "shorts": [],
  "used_sources": [],
- "query_cursor": 0,
- "quota": {"date": null, "units_used": 0},
+ "query_cursor": 1,
+ "quota": {
+  "date": "2026-11-10",
+  "units_used": 300
+ },
  "last_run": null,
  "last_run_ts": null,
- "stats": {"shorts_published": 0, "days_active": 0}
+ "stats": {
+  "shorts_published": 0,
+  "days_active": 0
+ }
 }
