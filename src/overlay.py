@@ -7,10 +7,10 @@ never change) and composited over EVERY frame by ffmpeg:
              near-black bar with a gold rule under it)
   FOOTER     "CREATOR CODE" label + H15 (Anton, white, gold rule)
 
-The footer sits 130 px above the true bottom on purpose: YouTube's
-Shorts feed draws its own title/channel UI over the bottom strip —
-our code stays readable above it. The top bar starts at the true top
-(Shorts only puts small corner icons there).
+OWNER RULE (2026-11-10): the footer sits FLUSH with the true bottom
+edge of the 1080x1920 frame — zero gap. It used to float 130 px
+above the edge; the owner wants the bar pinned to the end of the
+screen. The top bar starts at the true top.
 
 Design law: static, high-contrast, always on. A pulsing overlay
 gains nothing and risks unreadable frames.
@@ -89,15 +89,18 @@ def render_overlays(out_dir: Path) -> tuple[Path, Path]:
            fill=(255, 255, 255, 255))
     foot.save(foot_p)
 
-    # the footer canvas we composite is (W, footer_h) but it is PLACED
-    # 130px above the true bottom — that placement lives in transform.py
+    # the footer canvas we composite is (W, footer_h) and it is
+    # PLACED flush with the true bottom edge of the 1920 canvas —
+    # that placement lives in transform.py via footer_placement_y()
     return top_p, foot_p
 
 
 def footer_placement_y() -> int:
-    """Footer top-edge Y on the 1920 canvas (above the Shorts UI)."""
+    """Footer top-edge Y on the 1920 canvas — FLUSH with the bottom
+    edge (owner rule 2026-11-10): the bar's last pixel row is the
+    video's last pixel row."""
     footer_h = int(cfg()["overlay"].get("footer_bar_height", 240))
-    return H - footer_h - 130
+    return H - footer_h
 
 
 def _draw_tracked(d: ImageDraw.ImageDraw, text: str,
