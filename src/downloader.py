@@ -56,7 +56,7 @@ def _run_ytdlp(url: str, out: Path, cookies: Path | None) -> bool:
     if cookies:
         base += ["--cookies", str(cookies)]
 
-    attempts = [dict(base)]           # rung 1a: default client (+cookies)
+    attempts = [list(base)]           # rung 1a: default client (+cookies)
     for client in PLAYER_CLIENTS[1:]:
         a = list(base)
         a += ["--extractor-args", f"youtube:player_client={client}"]
