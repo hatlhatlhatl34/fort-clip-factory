@@ -1,4 +1,6 @@
-"""Clip engine — finds the best 20-35s window in a REAL gameplay video.
+"""Clip engine — finds the best 45-120s window in a REAL gameplay
+video (owner rule 2026-11-10: Shorts run at least 40-45 s, up to
+2 minutes; 20 s was too low).
 
 Two signals, both computed from the actual footage:
   1. MOTION: the video is sampled at 5 fps, 160x90 grayscale, and
@@ -96,7 +98,7 @@ def _scene_cuts(src: Path, start: float, dur: float,
 def best_window(src: Path, seed: int,
                 used_windows: list[tuple[float, float]] | None = None
                 ) -> tuple[float, float]:
-    """Return (start_seconds, duration) of the best 20-35s clip inside
+    """Return (start_seconds, duration) of the best 45-120s clip inside
     the analyzed stretch of `src`."""
     conf = cfg()["clip"]
     lo, hi = [float(x) for x in conf["target_len_s"]]
