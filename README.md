@@ -20,7 +20,7 @@ Both also live in every title and description.
    footage older than 11 months can never appear).
 2. **DOWNLOAD** — yt-dlp pulls the actual video (cookies secret
    handles the bot-check; `ingest/` folder is the manual backup).
-3. **CLIP** — scene-change + motion analysis finds the best 20-35 s
+3. **CLIP** — scene-change + motion analysis finds the best 45-120 s
    window in the real footage.
 4. **TRANSFORM** — 1080×1920 vertical zoom-crop; original audio is
    discarded; a seeded numpy-synthesized gaming track becomes the
