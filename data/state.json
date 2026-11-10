@@ -2,10 +2,10 @@
  "version": 1,
  "shorts": [],
  "used_sources": [],
- "query_cursor": 1,
+ "query_cursor": 2,
  "quota": {
   "date": "2026-11-10",
-  "units_used": 300
+  "units_used": 600
  },
  "last_run": null,
  "last_run_ts": null,
