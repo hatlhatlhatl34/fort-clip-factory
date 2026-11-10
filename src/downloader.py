@@ -20,9 +20,12 @@ starves the machine — it falls through to the next:
           machine is never quietly starving.
 
 Everything runs under a wall-clock budget so one rung can never eat
-the whole CI job. Formats: <=720p is plenty (we re-encode to
-1080x1920 vertical anyway — anything above 720 source is wasted
-bytes on a free runner).
+the whole CI job. Formats: we PREFER up to 1440p sources (a 1080x1920
+vertical Short re-rendered from a landscape crop needs the extra source
+height to stay crisp), and a hard quality floor (sources.min_source_height,
+default 720) rejects any file — yt-dlp OR archive.org — that comes in
+below it. A 144p/360p download is structurally impossible now: the
+rung falls through to the next one instead of shipping mush.
 """
 from __future__ import annotations
 
@@ -38,8 +41,8 @@ from pathlib import Path
 from . import ledger
 from .config import cfg, path
 
-FMT = ("bv*[height<=720][ext=mp4]+ba[ext=m4a]/"
-       "b[height<=720][ext=mp4]/bv*[height<=720]+ba/b[height<=720]/b")
+FMT = ("bv*[height<=1440][ext=mp4]+ba[ext=m4a]/"
+       "b[height<=1440][ext=mp4]/bv*[height<=1440]+ba/b[height<=1440]/b")
 PLAYER_CLIENTS = ["web", "android_vr", "tv", "web_embedded", "ios",
                   "tv_simply"]
 
@@ -78,6 +81,37 @@ def _probe_duration_s(p: Path) -> float:
         return float(r.stdout.strip() or 0)
     except Exception:
         return 0.0
+
+
+def _probe_height(p: Path) -> int:
+    """Video height in pixels (0 when probing fails)."""
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "-error", "-select_streams", "v:0",
+             "-show_entries", "stream=height",
+             "-of", "csv=p=0", str(p)],
+            capture_output=True, text=True, timeout=60)
+        return int((r.stdout.strip().splitlines() or ["0"])[0] or 0)
+    except Exception:
+        return 0
+
+
+def _quality_ok(p: Path, min_dur: float = 0.0) -> bool:
+    """The quality gate every downloaded file must pass (owner rule
+    2026-11-10): duration ≥ min_dur AND height ≥ sources.min_source_height.
+    Low-res garbage (144p/360p) is rejected so a rung falls through
+    instead of shipping a mushy Short."""
+    if not p.exists() or p.stat().st_size < 1_000_000:
+        return False
+    if min_dur and _probe_duration_s(p) < min_dur:
+        return False
+    floor = int((cfg().get("sources") or {}).get("min_source_height", 720))
+    h = _probe_height(p)
+    if floor and h and h < floor:
+        print(f"[download] quality gate: {p.name} is {h}p "
+              f"(< {floor}p floor) — rejecting, trying next rung")
+        return False
+    return True
 
 
 def _cookies_file(work: Path) -> Path | None:
@@ -121,8 +155,10 @@ def _take_ingest_drop(work: Path, state: dict) -> Path | None:
     state["used_drops"].append(src.name)
     ledger.save(state)
     src.unlink(missing_ok=True)
-    if dur >= 45:
+    if dur >= 45 and _quality_ok(out):
         return out
+    print(f"[download] drop {src.name} discarded "
+          "(too short or below the quality floor)")
     out.unlink(missing_ok=True)
     return None
 
@@ -258,7 +294,7 @@ def _ao_mirror(source: dict, work: Path, deadline: float) -> Path | None:
           f"({fname.split('/')[-1][:60]}, {size/1e6:.0f} MB)")
     out = work / f"mirror_{source.get('id')}.mp4"
     if _ao_stream(item, fname, out, deadline) \
-            and _probe_duration_s(out) >= 45:
+            and _quality_ok(out, 45):
         return out
     out.unlink(missing_ok=True)
     return None
@@ -302,7 +338,7 @@ def _ao_open_pool(source: dict, work: Path, state: dict,
             fname, size = pick
             out = work / f"ao_{ident.replace('/', '_')}.mp4"
             if _ao_stream(ident, fname, out, deadline):
-                if _probe_duration_s(out) >= 45:
+                if _quality_ok(out, 45):
                     title = str(d.get("title") or ident)[:80]
                     source.update({
                         "id": f"ao:{ident}",
@@ -341,9 +377,12 @@ def download(source: dict, work: Path, state: dict | None = None) -> Path:
 
     # RUNG 1: yt-dlp (+ cookies when the secret exists)
     cookies = _cookies_file(work)
+    src_out = work / f"source_{vid}.mp4"
     try:
-        if _run_ytdlp(url, work / f"source_{vid}.mp4", cookies, deadline):
-            return work / f"source_{vid}.mp4"
+        if _run_ytdlp(url, src_out, cookies, deadline) \
+                and _quality_ok(src_out):
+            return src_out
+        src_out.unlink(missing_ok=True)   # low-res / broken -> next rung
     finally:
         if cookies is not None:
             cookies.unlink(missing_ok=True)
