@@ -52,7 +52,12 @@ jobs:
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
           COOKIES_TXT: ${{ secrets.COOKIES_TXT }}
-        run: python main.py 2>&1 | tee factory.log
+        run: |
+          if [ -z "$YT_REFRESH_TOKEN" ]; then
+            echo "::warning::YT_REFRESH_TOKEN not set yet - waiting for the one-time Google authorization. Skipping."
+            exit 0
+          fi
+          python main.py 2>&1 | tee factory.log
       - name: File an issue on failure
         if: failure()
         uses: actions/github-script@v7

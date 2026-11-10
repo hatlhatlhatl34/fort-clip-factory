@@ -60,6 +60,10 @@ jobs:
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
           COOKIES_TXT: ${{ secrets.COOKIES_TXT }}
         run: |
+          if [ -z "$YT_REFRESH_TOKEN" ]; then
+            echo "::warning::YT_REFRESH_TOKEN not set yet - the machine is armed but waiting for the one-time Google authorization (RUNBOOK.md step 3). Skipping this run."
+            exit 0
+          fi
           set -o pipefail
           python main.py 2>&1 | tee factory.log
 
