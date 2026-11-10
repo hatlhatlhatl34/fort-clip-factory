@@ -270,6 +270,17 @@ def _ao_open_pool(source: dict, work: Path, state: dict,
     The item is marked used in the machine's memory the moment it is
     chosen, so the open pool is mined without repeats too."""
     used = set(state.get("used_sources", []))
+
+    def mined(ident: str) -> bool:
+        # an item can be remembered in three forms: bare identifier
+        # (open pool), "ao:" + identifier (open pool, legacy), or the
+        # bare YouTube id it mirrors (mirror rung) — check them all so
+        # one video can never be mined twice through different rungs.
+        forms = {ident, f"ao:{ident}"}
+        if ident.startswith("youtube-"):
+            forms.add(ident[len("youtube-"):])
+        return bool(forms & used)
+
     for q in AO_QUERIES:
         if _left(deadline) < 120:
             return None
@@ -283,7 +294,7 @@ def _ao_open_pool(source: dict, work: Path, state: dict,
             if _left(deadline) < 120:
                 return None
             ident = d.get("identifier", "")
-            if not ident or ident in used:
+            if not ident or mined(ident):
                 continue
             pick = _ao_video_file(ident, deadline)
             if not pick:
