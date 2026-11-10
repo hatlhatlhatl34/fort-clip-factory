@@ -1,0 +1,4 @@
+PyYAML>=6.0
+numpy>=1.26
+Pillow>=10.0
+yt-dlp>=2026.1.1

@@ -1,0 +1,110 @@
+# ══════════════════════════════════════════════════════════════════
+#  FORT CLIP FACTORY — machine DNA
+#  Clips REAL Fortnite map gameplay videos from YouTube into vertical
+#  Shorts that carry the map code + creator code, first frame to last.
+# ══════════════════════════════════════════════════════════════════
+
+channel:
+  name: "Fort Clip Factory"
+  language: "en"                      # English titles, descriptions, tags
+  niche: "Fortnite creative map clips"
+
+# ── THE CODES (the whole point of the machine) ──────────────────────
+codes:
+  map_code: "1789-8528-6429"          # big top bar, every frame
+  creator_code: "H15"                 # footer bar, every frame
+  show_in_title: true                 # codes also live in the title
+  show_in_description: true           # ...and the description
+
+# ── SOURCING RULES (owner rules, 2026-11-10) ───────────────────────
+sources:
+  # OWNER RULE: source videos must be at most 11 months old. The API
+  # call is born with publishedAfter = now - max_age_days, so older
+  # footage can never even enter the candidate pool.
+  max_age_days: 334                   # ~11 months, hard filter
+  min_duration_s: 120                 # need at least 2 min to mine clips
+  max_duration_s: 5400                # skip 3-hour marathons
+  # OWNER RULE: rotate different search phrasings, not one query.
+  # Each run picks the next phrasing (round-robin seeded by the day).
+  queries:
+    - "fortnite creative map"
+    - "fortnite map"
+    - "fortnite map gameplay"
+    - "fortnite creative map gameplay"
+    - "fortnite custom map gameplay"
+    - "UEFN map gameplay"
+    - "fortnite map code gameplay"
+    - "fortnite deathrun gameplay"
+    - "fortnite edit course gameplay"
+    - "fortnite horror map gameplay"
+    - "best fortnite creative maps"
+    - "fortnite parkour map gameplay"
+  orders: ["date", "viewCount", "relevance"]   # mixed per run
+  results_per_search: 25
+  # never re-clip the same source video twice, ever
+  no_repeat_sources: true
+
+# ── CLIP ENGINE ─────────────────────────────────────────────────────
+clip:
+  target_len_s: [20, 35]              # the Short's length window
+  min_motion_score: 12.0              # reject near-static windows
+  scene_threshold: 0.28               # ffmpeg scene-change sensitivity
+  max_clips_per_run: 1                # one Short per grid slot
+
+# ── TRANSFORMATION (this is what makes it OUR video) ────────────────
+transform:
+  width: 1080
+  height: 1920                        # 9:16 vertical Short
+  zoom: 1.08                          # slight push-in: not a raw crop
+  strip_audio: true                   # original audio is DISCARDED
+  fps: 30
+
+# ── OVERLAYS (first frame to last, no gaps) ─────────────────────────
+overlay:
+  top_bar_height: 300                 # px of the 1920 canvas
+  top_label: "MAP CODE"
+  footer_bar_height: 240
+  footer_label: "CREATOR CODE"
+  accent: "#FFD400"                   # Fortnite-ish gold
+  bar_opacity: 205                    # ~80% black bars
+  pulse: false                        # static = readable in every frame
+
+# ── MUSIC (numpy-synthesized, zero copyright) ───────────────────────
+music:
+  mood: "energetic"                   # driving gaming bed, not calm
+  volume: 0.9
+
+# ── PUBLISHING GRID (3 Shorts/day weekdays, 4 on Fri/Sat/Sun) ────────
+schedule:
+  timezone: "Africa/Cairo"
+  slots: ["00:00", "08:00", "16:00"]  # base grid: 3 per day, 8h apart
+  weekend_slots: ["20:00"]            # 4th slot: Fri/Sat/Sun only
+  weekend_days: [4, 5, 6]             # Python weekday(): 4=Fri 5=Sat 6=Sun
+  publish_lead_minutes: 25            # book only slots >=25 min out
+
+youtube:
+  category_id: "20"                   # Gaming
+  made_for_kids: false                # gameplay clips are not child-directed
+  privacy: "public"
+  default_language: "en"
+  synthetic_media_disclosure: false   # real gameplay footage, not AI-generated
+  # metadata templates — {map}, {creator}, {title} are filled by src/metadata.py
+  title_templates:
+    - "{map} 🔥 CRAZY Fortnite Map Clips #{n}"
+    - "PLAY THIS MAP 🎮 {map} | Fortnite Clips #{n}"
+    - "{map} — Insane Fortnite Map Moments #{n}"
+    - "USE CODE {creator} 🛒 {map} | Fortnite Map Clips #{n}"
+
+daily:
+  quota_budget: 10000                 # YouTube Data API units/day
+  # cost model: search 100 + upload 1600 per Short; 3/day = ~5,100
+  # plus verify fallback 1-2 — huge margin under 10,000.
+
+verify:
+  enabled: true
+  grace_days: 2
+  scan_days: 10
+  fallback_api: true
+
+ingest:
+  folder: "ingest"                    # rung 2: drop MP4s here manually

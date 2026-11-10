@@ -1,0 +1,95 @@
+name: daily-clip-factory
+
+# The main machine: fires ~8h apart (21:30 / 05:30 / 13:30 UTC =
+# 23:30 / 07:30 / 15:30 Cairo winter, 00:30 / 08:30 / 16:30 summer)
+# plus a weekend cron (16:00 UTC Fri/Sat/Sun) for the 4th slot at
+# 20:00 Cairo. The gate + publishAt grid absorb the drift: each run
+# books the NEXT open grid slot, so the published grid stays exactly
+# 3 Shorts/day on weekdays and 4/day on Fri/Sat/Sun.
+on:
+  schedule:
+    - cron: "30 21 * * *"   # ~ Cairo 00:00 slot
+    - cron: "30 5 * * *"    # ~ Cairo 08:00 slot
+    - cron: "30 13 * * *"   # ~ Cairo 16:00 slot
+    - cron: "0 16 * * 5,6,0" # weekend 20:00 Cairo slot (Fri/Sat/Sun)
+  workflow_dispatch: {}
+
+concurrency:
+  group: clip-factory
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python tools/gate.py --event "${{ github.event_name }}" --actor "${{ github.actor }}" | tee gate.txt
+      - id: verdict
+        run: echo "verdict=$(head -1 gate.txt | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+    outputs:
+      verdict: ${{ steps.verdict.outputs.verdict }}
+
+  factory:
+    needs: gate
+    if: needs.gate.outputs.verdict == 'RUN'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ffmpeg + deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet --upgrade pip
+          pip install --quiet -r requirements.txt
+
+      - name: Run the factory
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          COOKIES_TXT: ${{ secrets.COOKIES_TXT }}
+        run: |
+          set -o pipefail
+          python main.py 2>&1 | tee factory.log
+
+      - name: File an issue on failure (never fail silently)
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let log = '';
+            try { log = fs.readFileSync('factory.log', 'utf8').slice(-3000); } catch (e) {}
+            const alerts = log.split('\n').filter(l =>
+              l.includes('ALERT') || l.includes('ERROR')).slice(0, 20).join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Machine failure ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
+              body: `The clip factory run failed.\n\n\`\`\`\n${alerts || log.slice(-1500) || 'no log'}\n\`\`\`\n\nSee the run log for the full trace.`,
+              labels: ['machine-failure']
+            });
+
+      - name: Commit memory back (keeps Actions alive forever)
+        if: always()
+        run: |
+          git config user.name "fort-clip-factory"
+          git config user.email "actions@github.com"
+          git add data/state.json data/state.json.bak 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "memory unchanged"
+          else
+            git commit -m "memory: $(date -u +%Y-%m-%d) run" || true
+            git push || true
+          fi

@@ -1,0 +1,50 @@
+name: watchdog
+
+# Six times a day: verify published Shorts are actually public
+# (zero-quota oEmbed), and file an Issue if anything is late or the
+# main machine has failed twice in a row. Silence is the failure mode
+# this workflow exists to kill.
+on:
+  schedule:
+    - cron: "0 3,9,15,21 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: pip install --quiet PyYAML numpy Pillow
+
+      - name: Verify published shorts
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python main.py --verify-only 2>&1 | tee verify.log
+
+      - name: File an issue if alerts fired
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let log = '';
+            try { log = fs.readFileSync('verify.log', 'utf8'); } catch (e) {}
+            const alerts = log.split('\n').filter(l => l.includes('ALERT')).join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Watchdog alert ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
+              body: `Verification pass found problems:\n\n\`\`\`\n${alerts || log.slice(-1200)}\n\`\`\``,
+              labels: ['machine-failure']
+            });

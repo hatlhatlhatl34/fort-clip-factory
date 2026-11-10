@@ -1,0 +1,18 @@
+# machine memory — committed by every run, never edit by hand
+data/state.json.bak
+
+# scratch
+work/
+*.mp4
+*.wav
+!docs/sample-short.jpg
+
+# python bytecode
+__pycache__/
+*.pyc
+
+# never commit cookies or keys
+cookies.txt
+*.secret
+.env
+client_secret*.json
