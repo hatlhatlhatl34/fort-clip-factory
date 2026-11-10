@@ -1,7 +1,7 @@
 # SAMPLE SHORT — what the machine publishes
 
 **File:** `sample-short.mp4` — rendered by the exact production
-pipeline (`main.py --sample`): the clip engine picks the best 20-35 s
+pipeline (`main.py --sample`): the clip engine picks the best 45-120 s
 motion window, transforms it to 1080×1920 vertical (1.08× zoom
 crop), burns the map-code top bar + creator-code footer into EVERY
 frame, discards original audio, and lays a numpy-synthesized
@@ -16,7 +16,7 @@ regenerate the sample from real footage anytime via
 |---|---|
 | Resolution | 1080 × 1920 (9:16) |
 | Frame rate | 30 fps |
-| Length | 20-35 s (clip-engine window) |
+| Length | 45-120 s (clip-engine window) |
 | Video | H.264 (yuv420p, CRF 20, faststart) |
 | Audio | AAC 160 kbps — synthesized, zero copyright |
 | Map code | 1789-8528-6429 — top bar, first frame → last |
