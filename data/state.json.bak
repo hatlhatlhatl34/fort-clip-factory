@@ -1,0 +1,24 @@
+{
+ "version": 1,
+ "shorts": [],
+ "used_sources": [],
+ "query_cursor": 3,
+ "quota": {
+  "date": "2026-11-10",
+  "units_used": 900
+ },
+ "last_run": null,
+ "last_run_ts": null,
+ "stats": {
+  "shorts_published": 0,
+  "days_active": 0
+ },
+ "used_drops": [
+  "drop_01_xpmap_gameplay.mp4"
+ ],
+ "slots": {
+  "short": [
+   "2026-11-11T00:00:00+02:00"
+  ]
+ }
+}
