@@ -304,7 +304,16 @@ def _ao_open_pool(source: dict, work: Path, state: dict,
                   deadline: float) -> Path | None:
     """RUNG 3: search archive.org itself for fresh Fortnite gameplay.
     The item is marked used in the machine's memory the moment it is
-    chosen, so the open pool is mined without repeats too."""
+    chosen, so the open pool is mined without repeats too.
+
+    OWNER RULE (2026-11-10, freshness): archive.org items ADDED within
+    the 11-month window (sources.max_age_days) are tried first — the
+    same freshness spirit as the YouTube search rule. Items added
+    longer ago (2019 BR compilations and the like) are a LAST resort
+    only when the fresh pool comes up dry, because the machine must
+    never starve silently."""
+    from datetime import datetime, timezone
+
     used = set(state.get("used_sources", []))
 
     def mined(ident: str) -> bool:
@@ -317,16 +326,18 @@ def _ao_open_pool(source: dict, work: Path, state: dict,
             forms.add(ident[len("youtube-"):])
         return bool(forms & used)
 
-    for q in AO_QUERIES:
-        if _left(deadline) < 120:
-            return None
-        url = (AO_SEARCH + "?" + urllib.parse.urlencode({
-            "q": q, "fl[]": ["identifier", "title", "publicdate"],
-            "rows": 50, "page": 1, "output": "json",
-            "sort": "-publicdate"}, doseq=True))
-        doc = _ao_get_json(url, deadline)
-        docs = ((doc or {}).get("response", {}) or {}).get("docs", []) or []
-        for d in docs:
+    age_days = float((cfg().get("sources") or {}).get("max_age_days", 334))
+
+    def _added_recently(d: dict) -> bool:
+        try:
+            pd = datetime.fromisoformat(
+                str(d.get("publicdate", "")).replace("Z", "+00:00"))
+            return (datetime.now(timezone.utc) - pd).days <= age_days
+        except Exception:
+            return False           # unknown date -> last-resort pass
+
+    def _try_docs(doclist: list[dict]) -> Path | None:
+        for d in doclist:
             if _left(deadline) < 120:
                 return None
             ident = d.get("identifier", "")
@@ -351,6 +362,30 @@ def _ao_open_pool(source: dict, work: Path, state: dict,
                     print(f"[archive.org] open-pool source: {title!r}")
                     return out
                 out.unlink(missing_ok=True)
+        return None
+
+    for q in AO_QUERIES:
+        if _left(deadline) < 120:
+            return None
+        url = (AO_SEARCH + "?" + urllib.parse.urlencode({
+            "q": q, "fl[]": ["identifier", "title", "publicdate"],
+            "rows": 50, "page": 1, "output": "json",
+            "sort": "-publicdate"}, doseq=True))
+        doc = _ao_get_json(url, deadline)
+        docs = ((doc or {}).get("response", {}) or {}).get("docs", []) or []
+        fresh = [d for d in docs if _added_recently(d)]
+        older = [d for d in docs if not _added_recently(d)]
+        print(f"[archive.org] query {q!r}: {len(fresh)} fresh + "
+              f"{len(older)} older items")
+        hit = _try_docs(fresh)
+        if hit:
+            return hit
+        if older:
+            print("[archive.org] fresh pool dry — trying older items "
+                  "(last resort, machine must not starve)")
+            hit = _try_docs(older)
+            if hit:
+                return hit
         print(f"[archive.org] open pool query {q!r} had no usable item")
     return None
 
