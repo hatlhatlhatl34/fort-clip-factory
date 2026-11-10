@@ -276,7 +276,7 @@ def _ao_open_pool(source: dict, work: Path, state: dict,
         url = (AO_SEARCH + "?" + urllib.parse.urlencode({
             "q": q, "fl[]": ["identifier", "title", "publicdate"],
             "rows": 50, "page": 1, "output": "json",
-            "sort": "-publicdate"}))
+            "sort": "-publicdate"}, doseq=True))
         doc = _ao_get_json(url, deadline)
         docs = ((doc or {}).get("response", {}) or {}).get("docs", []) or []
         for d in docs:
