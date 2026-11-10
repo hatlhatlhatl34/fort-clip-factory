@@ -7,10 +7,12 @@ share a title (crash-adoption safety).
 Description:
   * MAP CODE (huge, first line)
   * CREATOR CODE + item-shop CTA
-  * honest source credit (the original video + channel) — this is
-    what keeps the channel in fair-use territory: credit, transform,
-    no confusion about origin
   * hashtag block
+
+OWNER RULE (2026-11-10): NO source-credit sentence — the
+"clipped from <video> by <channel>" line is permanently banned
+from every description, on every rung (YouTube, archive.org,
+ingest drops). Nothing about the source video ever appears.
 """
 from __future__ import annotations
 
@@ -48,23 +50,8 @@ def build(source: dict, state: dict, seed: int) -> dict:
         "",
         "How to play: Fortnite → search → enter the map code above. 🎮",
     ]
-    # honest source credit — only for real YouTube sources (ingest/
-    # drops have no source video to credit; archive.org open-pool
-    # items get their own honest line)
-    if source.get("origin") == "archive":
-        desc += [
-            "",
-            f'clipped from "{source.get("title", "")}" '
-            "(via an archive.org mirror)",
-        ]
-    elif source.get("id") and not str(source["id"]).startswith("manual") \
-            and not str(source["id"]).startswith("ao:"):
-        desc += [
-            "",
-            f"clipped from \"{source.get('title', '')}\" "
-            f"by {source.get('channel', '')} — full video: "
-            f"https://www.youtube.com/watch?v={source.get('id', '')}",
-        ]
+    # OWNER RULE (2026-11-10): no source credit of any kind — the
+    # "clipped from ..." sentence is banned from descriptions.
     desc += [
         "",
         "#fortnite #fortnitemap #fortnitecreative #fortniteclips "
