@@ -67,7 +67,7 @@ def run(*, dry_run: bool = False, offline: bool = False,
 
     # ── 2. download it ──────────────────────────────────────────────
     try:
-        src_path = downloader.download(source, work)
+        src_path = downloader.download(source, work, state)
     except downloader.DownloadError as e:
         print(e)
         return 1

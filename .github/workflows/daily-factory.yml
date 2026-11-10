@@ -90,7 +90,7 @@ jobs:
         run: |
           git config user.name "fort-clip-factory"
           git config user.email "actions@github.com"
-          git add data/state.json data/state.json.bak 2>/dev/null || true
+          git add -A data ingest 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "memory unchanged"
           else

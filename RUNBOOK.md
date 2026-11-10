@@ -15,7 +15,11 @@ doctrine it was ported from.
 
 ## 1. Create the GitHub repo
 
-1. Create a new **private** GitHub repository (e.g. `fort-clip-factory`).
+1. Create a new GitHub repository `fort-clip-factory` (it can be
+   public — public repos get **unlimited free Actions minutes**, which
+   is what lets this machine run for years at zero cost; the workflow
+   keeps the repo active by committing memory every run, so GitHub
+   never auto-disables the schedule).
 2. Upload this folder's contents (all files, keeping the directory
    structure). Include `.github/workflows/`.
 3. Repo → Settings → Actions → General → Workflow permissions →
@@ -79,8 +83,12 @@ bot"). A logged-in cookies file walks past the check:
 3. Export cookies for `youtube.com` → `cookies.txt`.
 4. Paste the whole file into the `COOKIES_TXT` secret.
 
-If even cookies fail someday, the machine files a DOWNLOAD-ALERT
-issue and you drop MP4s into `ingest/` — it never starves silently.
+If even cookies fail someday, the machine falls through to its other
+food rungs — the **archive.org mirror** of the picked video (items
+named `youtube-<id>`) and the **archive.org open pool** (a direct
+search for fresh Fortnite gameplay mirrors, each mined once) — and
+only then files a DOWNLOAD-ALERT issue and waits for MP4s in
+`ingest/`. It never starves silently.
 
 ## 6. First run
 
@@ -95,6 +103,8 @@ of the 10,000 daily quota — comfortable margin. Weekdays ≈ 5,100.
 ## 7. What the machine remembers (data/state.json)
 
 * `used_sources` — every source video ever mined (never re-clipped)
+* `used_drops` — every ingest/ drop ever consumed (never re-mined,
+  even if a commit fails)
 * `shorts` — every published Short (source, window, video id, title)
 * `slots` — booked publishAt grid slots
 * `quota` — daily API units (rolls at midnight Pacific, like YouTube)

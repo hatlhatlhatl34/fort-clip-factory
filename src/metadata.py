@@ -49,8 +49,16 @@ def build(source: dict, state: dict, seed: int) -> dict:
         "How to play: Fortnite → search → enter the map code above. 🎮",
     ]
     # honest source credit — only for real YouTube sources (ingest/
-    # drops have no source video to credit)
-    if source.get("id") and not str(source["id"]).startswith("manual"):
+    # drops have no source video to credit; archive.org open-pool
+    # items get their own honest line)
+    if source.get("origin") == "archive":
+        desc += [
+            "",
+            f'clipped from "{source.get("title", "")}" '
+            "(via an archive.org mirror)",
+        ]
+    elif source.get("id") and not str(source["id"]).startswith("manual") \
+            and not str(source["id"]).startswith("ao:"):
         desc += [
             "",
             f"clipped from \"{source.get('title', '')}\" "

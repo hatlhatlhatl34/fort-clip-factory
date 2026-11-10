@@ -1,9 +1,11 @@
 # machine memory — committed by every run, never edit by hand
-data/state.json.bak
+# (state.json AND state.json.bak both live in git: two rungs of the
+# memory-recovery ladder)
 
 # scratch
 work/
 *.mp4
+!ingest/*.mp4
 *.wav
 !docs/sample-short.jpg
 
