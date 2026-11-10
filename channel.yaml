@@ -22,8 +22,18 @@ sources:
   # call is born with publishedAfter = now - max_age_days, so older
   # footage can never even enter the candidate pool.
   max_age_days: 334                   # ~11 months, hard filter
-  min_duration_s: 120                 # need at least 2 min to mine clips
+  # OWNER RULE (2026-11-10): clip from NORMAL videos only, never from
+  # Shorts. YouTube Shorts max out at 3 minutes, so a source of at
+  # least 4 minutes can never be a Short — the machine mines a fresh
+  # horizontal gameplay video and converts the window into a Short.
+  min_duration_s: 240                 # ≥4 min = a real video, never a Short
   max_duration_s: 5400                # skip 3-hour marathons
+  # OWNER RULE (2026-11-10, quality fix): a source file below this
+  # height (144p/360p garbage, tiny archive mirrors) is rejected —
+  # the ladder falls through to the next rung instead of shipping a
+  # mushy Short. 720 is the floor; the download ladder prefers up
+  # to 1440p for a crisp 1080x1920 re-render.
+  min_source_height: 720              # hard quality floor for ANY rung
   # OWNER RULE: rotate different search phrasings, not one query.
   # Each run picks the next phrasing (round-robin seeded by the day).
   # OWNER RULE (2026-11-10, sample-1 approval): XP-map gameplay is the
@@ -53,7 +63,9 @@ sources:
 
 # ── CLIP ENGINE ─────────────────────────────────────────────────────
 clip:
-  target_len_s: [20, 35]              # the Short's length window
+  # OWNER RULE (2026-11-10): Shorts must run at least 40-45 s — 20 s
+  # was too low. Floor = 45 s, ceiling = 120 s (2 minutes).
+  target_len_s: [45, 120]             # the Short's length window
   min_motion_score: 12.0              # reject near-static windows
   scene_threshold: 0.28               # ffmpeg scene-change sensitivity
   max_clips_per_run: 1                # one Short per grid slot
