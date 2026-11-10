@@ -1,16 +1,30 @@
 {
  "version": 1,
- "shorts": [],
- "used_sources": [],
+ "shorts": [
+  {
+   "n": 1,
+   "source_id": "B9TEJxcmonU",
+   "source_title": "BEST Fortnite AFK XP MAP (NO TIMER!) Level Up FAST in Chapter 7 Season 5! \ud83d\udd25 (225,000 XP)",
+   "source_channel": "Whoods",
+   "date": "2026-11-10",
+   "video_id": "M2HqrrXF-dc",
+   "clip_start": 26.8,
+   "clip_dur": 21.0,
+   "title": "1789-8528-6429 \ud83d\udd25 XP MAP Gameplay \u2014 Fortnite Clips #1"
+  }
+ ],
+ "used_sources": [
+  "B9TEJxcmonU"
+ ],
  "query_cursor": 3,
  "quota": {
   "date": "2026-11-10",
-  "units_used": 900
+  "units_used": 2500
  },
- "last_run": null,
- "last_run_ts": null,
+ "last_run": "2026-11-10",
+ "last_run_ts": 1794321059,
  "stats": {
-  "shorts_published": 0,
+  "shorts_published": 1,
   "days_active": 0
  },
  "used_drops": [
