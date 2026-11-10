@@ -142,6 +142,7 @@ def search_sources(state: dict, seed: int) -> list[dict]:
                 "channel": (sn.get("channelTitle") or "").strip(),
                 "published_at": sn.get("publishedAt", ""),
                 "order": order_i,
+                "query": query,     # rides along for XP-aware titling
             })
 
     candidates = list(seen.values())

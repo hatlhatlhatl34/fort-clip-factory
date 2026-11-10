@@ -24,6 +24,13 @@ def build(source: dict, state: dict, seed: int) -> dict:
     codes = cfg()["codes"]
     n = ledger.next_short_number(state)
     templates = cfg()["youtube"]["title_templates"]
+    # XP-aware titling: footage found via an XP-map query gets the XP
+    # template family (the approved sample-1 niche); other footage
+    # keeps the generic family — titles never mislabel the content.
+    if "xp" in (source.get("query") or "").lower():
+        xp = cfg()["youtube"].get("xp_title_templates") or []
+        if xp:
+            templates = xp
     rng = random.Random(seed)
 
     fields = {

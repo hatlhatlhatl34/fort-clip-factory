@@ -116,9 +116,10 @@ watchdog 6x/day -> oEmbed verify; Issue if a Short is late
 * `sources.max_age_days: 334` — **sources ≤ 11 months old**, enforced
   by `publishedAfter` in the search itself (old footage cannot enter
   the candidate pool).
-* `sources.queries` — 12 rotating phrasings: "fortnite creative map",
-  "fortnite map", "fortnite map gameplay", deathruns, edit courses,
-  horror maps...
+* `sources.queries` — 16 rotating phrasings, XP-map heavy (the
+  approved sample-1 niche): "fortnite xp map gameplay", "fortnite xp
+  farm map", "fortnite afk xp map gameplay", ... plus deathruns, edit
+  courses, horror maps...
 * codes: `1789-8528-6429` top bar + `H15` footer, first frame to
   last, plus title + description.
 * original audio is discarded; the soundtrack is synthesized by

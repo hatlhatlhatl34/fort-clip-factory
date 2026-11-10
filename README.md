@@ -12,9 +12,11 @@ Both also live in every title and description.
 
 ## The daily act
 
-1. **SEARCH** — YouTube Data API, rotating 12 query phrasings
-   ("fortnite creative map", "fortnite map", "fortnite map
-   gameplay"...), `publishedAfter` = now minus 11 months (owner rule:
+1. **SEARCH** — YouTube Data API, rotating 16 query phrasings —
+   XP-map heavy ("fortnite xp map gameplay", "fortnite xp farm
+   map", ... — the approved sample-1 niche) plus creative-map,
+   deathrun, edit-course, horror, parkour variety — with
+   `publishedAfter` = now minus 11 months (owner rule:
    footage older than 11 months can never appear).
 2. **DOWNLOAD** — yt-dlp pulls the actual video (cookies secret
    handles the bot-check; `ingest/` folder is the manual backup).

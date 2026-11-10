@@ -26,14 +26,21 @@ sources:
   max_duration_s: 5400                # skip 3-hour marathons
   # OWNER RULE: rotate different search phrasings, not one query.
   # Each run picks the next phrasing (round-robin seeded by the day).
+  # OWNER RULE (2026-11-10, sample-1 approval): XP-map gameplay is the
+  # preferred niche — 6 of 16 queries target XP maps so most footage
+  # looks like the map the codes promote.
   queries:
+    - "fortnite xp map gameplay"
+    - "fortnite xp farm map"
+    - "fortnite xp map"
+    - "fortnite afk xp map gameplay"
+    - "fortnite xp map code"
+    - "fortnite xp farming gameplay"
     - "fortnite creative map"
     - "fortnite map"
     - "fortnite map gameplay"
     - "fortnite creative map gameplay"
-    - "fortnite custom map gameplay"
     - "UEFN map gameplay"
-    - "fortnite map code gameplay"
     - "fortnite deathrun gameplay"
     - "fortnite edit course gameplay"
     - "fortnite horror map gameplay"
@@ -94,6 +101,12 @@ youtube:
     - "PLAY THIS MAP 🎮 {map} | Fortnite Clips #{n}"
     - "{map} — Insane Fortnite Map Moments #{n}"
     - "USE CODE {creator} 🛒 {map} | Fortnite Map Clips #{n}"
+  # used ONLY when the source was found via an XP-map query (the
+  # approved sample-1 niche) — never mislabels other footage
+  xp_title_templates:
+    - "{map} 🔥 XP MAP Gameplay — Fortnite Clips #{n}"
+    - "FREE XP MAP 🎮 {map} | Fortnite Clips #{n}"
+    - "{map} — CRAZY XP Map Moments #{n}"
 
 daily:
   quota_budget: 10000                 # YouTube Data API units/day
