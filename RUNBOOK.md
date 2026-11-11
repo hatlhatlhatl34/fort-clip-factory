@@ -93,11 +93,46 @@ logged-in cookies file walks past the check:
      GH_TOKEN=<github token> python tools/set_cookies.py cookies.txt
      ```
 
+### MANY ACCOUNTS = MANY JARS (owner idea 2026-11-11)
+
+6-7 spare accounts is even better: paste ALL their exports into
+the ONE `COOKIES_TXT` secret, one after another, separated by a
+marker line between them:
+
+```
+# Netscape HTTP Cookie File
+.youtube.com    TRUE    /...   (account 1's cookies)
+===== JAR 2 =====
+# Netscape HTTP Cookie File
+.youtube.com    TRUE    /...   (account 2's cookies)
+===== JAR 3 =====
+...
+```
+
+The machine validates every jar separately, rotates across them,
+and combined with the monthly harvest each account is touched only
+a handful of times a YEAR — the smallest footprint possible.
+
 The machine validates the paste itself (Netscape format, youtube.com
 domain, repairs a missing header) and logs
-`[cookies] cookies armed: N youtube.com cookie lines` on every run —
-if the log instead says the cookies "may be expired", re-export and
-set the secret again (rotation: every few months).
+`[cookies] jar N armed: ...` on every run — if the log instead says
+the cookies "may be expired", re-export and set the secret again
+(rotation: rare; usually only when YOU log out of that account).
+
+### Exporting cookies ON A PHONE (Android)
+
+1. Install **Firefox** from the Play Store (it officially supports
+   extensions on Android).
+2. Menu → Add-ons → search "**Get cookies.txt LOCALLY**" → Add.
+3. Log into youtube.com with the spare account (or a second spare
+   account for jar 2, etc.).
+4. Open youtube.com → menu → Add-ons → Get cookies.txt LOCALLY →
+   **Export** → the file saves to Downloads.
+5. Send that file here in chat (or paste it into the secret) —
+   done. Repeat per account, one export each.
+
+(On iPhone there is no clean way — use any computer, or tell me and
+we find another path.)
 
 If even cookies fail someday, the machine falls through to its other
 food rungs — the **archive.org mirror** of the picked video (items
@@ -105,6 +140,32 @@ named `youtube-<id>`) and the **archive.org open pool** (a direct
 search for fresh Fortnite gameplay mirrors, each mined once) — and
 only then files a DOWNLOAD-ALERT issue and waits for MP4s in
 `ingest/`. It never starves silently.
+
+## 5b. THE BANK — monthly harvest, daily publish (owner idea 2026-11-11)
+
+The IP-flag problem, solved structurally: the risky work (YouTube
+downloads) happens **once a month** in ONE long session from ONE
+IP with the cookie jars; the daily runs do ONLY the API upload
+(OAuth is identity-based, never IP-flagged).
+
+* `monthly-bank-harvest.yml` fires on the 1st (06:00 UTC) and its
+  guard retries daily at 07:00 UTC until the bank is full — "try
+  again and again until the gate opens".
+* The harvest downloads only a ~5-minute **slice** of each source
+  (`--download-sections`), clips + renders ~93 Shorts, and banks
+  them into ONE GitHub **artifact** (free on public repos,
+  auto-expires after 45 days — no repo bloat).
+* Daily runs fetch the month's artifact, pop the next banked clip,
+  and upload it into its grid slot — no yt-dlp, no cookies, no bot
+  wall on daily IPs, ever.
+* **Never starves:** bank empty / artifact gone / download failed →
+  the daily run falls back to the live ladder exactly as before.
+  The bank is a cache, never a single point of failure.
+* Quota stays legal: uploads stay spread daily (an upload is 1600
+  API units of the 10,000/day budget — max ~6/day anyway).
+
+No setup needed — everything above is automatic once the secrets
+are set.
 
 ## 6. First run
 

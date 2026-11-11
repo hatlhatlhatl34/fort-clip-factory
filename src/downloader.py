@@ -8,10 +8,11 @@ starves the machine — it falls through to the next:
           consumed drop is remembered in state.used_drops AND deleted
           from the repo, so a drop is mined exactly once, ever.
   RUNG 1  yt-dlp player-client ladder (web, android_vr, tv,
-          web_embedded, ios, tv_simply) + COOKIES_TXT secret when set.
-          The workflows install deno (yt-dlp's JS runtime) so the web
-          client can decipher formats — owner fix 2026-11-11, found in
-          the run log as "No supported JavaScript runtime".
+          web_embedded, ios, tv_simply) + COOKIES_TXT secret when set —
+          now MULTI-JAR (owner idea 2026-11-11): the single secret may
+          hold several exports separated by '===== JAR 2 =====' lines;
+          the ladder rotates across jars. The workflows install deno
+          (yt-dlp's JS runtime) so the web client can decipher formats.
   RUNG 2  archive.org MIRROR of the exact YouTube video just picked
           (items are named youtube-<video id>) — byte-identical
           footage, no bot-check, honest source credit unchanged.
@@ -21,6 +22,12 @@ starves the machine — it falls through to the next:
   RUNG 4  NEVER silent: a failed download prints a DOWNLOAD-ALERT
           marker the workflow turns into a GitHub Issue, so the
           machine is never quietly starving.
+
+MONTHLY BANK MODE (owner idea 2026-11-11): `download_slice()` grabs
+only a ~5-minute window of a video (--download-sections) so the
+once-a-month harvest can feed ~93 clips from ONE IP in ONE session
+without burning runner disk. Daily runs then only upload (OAuth is
+never IP-flagged).
 
 Everything runs under a wall-clock budget so one rung can never eat
 the whole CI job. Formats: we PREFER up to 1440p sources (a 1080x1920
@@ -34,6 +41,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -117,56 +125,76 @@ def _quality_ok(p: Path, min_dur: float = 0.0) -> bool:
     return True
 
 
-def _cookies_file(work: Path) -> Path | None:
-    """COOKIES_TXT secret -> work/cookies.txt (never printed, never
-    committed; deleted after the run).
+_JAR_SEP = re.compile(r"^=+\s*jar\s*#?\s*\d+\s*=*$", re.IGNORECASE)
 
-    Hardened 2026-11-11: a bad paste (wrong export format, foreign
-    domain, JSON instead of Netscape) is caught HERE with a loud,
-    actionable log line instead of silently killing every yt-dlp
-    attempt with 'not a valid Netscape cookies file'. A missing
-    '# Netscape HTTP Cookie File' header is repaired automatically
-    (a common export quirk). When valid, the run log says so.
-    """
-    raw = os.environ.get("COOKIES_TXT", "")
-    if not raw.strip():
-        return None
 
-    lines = raw.splitlines()
+def _write_jar(work: Path, block: str, idx: int) -> Path | None:
+    """Validate + write one cookie jar (work/cookies_<idx>.txt).
+    Loud, actionable rejection instead of a silent ladder death."""
+    lines = block.splitlines()
     header = any(l.strip().startswith("# Netscape HTTP Cookie File")
                  for l in lines[:5])
     body = [l for l in lines
             if l.strip() and not l.lstrip().startswith("#")]
-
     if not body:
-        print("[cookies] COOKIES_TXT is set but contains no cookie "
-              "lines — wrong export. Re-export youtube.com cookies with "
-              "'Get cookies.txt LOCALLY'. Running the anonymous ladder.")
+        print(f"[cookies] jar {idx}: no cookie lines — wrong export, "
+              "jar skipped")
         return None
     malformed = [l for l in body[:80] if len(l.split("\t")) < 7]
     if malformed:
-        print(f"[cookies] COOKIES_TXT is set but {len(malformed)}/"
-              f"{min(len(body), 80)} lines are not 7-field Netscape rows "
-              "— wrong export format (JSON?). Re-export with 'Get "
-              "cookies.txt LOCALLY' (Netscape format). Running the "
-              "anonymous ladder.")
+        print(f"[cookies] jar {idx}: {len(malformed)}/"
+              f"{min(len(body), 80)} lines are not 7-field Netscape "
+              "rows — wrong export format (JSON?), jar skipped")
         return None
     yt = [l for l in body if "youtube.com" in l.split("\t")[0]]
     if not yt:
-        print("[cookies] COOKIES_TXT is set but holds no youtube.com "
-              "cookies — export while logged into youtube.com. Running "
-              "the anonymous ladder.")
+        print(f"[cookies] jar {idx}: no youtube.com cookies — jar "
+              "skipped")
         return None
-
-    text = raw if raw.endswith("\n") else raw + "\n"
+    text = "\n".join(lines) + "\n"
     if not header:                      # repair the common quirk
         text = "# Netscape HTTP Cookie File\n" + text
-    cfile = work / "cookies.txt"
+    cfile = work / f"cookies_{idx}.txt"
     cfile.write_text(text)
-    print(f"[cookies] cookies armed: {len(yt)} youtube.com cookie "
-          f"lines, {len(text)/1024:.1f} KB — yt-dlp gets a logged-in "
-          "session")
+    print(f"[cookies] jar {idx} armed: {len(yt)} youtube.com lines, "
+          f"{len(text)/1024:.1f} KB")
     return cfile
+
+
+def _cookie_jars(work: Path) -> list[Path]:
+    """COOKIES_TXT secret -> validated jar files (never printed,
+    never committed; deleted by the caller after the run).
+
+    ONE secret, MANY accounts (owner idea 2026-11-11): paste several
+    exports into the single COOKIES_TXT secret, separated by lines
+    of  '===== JAR 2 ====='  style. 6-7 accounts + the monthly
+    harvest rotation = each account is touched a handful of times
+    a YEAR — the smallest footprint possible."""
+    raw = os.environ.get("COOKIES_TXT", "")
+    if not raw.strip():
+        return []
+    blocks, cur = [], []
+    for line in raw.splitlines():
+        if _JAR_SEP.match(line.strip()):
+            blocks.append("\n".join(cur))
+            cur = []
+        else:
+            cur.append(line)
+    blocks.append("\n".join(cur))
+    jars = []
+    for i, b in enumerate([b for b in blocks if b.strip()], 1):
+        jar = _write_jar(work, b, i)
+        if jar:
+            jars.append(jar)
+    if jars:
+        print(f"[cookies] {len(jars)} jar(s) ready — ladder rotates "
+              "across them")
+    return jars
+
+
+def _wipe_jars(jars: list[Path]) -> None:
+    for j in jars:
+        j.unlink(missing_ok=True)
 
 
 # ── RUNG 0: ingest/ owner drops ─────────────────────────────────────
@@ -209,46 +237,87 @@ def _take_ingest_drop(work: Path, state: dict) -> Path | None:
 
 # ── RUNG 1: yt-dlp ladder ───────────────────────────────────────────
 
-def _run_ytdlp(url: str, out: Path, cookies: Path | None,
-               deadline: float) -> bool:
+def _run_ytdlp(url: str, out: Path, jars: list[Path],
+               deadline: float, sections: str | None = None) -> bool:
     base = ["yt-dlp", "-f", FMT, "--merge-output-format", "mp4",
             "--no-playlist", "--no-part",
             "-o", str(out),
             "--socket-timeout", "20",
             "--retries", "4", "--fragment-retries", "4"]
-    if cookies:
-        base += ["--cookies", str(cookies)]
+    if sections:
+        base += ["--download-sections", sections]
 
-    attempts = [list(base)]           # rung 1a: default client (+cookies)
-    for client in PLAYER_CLIENTS[1:]:
-        a = list(base)
-        a += ["--extractor-args", f"youtube:player_client={client}"]
-        attempts.append(a)
+    # attempt ladder: every jar x the 3 most reliable clients (cap 12);
+    # anonymous (no jars) -> the full 6-client ladder as before
+    if jars:
+        combos = [(client, jar)
+                  for jar in jars
+                  for client in PLAYER_CLIENTS[:3]][:12]
+    else:
+        combos = [(client, None) for client in PLAYER_CLIENTS]
 
-    for i, args in enumerate(attempts):
-        client = PLAYER_CLIENTS[min(i, len(PLAYER_CLIENTS) - 1)]
+    for i, (client, jar) in enumerate(combos):
         if _left(deadline) < 30:
             print("[download] yt-dlp ladder out of time budget")
             return False
+        args = list(base)
+        if jar:
+            args += ["--cookies", str(jar)]
+        if client != PLAYER_CLIENTS[0]:
+            args += ["--extractor-args",
+                     f"youtube:player_client={client}"]
         try:
             r = subprocess.run(
                 args + [url], capture_output=True, text=True,
                 timeout=min(YTDLP_ATTEMPT_S, max(int(_left(deadline)), 20)))
         except subprocess.TimeoutExpired:
-            print(f"[download] attempt {i+1} ({client}): timeout")
+            print(f"[download] attempt {i+1} ({client}, "
+                  f"jar {jar.stem if jar else '-'}): timeout")
             continue
         if r.returncode == 0 and out.exists() \
                 and out.stat().st_size > 1_000_000:
-            print(f"[download] OK via player_client={client} "
+            print(f"[download] OK via player_client={client}"
+                  f"{', jar ' + jar.stem if jar else ''} "
                   f"({out.stat().st_size/1e6:.1f} MB)")
             return True
         tail = (r.stderr or "").strip().splitlines()[-3:]
-        print(f"[download] attempt {i+1} ({client}): "
+        print(f"[download] attempt {i+1} ({client}, "
+              f"jar {jar.stem if jar else '-'}): "
               f"rc={r.returncode} {' | '.join(tail)[:300]}")
         if out.exists() and out.stat().st_size < 1_000_000:
             out.unlink(missing_ok=True)   # error-page stub
         time.sleep(3)
     return False
+
+
+def download_slice(source: dict, work: Path, slice_start: float,
+                   slice_len: float,
+                   budget_s: float = 8 * 60) -> Path | None:
+    """MONTHLY BANK MODE: grab only slice_len seconds of the video
+    starting at slice_start (--download-sections). One IP, one
+    session, ~100 sources/month — the anti-flag design.
+
+    Returns None (never raises) on failure — the harvest simply moves
+    to the next candidate; ingest/archive rungs do not apply here
+    (a slice is video-specific)."""
+    work.mkdir(parents=True, exist_ok=True)
+    vid = source.get("id", "unknown")
+    url = f"https://www.youtube.com/watch?v={vid}"
+    deadline = time.monotonic() + budget_s
+    jars = _cookie_jars(work)
+    out = work / f"slice_{vid}.mp4"
+    try:
+        ok = _run_ytdlp(url, out, jars, deadline,
+                        sections=f"*{int(max(0, slice_start))}-"
+                                  f"{int(max(0, slice_start) + slice_len)}")
+        if ok and _quality_ok(out, 45):
+            return out
+        out.unlink(missing_ok=True)
+    finally:
+        _wipe_jars(jars)
+    print(f"[download] slice failed for {vid} — trying the next "
+          "candidate")
+    return None
 
 
 # ── RUNG 2/3: archive.org ───────────────────────────────────────────
@@ -454,17 +523,16 @@ def download(source: dict, work: Path, state: dict | None = None) -> Path:
     if drop:
         return drop
 
-    # RUNG 1: yt-dlp (+ cookies when the secret exists)
-    cookies = _cookies_file(work)
+    # RUNG 1: yt-dlp (+ cookies jars when the secret exists)
+    jars = _cookie_jars(work)
     src_out = work / f"source_{vid}.mp4"
     try:
-        if _run_ytdlp(url, src_out, cookies, deadline) \
+        if _run_ytdlp(url, src_out, jars, deadline) \
                 and _quality_ok(src_out):
             return src_out
         src_out.unlink(missing_ok=True)   # low-res / broken -> next rung
     finally:
-        if cookies is not None:
-            cookies.unlink(missing_ok=True)
+        _wipe_jars(jars)
 
     # RUNG 2: archive.org mirror of this exact video
     mirror = _ao_mirror(source, work, deadline)
@@ -477,7 +545,7 @@ def download(source: dict, work: Path, state: dict | None = None) -> Path:
         return pool
 
     # RUNG 4: loud, actionable failure
-    if cookies is None:
+    if not jars:
         msg = ("DOWNLOAD-ALERT: yt-dlp was bot-checked for source "
                f"{vid} ({source.get('title','')[:60]}), the archive.org "
                "mirror + open-pool rungs found nothing, and no "

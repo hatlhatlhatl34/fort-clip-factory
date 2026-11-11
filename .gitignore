@@ -4,6 +4,7 @@
 
 # scratch
 work/
+bank/
 *.mp4
 !ingest/*.mp4
 *.wav

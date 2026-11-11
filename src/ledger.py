@@ -98,7 +98,11 @@ def save(state: dict) -> None:
 # ── clip-machine specifics ──────────────────────────────────────────
 
 def next_short_number(state: dict) -> int:
+    """Numbers already burned by published Shorts AND numbers
+    reserved by banked-but-unpublished clips (bank.reserved_n) —
+    the live fallback can never collide with a banked title."""
     nums = [s["n"] for s in state.get("shorts", [])]
+    nums += list((state.get("bank") or {}).get("reserved_n", []) or [])
     return (max(nums) + 1) if nums else 1
 
 

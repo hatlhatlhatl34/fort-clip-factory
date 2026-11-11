@@ -19,6 +19,7 @@ concurrency:
 permissions:
   contents: write
   issues: write
+  actions: read            # fetch bank artifacts from the harvest run
 
 jobs:
   gate:
@@ -49,6 +50,38 @@ jobs:
           curl -fsSL https://deno.com/install.sh | sh \
             || echo "::warning::deno install failed — web client may lose formats"
           echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
+      - name: Bank check (is a banked clip waiting?)
+        id: bank
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          ready, name, run_id = "false", "", ""
+          p = Path("data/bank_pointer.json")
+          if p.exists():
+              try:
+                  ptr = json.loads(p.read_text())
+                  st = json.loads(Path("data/state.json").read_text())
+                  clips = (st.get("bank") or {}).get("clips") or []
+                  if clips and ptr.get("artifact") and ptr.get("run_id"):
+                      ready, name = "true", ptr["artifact"]
+                      run_id = str(ptr["run_id"])
+              except Exception as e:
+                  print("bank check failed:", e)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"ready={ready}\nname={name}\nrun-id={run_id}\n")
+          PY
+
+      - name: Fetch the banked clips
+        if: steps.bank.outputs.ready == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.bank.outputs.name }}
+          run-id: ${{ steps.bank.outputs.run-id }}
+          path: bank_month
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true   # any failure -> live ladder, never starve
+
       - name: Run the factory
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -56,6 +89,7 @@ jobs:
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
           COOKIES_TXT: ${{ secrets.COOKIES_TXT }}
+          BANK_ARTIFACT_DIR: bank_month
         run: |
           if [ -z "$YT_REFRESH_TOKEN" ]; then
             echo "::warning::YT_REFRESH_TOKEN not set yet - waiting for the one-time Google authorization. Skipping."

@@ -1,0 +1,138 @@
+name: monthly-bank-harvest
+
+# THE BANK (owner idea 2026-11-11). The risky work — YouTube
+# downloads — happens ONCE a month in ONE long session from ONE
+# runner IP with the cookie jars, banking ~93 rendered Shorts into
+# ONE artifact. Daily runs then do ONLY the API upload (OAuth is
+# identity-based, never IP-flagged).
+#
+# Blocked by the bot wall? The harvest exits clean (the live ladder
+# keeps the grid fed) and the 07:00 UTC guard retries EVERY DAY
+# until it gets through — "try again and again until the gate
+# opens", exactly as the owner put it. When the bank is full the
+# guard is a seconds-long no-op.
+
+on:
+  schedule:
+    - cron: "0 6 1 * *"    # the 1st: start the monthly food run
+    - cron: "0 7 * * *"    # daily guard: refill when the bank runs low
+  workflow_dispatch: {}
+
+concurrency:
+  group: clip-factory       # never overlap the daily machine
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  actions: write
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --quiet PyYAML
+      - id: verdict
+        run: |
+          python - <<'PY' | tee guard.txt
+          import json, pathlib
+          from yaml import safe_load
+          st = json.loads(pathlib.Path("data/state.json").read_text() or "{}")
+          clips = len((st.get("bank") or {}).get("clips") or [])
+          ptr = pathlib.Path("data/bank_pointer.json").exists()
+          hconf = (safe_load(pathlib.Path("channel.yaml").read_text())
+                   .get("harvest") or {})
+          thr = int(hconf.get("refill_threshold", 8))
+          refill = clips <= thr or not ptr
+          print("RUN" if refill else "SKIP",
+                f"(clips={clips}, threshold={thr}, pointer={ptr})")
+          PY
+          echo "verdict=$(head -1 guard.txt | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+    outputs:
+      verdict: ${{ steps.verdict.outputs.verdict }}
+
+  harvest:
+    needs: guard
+    if: needs.guard.outputs.verdict == 'RUN'
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ffmpeg + deps + deno
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet --upgrade pip
+          pip install --quiet -r requirements.txt
+          # yt-dlp's JS runtime for YouTube's web client.
+          curl -fsSL https://deno.com/install.sh | sh \
+            || echo "::warning::deno install failed — web client may lose formats"
+          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
+
+      - name: Harvest the month (one IP, one session)
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          COOKIES_TXT: ${{ secrets.COOKIES_TXT }}
+        run: python main.py --harvest 2>&1 | tee harvest.log
+
+      - name: Read the artifact name python wrote
+        if: success() && hashFiles('bank/manifest.json') != ''
+        id: month
+        run: echo "name=$(cat bank/artifact_name.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the bank artifact
+        if: success() && steps.month.outputs.name != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.month.outputs.name }}
+          path: bank
+          retention-days: 45
+
+      - name: Point the daily machine at the bank
+        if: success() && steps.month.outputs.name != ''
+        run: |
+          printf '{"run_id": %s, "artifact": "%s", "ready": true}\n' \
+            "${{ github.run_id }}" "${{ steps.month.outputs.name }}" \
+            > data/bank_pointer.json
+          echo "pointer written:"; cat data/bank_pointer.json
+
+      - name: File an issue on failure (never fail silently)
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let log = '';
+            try { log = fs.readFileSync('harvest.log', 'utf8').slice(-3000); } catch (e) {}
+            const alerts = log.split('\n').filter(l =>
+              l.includes('ALERT') || l.includes('ERROR')).slice(0, 20).join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Harvest failure ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
+              body: `The monthly bank harvest failed.\n\n\`\`\`\n${alerts || log.slice(-1500) || 'no log'}\n\`\`\``,
+              labels: ['machine-failure']
+            });
+
+      - name: Commit memory back (keeps Actions alive forever)
+        if: always()
+        run: |
+          git config user.name "fort-clip-factory"
+          git config user.email "actions@github.com"
+          git add -A data ingest 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "memory unchanged"
+          else
+            git commit -m "memory: harvest run $(date -u +%Y-%m-%d)" || true
+            git push || true
+          fi

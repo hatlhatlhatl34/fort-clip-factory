@@ -70,6 +70,21 @@ clip:
   scene_threshold: 0.28               # ffmpeg scene-change sensitivity
   max_clips_per_run: 1                # one Short per grid slot
 
+# ── THE BANK (owner idea 2026-11-11): the monthly food run ──────────
+# One IP, one long session, once a month: download + clip a whole
+# month of Shorts at once (sliced downloads, human pacing, cookie-jar
+# rotation), bank them in a GitHub artifact, and let the daily runs
+# do ONLY the API upload (OAuth is never IP-flagged). Blocked by the
+# bot wall? The guard cron retries daily until it gets through, and
+# the live ladder keeps publishing meanwhile.
+harvest:
+  max_clips: 93              # ~3/day for a month, one session
+  slice_s: 300               # seconds of source grabbed per video
+  pacing_s: [10, 35]         # human-ish pause between downloads
+  days_ahead: 31             # planning window
+  budget_minutes: 280        # wall clock inside the harvest itself
+  refill_threshold: 8        # guard refills when clips drop below this
+
 # ── TRANSFORMATION (this is what makes it OUR video) ────────────────
 transform:
   width: 1080
