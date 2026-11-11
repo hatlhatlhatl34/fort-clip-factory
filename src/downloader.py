@@ -9,6 +9,9 @@ starves the machine — it falls through to the next:
           from the repo, so a drop is mined exactly once, ever.
   RUNG 1  yt-dlp player-client ladder (web, android_vr, tv,
           web_embedded, ios, tv_simply) + COOKIES_TXT secret when set.
+          The workflows install deno (yt-dlp's JS runtime) so the web
+          client can decipher formats — owner fix 2026-11-11, found in
+          the run log as "No supported JavaScript runtime".
   RUNG 2  archive.org MIRROR of the exact YouTube video just picked
           (items are named youtube-<video id>) — byte-identical
           footage, no bot-check, honest source credit unchanged.
@@ -116,12 +119,53 @@ def _quality_ok(p: Path, min_dur: float = 0.0) -> bool:
 
 def _cookies_file(work: Path) -> Path | None:
     """COOKIES_TXT secret -> work/cookies.txt (never printed, never
-    committed; deleted after the run)."""
+    committed; deleted after the run).
+
+    Hardened 2026-11-11: a bad paste (wrong export format, foreign
+    domain, JSON instead of Netscape) is caught HERE with a loud,
+    actionable log line instead of silently killing every yt-dlp
+    attempt with 'not a valid Netscape cookies file'. A missing
+    '# Netscape HTTP Cookie File' header is repaired automatically
+    (a common export quirk). When valid, the run log says so.
+    """
     raw = os.environ.get("COOKIES_TXT", "")
     if not raw.strip():
         return None
+
+    lines = raw.splitlines()
+    header = any(l.strip().startswith("# Netscape HTTP Cookie File")
+                 for l in lines[:5])
+    body = [l for l in lines
+            if l.strip() and not l.lstrip().startswith("#")]
+
+    if not body:
+        print("[cookies] COOKIES_TXT is set but contains no cookie "
+              "lines — wrong export. Re-export youtube.com cookies with "
+              "'Get cookies.txt LOCALLY'. Running the anonymous ladder.")
+        return None
+    malformed = [l for l in body[:80] if len(l.split("\t")) < 7]
+    if malformed:
+        print(f"[cookies] COOKIES_TXT is set but {len(malformed)}/"
+              f"{min(len(body), 80)} lines are not 7-field Netscape rows "
+              "— wrong export format (JSON?). Re-export with 'Get "
+              "cookies.txt LOCALLY' (Netscape format). Running the "
+              "anonymous ladder.")
+        return None
+    yt = [l for l in body if "youtube.com" in l.split("\t")[0]]
+    if not yt:
+        print("[cookies] COOKIES_TXT is set but holds no youtube.com "
+              "cookies — export while logged into youtube.com. Running "
+              "the anonymous ladder.")
+        return None
+
+    text = raw if raw.endswith("\n") else raw + "\n"
+    if not header:                      # repair the common quirk
+        text = "# Netscape HTTP Cookie File\n" + text
     cfile = work / "cookies.txt"
-    cfile.write_text(raw if raw.endswith("\n") else raw + "\n")
+    cfile.write_text(text)
+    print(f"[cookies] cookies armed: {len(yt)} youtube.com cookie "
+          f"lines, {len(text)/1024:.1f} KB — yt-dlp gets a logged-in "
+          "session")
     return cfile
 
 

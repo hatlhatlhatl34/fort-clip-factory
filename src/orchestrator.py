@@ -4,12 +4,15 @@
   2. gate          quota defer active? exit clean (the grid retries)
   3. find          YouTube Data API search — rotating query, 11-month
                    freshness hard-baked into publishedAfter
-  4. download      3-rung ladder (yt-dlp+COOKIES_TXT -> ingest/ ->
+  4. download      4-rung ladder (ingest drops -> yt-dlp+COOKIES_TXT
+                   -> archive.org mirror -> archive.org open pool ->
                    loud DOWNLOAD-ALERT issue)
-  5. clip          scene-change + motion analysis -> best 20-35s
+  5. clip          scene-change + motion analysis -> best 45-120s
+                   window (owner rule 2026-11-10)
   6. transform     9:16 vertical zoom-crop, overlays burned in,
                    original audio discarded, numpy-synth soundtrack
-  7. metadata      codes in title + description + source credit
+  7. metadata      codes in title + description (NO source credit —
+                   owner rule 2026-11-10)
   8. upload        resumable upload, publishAt = next grid slot
   9. remember      used_sources + slot booking + quota ledger, saved
 

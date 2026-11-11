@@ -41,10 +41,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install ffmpeg + deps
+      - name: Install ffmpeg + deps + deno
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
           pip install --quiet -r requirements.txt
+          # yt-dlp's JS runtime for YouTube's web client (2026-11-11).
+          curl -fsSL https://deno.com/install.sh | sh \
+            || echo "::warning::deno install failed — web client may lose formats"
+          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
       - name: Run the factory
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}

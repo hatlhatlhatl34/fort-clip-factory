@@ -45,12 +45,18 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install ffmpeg + deps
+      - name: Install ffmpeg + deps + deno
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
           python -m pip install --quiet --upgrade pip
           pip install --quiet -r requirements.txt
+          # yt-dlp's JS runtime for YouTube's web client (2026-11-11:
+          # without it the web attempt dies "No supported JavaScript
+          # runtime could be found" before cookies even matter).
+          curl -fsSL https://deno.com/install.sh | sh \
+            || echo "::warning::deno install failed — web client may lose formats"
+          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
 
       - name: Run the factory
         env:

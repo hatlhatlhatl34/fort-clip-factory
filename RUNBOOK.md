@@ -72,16 +72,32 @@ Repo → Settings → Secrets and variables → Actions:
 
 ## 5. COOKIES_TXT — the anti-bot-check rung (recommended)
 
-GitHub runner IPs are datacenter IPs; YouTube sometimes blocks
-anonymous downloads from them ("Sign in to confirm you're not a
-bot"). A logged-in cookies file walks past the check:
+GitHub runner IPs are datacenter IPs; YouTube blocks anonymous
+downloads from them ("Sign in to confirm you're not a bot" — the
+01:20 UTC 2026-11-11 run hit it on all six player clients). A
+logged-in cookies file walks past the check:
 
 1. In YOUR browser, log into youtube.com with a spare/throwaway
    Google account (never your main one).
 2. Install a cookie-export extension (e.g. "Get cookies.txt
    LOCALLY" — local only, nothing leaves the browser).
-3. Export cookies for `youtube.com` → `cookies.txt`.
-4. Paste the whole file into the `COOKIES_TXT` secret.
+3. Visit youtube.com, then export cookies for `youtube.com` →
+   `cookies.txt` (Netscape format).
+4. Set the secret one of two ways:
+   * **Web UI:** repo Settings → Secrets and variables → Actions →
+     New repository secret → name `COOKIES_TXT` → paste the whole
+     file.
+   * **One command** (validates first, then encrypts and PUTs the
+     secret via the API):
+     ```
+     GH_TOKEN=<github token> python tools/set_cookies.py cookies.txt
+     ```
+
+The machine validates the paste itself (Netscape format, youtube.com
+domain, repairs a missing header) and logs
+`[cookies] cookies armed: N youtube.com cookie lines` on every run —
+if the log instead says the cookies "may be expired", re-export and
+set the secret again (rotation: every few months).
 
 If even cookies fail someday, the machine falls through to its other
 food rungs — the **archive.org mirror** of the picked video (items
@@ -134,4 +150,6 @@ watchdog 6x/day -> oEmbed verify; Issue if a Short is late
   last, plus title + description.
 * original audio is discarded; the soundtrack is synthesized by
   numpy per clip (zero music copyright).
-* every description credits the source video and channel.
+* descriptions NEVER mention the source video or channel (owner
+  rule 2026-11-10: the "clipped from ..." sentence is permanently
+  banned) — only the map code, creator code and hashtags appear.
