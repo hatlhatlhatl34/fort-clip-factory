@@ -68,7 +68,8 @@
    "video_id": "BMimEfnDpo0",
    "clip_start": 2804.24,
    "clip_dur": 47.0,
-   "title": "1789-8528-6429 \ud83d\udd25 CRAZY Fortnite Map Clips #6"
+   "title": "1789-8528-6429 \ud83d\udd25 CRAZY Fortnite Map Clips #6",
+   "verified": "2026-11-12T14:01:41+00:00"
   },
   {
    "n": 7,
@@ -79,7 +80,8 @@
    "video_id": "VXnynwTtuJY",
    "clip_start": 404.94,
    "clip_dur": 45.0,
-   "title": "USE CODE H15 \ud83d\uded2 1789-8528-6429 | Fortnite Map Clips #7"
+   "title": "USE CODE H15 \ud83d\uded2 1789-8528-6429 | Fortnite Map Clips #7",
+   "verified": "2026-11-12T14:01:41+00:00"
   },
   {
    "n": 8,
@@ -91,6 +93,17 @@
    "clip_start": 125.47,
    "clip_dur": 46.0,
    "title": "USE CODE H15 \ud83d\uded2 1789-8528-6429 | Fortnite Map Clips #8"
+  },
+  {
+   "n": 9,
+   "source_id": "ao:fortnite-first-gameplay-footage-from-comic-con-2012-gametrailers-g-e-943-vyd-15k",
+   "source_title": "Fortnite First Gameplay Footage From Comic Con 2012, Gametrailers [g E 943 VYD 1",
+   "source_channel": "archive.org mirror",
+   "date": "2026-11-13",
+   "video_id": "S5XPU1gmPsM",
+   "clip_start": 264.28,
+   "clip_dur": 45.0,
+   "title": "1789-8528-6429 \ud83d\udd25 CRAZY Fortnite Map Clips #9"
   }
  ],
  "used_sources": [
@@ -101,17 +114,18 @@
   "ao:youtube-A6fZTt_E-w0",
   "ao:youtube-kVCqScRczJE",
   "ao:fortnite-ranked-solo-gameplay-ryzen-5-5600-x-intel-arc-b570-1080p-240-fps",
-  "ao:samsung-galaxy-s10e-unboxing-review-gameplay-fortnite-battle-royale"
+  "ao:samsung-galaxy-s10e-unboxing-review-gameplay-fortnite-battle-royale",
+  "ao:fortnite-first-gameplay-footage-from-comic-con-2012-gametrailers-g-e-943-vyd-15k"
  ],
- "query_cursor": 14,
+ "query_cursor": 15,
  "quota": {
   "date": "2026-11-12",
-  "units_used": 1900
+  "units_used": 3800
  },
- "last_run": "2026-11-12",
- "last_run_ts": 1794492101,
+ "last_run": "2026-11-13",
+ "last_run_ts": 1794525750,
  "stats": {
-  "shorts_published": 8,
+  "shorts_published": 9,
   "days_active": 0
  },
  "used_drops": [
@@ -124,7 +138,8 @@
    "2026-11-12T00:00:00+02:00",
    "2026-11-12T08:00:00+02:00",
    "2026-11-12T16:00:00+02:00",
-   "2026-11-13T00:00:00+02:00"
+   "2026-11-13T00:00:00+02:00",
+   "2026-11-13T08:00:00+02:00"
   ]
  }
 }
