@@ -56,7 +56,8 @@
    "video_id": "l_bzWiucHig",
    "clip_start": 877.04,
    "clip_dur": 48.0,
-   "title": "USE CODE H15 \ud83d\uded2 1789-8528-6429 | Fortnite Map Clips #5"
+   "title": "USE CODE H15 \ud83d\uded2 1789-8528-6429 | Fortnite Map Clips #5",
+   "verified": "2026-11-12T02:28:23+00:00"
   },
   {
    "n": 6,
@@ -68,6 +69,17 @@
    "clip_start": 2804.24,
    "clip_dur": 47.0,
    "title": "1789-8528-6429 \ud83d\udd25 CRAZY Fortnite Map Clips #6"
+  },
+  {
+   "n": 7,
+   "source_id": "ao:fortnite-ranked-solo-gameplay-ryzen-5-5600-x-intel-arc-b570-1080p-240-fps",
+   "source_title": "Fortnite Ranked Solo Gameplay | Ryzen 5 5600X + Intel Arc B570 | 1080p 240FPS",
+   "source_channel": "archive.org mirror",
+   "date": "2026-11-12",
+   "video_id": "VXnynwTtuJY",
+   "clip_start": 404.94,
+   "clip_dur": 45.0,
+   "title": "USE CODE H15 \ud83d\uded2 1789-8528-6429 | Fortnite Map Clips #7"
   }
  ],
  "used_sources": [
@@ -76,17 +88,18 @@
   "ao:fortnite-starwars-battle-of-moraband-trailer",
   "ao:2019-6-10-fortnite-br-fun-rage-570-wins-10.3k-kills",
   "ao:youtube-A6fZTt_E-w0",
-  "ao:youtube-kVCqScRczJE"
+  "ao:youtube-kVCqScRczJE",
+  "ao:fortnite-ranked-solo-gameplay-ryzen-5-5600-x-intel-arc-b570-1080p-240-fps"
  ],
- "query_cursor": 12,
+ "query_cursor": 13,
  "quota": {
   "date": "2026-11-11",
-  "units_used": 3800
+  "units_used": 5700
  },
- "last_run": "2026-11-11",
- "last_run_ts": 1794418014,
+ "last_run": "2026-11-12",
+ "last_run_ts": 1794450503,
  "stats": {
-  "shorts_published": 6,
+  "shorts_published": 7,
   "days_active": 0
  },
  "used_drops": [
@@ -97,7 +110,8 @@
    "2026-11-11T16:00:00+02:00",
    "2026-11-11T00:00:00+02:00",
    "2026-11-12T00:00:00+02:00",
-   "2026-11-12T08:00:00+02:00"
+   "2026-11-12T08:00:00+02:00",
+   "2026-11-12T16:00:00+02:00"
   ]
  }
 }
