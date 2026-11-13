@@ -117,6 +117,17 @@
    "clip_start": 9.7,
    "clip_dur": 53.0,
    "title": "USE CODE H15 \ud83d\uded2 1789-8528-6429 | Fortnite Map Clips #10"
+  },
+  {
+   "n": 11,
+   "source_id": "qQHbhALizDk",
+   "source_title": "How To LEVEL UP FAST in Fortnite Chapter 7 Season 3! (NO TIMER XP MAP)",
+   "source_channel": "KavuN Fortnite",
+   "date": "2026-11-13",
+   "video_id": "c8soU8sCGvc",
+   "clip_start": 231.02,
+   "clip_dur": 45.0,
+   "title": "1789-8528-6429 \ud83d\udd25 XP MAP Gameplay \u2014 Fortnite Clips #11"
   }
  ],
  "used_sources": [
@@ -129,17 +140,18 @@
   "ao:fortnite-ranked-solo-gameplay-ryzen-5-5600-x-intel-arc-b570-1080p-240-fps",
   "ao:samsung-galaxy-s10e-unboxing-review-gameplay-fortnite-battle-royale",
   "ao:fortnite-first-gameplay-footage-from-comic-con-2012-gametrailers-g-e-943-vyd-15k",
-  "ao:youtube-a3rEa7PjyrU"
+  "ao:youtube-a3rEa7PjyrU",
+  "qQHbhALizDk"
  ],
- "query_cursor": 0,
+ "query_cursor": 1,
  "quota": {
   "date": "2026-11-13",
-  "units_used": 1900
+  "units_used": 3800
  },
  "last_run": "2026-11-13",
- "last_run_ts": 1794569045,
+ "last_run_ts": 1794569661,
  "stats": {
-  "shorts_published": 10,
+  "shorts_published": 11,
   "days_active": 0
  },
  "used_drops": [
@@ -154,7 +166,8 @@
    "2026-11-12T16:00:00+02:00",
    "2026-11-13T00:00:00+02:00",
    "2026-11-13T08:00:00+02:00",
-   "2026-11-13T16:00:00+02:00"
+   "2026-11-13T16:00:00+02:00",
+   "2026-11-13T20:00:00+02:00"
   ]
  }
 }
