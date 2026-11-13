@@ -66,7 +66,9 @@ def run(state: dict, *, today: date | None = None,
         recent = []
 
     for s in recent:
-        if s.get("verified"):
+        if s.get("verified") or s.get("owner_deleted"):
+            # owner_deleted: the owner removed/private-ized this Short
+            # himself — a tombstone, not a machine failure. Never alert.
             confirmed += 1
             continue
         verdict = probe(s["video_id"])

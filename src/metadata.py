@@ -1,8 +1,10 @@
-"""Metadata — titles, descriptions, tags. The codes live everywhere.
+"""Metadata — titles, descriptions, tags.
 
-Title: rotating template, always carries the map code (and often the
-creator code), plus the forever-incrementing #N so no two Shorts
-share a title (crash-adoption safety).
+OWNER RULE (2026-11-13): titles are pure HOOKS about XP + free
+skins — the map code NEVER appears in a title (it lives in the
+description + the burned-in top bar). Templates come from
+channel.yaml; the only filled field is {n}, the forever-incrementing
+number so no two Shorts share a title (crash-adoption safety).
 
 Description:
   * MAP CODE (huge, first line)
@@ -23,7 +25,7 @@ from .config import cfg
 
 
 def build(source: dict, state: dict, seed: int) -> dict:
-    codes = cfg()["codes"]
+    codes = cfg()["codes"]          # description + bars only, NEVER titles
     n = ledger.next_short_number(state)
     templates = cfg()["youtube"]["title_templates"]
     # XP-aware titling: footage found via an XP-map query gets the XP
@@ -35,12 +37,7 @@ def build(source: dict, state: dict, seed: int) -> dict:
             templates = xp
     rng = random.Random(seed)
 
-    fields = {
-        "map": codes["map_code"],
-        "creator": codes["creator_code"],
-        "n": n,
-    }
-    title = rng.choice(templates).format(**fields)
+    title = rng.choice(templates).format(n=n)
     title = title[:95]                       # YouTube hard limit is 100
 
     desc = [
@@ -62,7 +59,8 @@ def build(source: dict, state: dict, seed: int) -> dict:
     tags = [
         "fortnite", "fortnite creative", "fortnite map", "map code",
         "fortnite clips", "creative map", "uefn", "fortnite gameplay",
-        "fortnite shorts", "map gameplay",
+        "fortnite shorts", "map gameplay", "fortnite xp map",
+        "free skins", "level up fast", "fortnite battle pass",
     ]
 
     return {
