@@ -54,11 +54,16 @@ def current_branding(token: str) -> dict:
 
 def update_branding(token: str, channel_id: str,
                     description: str, keywords: str) -> None:
+    # NOTE the nesting: brandingSettings.CHANNEL.description — the
+    # YouTube API nests branding under .channel; a flat
+    # brandingSettings.description returns 400 "Required".
     body = json.dumps({
         "id": channel_id,
         "brandingSettings": {
-            "description": description,
-            "keywords": keywords,
+            "channel": {
+                "description": description,
+                "keywords": keywords,
+            },
         },
     }).encode()
     req = urllib.request.Request(
@@ -81,15 +86,17 @@ def main() -> int:
 
     token = youtube.get_access_token()
     cur = current_branding(token)
+    chan = (cur["branding"].get("channel") or {})
+    cur_desc = chan.get("description", "") or "(empty)"
+    cur_kws = chan.get("keywords", "") or ""
     print(f"[branding] channel: {cur['title']!r} ({cur['id']})")
-    print("[branding] current description "
-          f"({len(cur['branding'].get('description', ''))} chars):")
-    print("\n".join("    " + ln for ln in
-                    (cur["branding"].get("description", "")
-                     or "(empty)").splitlines()[:8]))
+    print(f"[branding] current description ({len(cur_desc)} chars):")
+    print("\n".join("    " + ln for ln in cur_desc.splitlines()[:8]))
     print("[branding] planned description:")
     print("\n".join("    " + ln for ln in desc.splitlines()))
     print(f"[branding] planned keywords: {kws[:120]}...")
+    print(f"[branding] current keywords: {cur_kws[:120]}"
+          if cur_kws else "[branding] current keywords: (empty)")
 
     if show_only:
         print("[branding] --show: not applying")
