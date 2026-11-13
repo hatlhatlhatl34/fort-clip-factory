@@ -2,9 +2,10 @@
 
 The machine clips REAL Fortnite map gameplay videos from YouTube into
 vertical Shorts that carry **map code 1789-8528-6429** (top bar, every
-frame) and **creator code H15** (footer, every frame), publishing 3
-Shorts/day at 00:00 / 08:00 / 16:00 Cairo — plus a 4th at 20:00 on
-Fri/Sat/Sun.
+frame) and **creator code H15** (footer, every frame), publishing
+**4 Shorts every day** (owner rule 2026-11-13) at 00:00 / 08:00 /
+16:00 / 20:00 Cairo — ONE upload session per day (08:30 UTC) that
+uploads all four at once, each scheduled with publishAt.
 
 **Services used (by owner decree): YouTube Data API + GitHub only.**
 No render farms, no paid APIs, no bots — the whole machine runs on
@@ -84,34 +85,28 @@ logged-in cookies file walks past the check:
 3. Visit youtube.com, then export cookies for `youtube.com` →
    `cookies.txt` (Netscape format).
 4. Set the secret one of two ways:
-   * **Web UI:** repo Settings → Secrets and variables → Actions →
-     New repository secret → name `COOKIES_TXT` → paste the whole
-     file.
-   * **One command** (validates first, then encrypts and PUTs the
-     secret via the API):
+   * **One command** (validates first, then buckets the jars across
+     up to three secrets — GitHub caps a single secret at 48 KB, and
+     5 accounts don't fit in one):
      ```
      GH_TOKEN=<github token> python tools/set_cookies.py cookies.txt
      ```
+   * **Web UI:** paste into `COOKIES_TXT` (and `COOKIES_TXT2`,
+     `COOKIES_TXT3` for the rest) — separate multiple accounts with
+     `===== JAR 2 =====` marker lines.
 
-### MANY ACCOUNTS = MANY JARS (owner idea 2026-11-11)
+### MANY ACCOUNTS = ONE ROTATING POOL (owner idea; 5 armed 2026-11-13)
 
-6-7 spare accounts is even better: paste ALL their exports into
-the ONE `COOKIES_TXT` secret, one after another, separated by a
-marker line between them:
-
-```
-# Netscape HTTP Cookie File
-.youtube.com    TRUE    /...   (account 1's cookies)
-===== JAR 2 =====
-# Netscape HTTP Cookie File
-.youtube.com    TRUE    /...   (account 2's cookies)
-===== JAR 3 =====
-...
-```
-
-The machine validates every jar separately, rotates across them,
-and combined with the monthly harvest each account is touched only
-a handful of times a YEAR — the smallest footprint possible.
+6-7 spare accounts is even better: paste ALL their exports into ONE
+file (separated by `===== JAR N =====` marker lines) and run
+set_cookies.py once — it packs them into `COOKIES_TXT` +
+`COOKIES_TXT2` + `COOKIES_TXT3` and the machine stitches the three
+back into one pool at run time. The ladder TRULY rotates (round
+robin): the account leading each download advances one position per
+call, so with 5 accounts each one leads ~1/5 of the session's
+downloads. Combined with the monthly harvest, each account is
+touched only a handful of times a YEAR — the smallest footprint
+possible.
 
 The machine validates the paste itself (Netscape format, youtube.com
 domain, repairs a missing header) and logs
@@ -165,12 +160,15 @@ IP with the cookie jars; the daily runs do ONLY the API upload
   guard retries daily at 07:00 UTC until the bank is full — "try
   again and again until the gate opens".
 * The harvest downloads only a ~5-minute **slice** of each source
-  (`--download-sections`), clips + renders ~93 Shorts, and banks
-  them into ONE GitHub **artifact** (free on public repos,
-  auto-expires after 45 days — no repo bloat).
-* Daily runs fetch the month's artifact, pop the next banked clip,
-  and upload it into its grid slot — no yt-dlp, no cookies, no bot
-  wall on daily IPs, ever.
+  (`--download-sections`), clips + renders ~124 Shorts (4/day x 31
+  days), and banks them into ONE GitHub **artifact** (a single
+  artifact may hold up to 5 GB — the month fits; free on public
+  repos, auto-expires after 45 days — no repo bloat). The 350-minute
+  job cap means ~60 clips per session; 2-3 guard sessions fill a
+  whole month.
+* The ONE daily session (08:30 UTC) fetches the month's artifact,
+  pops the next banked clips, and uploads all 4 day-Shorts with
+  publishAt — no yt-dlp, no cookies, no bot wall on daily IPs, ever.
 * **Never starves:** bank empty / artifact gone / download failed →
   the daily run falls back to the live ladder exactly as before.
   The bank is a cache, never a single point of failure.
@@ -200,16 +198,22 @@ of the 10,000 daily quota — comfortable margin. Weekdays ≈ 5,100.
 * `quota` — daily API units (rolls at midnight Pacific, like YouTube)
 * memory ladder: `state.json` → `state.json.bak` → fresh default
 
-## Daily shape
+## Daily shape (owner rule 2026-11-13: 4/day, ONE session)
 
 ```
-21:30 UTC cron  ->  gate RUN  ->  clip machine  ->  publishAt 00:00 Cairo
-05:30 UTC cron  ->  gate RUN  ->  clip machine  ->  publishAt 08:00 Cairo
-13:30 UTC cron  ->  gate RUN  ->  clip machine  ->  publishAt 16:00 Cairo
-16:00 UTC cron (Fri/Sat/Sun) -> publishAt 20:00 Cairo   # the 4th slot
-hourly heal cron -> gate SKIP (99% of the time) or RUN when a grid hole exists
+08:30 UTC cron (the ONLY daily wake-up) -> gate RUN -> ONE session:
+    pops up to 4 banked clips (or live-ladder fallback) ->
+    uploads all 4 at once -> publishAt 16:00+20:00 Cairo today,
+    00:00+08:00 Cairo tomorrow
+hourly heal cron -> SKIP unless a slot would expire before the next
+    08:30 UTC session can claim it -> then heals every hole at once
 watchdog 6x/day -> oEmbed verify; Issue if a Short is late
+monthly harvest (1st + daily guard) -> banks ~124 clips for the month
 ```
+
+Quota math: one session = 4 x upload 1600 + search/verify crumbs
+= **~6,500 units** of the 10,000 daily budget — comfortable margin
+(the session fires right AFTER the Pacific-midnight reset).
 
 ## Owner rules encoded in channel.yaml
 
@@ -221,9 +225,24 @@ watchdog 6x/day -> oEmbed verify; Issue if a Short is late
   farm map", "fortnite afk xp map gameplay", ... plus deathruns, edit
   courses, horror maps...
 * codes: `1789-8528-6429` top bar + `H15` footer, first frame to
-  last, plus title + description.
+  last. Codes live in the DESCRIPTION only — **NEVER in titles**
+  (owner rule 2026-11-13: titles are pure XP/free-skins hooks like
+  "How to get FREE SKINS in Fortnite 🤑 #N"; the map code still
+  burns into every frame's top bar).
 * original audio is discarded; the soundtrack is synthesized by
   numpy per clip (zero music copyright).
 * descriptions NEVER mention the source video or channel (owner
   rule 2026-11-10: the "clipped from ..." sentence is permanently
   banned) — only the map code, creator code and hashtags appear.
+* channel description + keywords live in channel.yaml `branding:`;
+  apply changes with the **channel-branding** workflow (manual
+  dispatch — runs tools/update_channel.py with the OAuth secrets;
+  avatar/banner changes need YouTube Studio, not the API).
+
+## Phase 2 (parked, owner 2026-11-13)
+
+After the machine is proven: post the same Shorts to OTHER
+platforms. NOT before everything above is green and boring. The
+Shorts render pipeline already produces platform-neutral
+1080x1920 MP4s — the multi-platform step will reuse the bank
+artifact, not re-download anything.

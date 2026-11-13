@@ -13,7 +13,10 @@ channel:
 codes:
   map_code: "1789-8528-6429"          # big top bar, every frame
   creator_code: "H15"                 # footer bar, every frame
-  show_in_title: true                 # codes also live in the title
+  # OWNER RULE (2026-11-13): titles are pure HOOKS now — the map code
+  # NEVER appears in a Short title (it lives in the description + the
+  # burned-in top bar). show_in_title stays false forever.
+  show_in_title: false
   show_in_description: true           # ...and the description
 
 # ── SOURCING RULES (owner rules, 2026-11-10) ───────────────────────
@@ -68,7 +71,9 @@ clip:
   target_len_s: [45, 120]             # the Short's length window
   min_motion_score: 12.0              # reject near-static windows
   scene_threshold: 0.28               # ffmpeg scene-change sensitivity
-  max_clips_per_run: 1                # one Short per grid slot
+  max_clips_per_run: 4                # owner rule 2026-11-13: 4 Shorts
+                                      # per daily session (one upload
+                                      # session schedules the day)
 
 # ── THE BANK (owner idea 2026-11-11): the monthly food run ──────────
 # One IP, one long session, once a month: download + clip a whole
@@ -78,11 +83,12 @@ clip:
 # bot wall? The guard cron retries daily until it gets through, and
 # the live ladder keeps publishing meanwhile.
 harvest:
-  max_clips: 93              # ~3/day for a month, one session
+  max_clips: 124              # 4/day x 31 days (owner rule 2026-11-13)
   slice_s: 300               # seconds of source grabbed per video
   pacing_s: [10, 35]         # human-ish pause between downloads
   days_ahead: 31             # planning window
-  budget_minutes: 280        # wall clock inside the harvest itself
+  budget_minutes: 325        # fits the 350-min workflow cap; ~2-3
+                             # guard sessions fill a whole month
   refill_threshold: 8        # guard refills when clips drop below this
 
 # ── TRANSFORMATION (this is what makes it OUR video) ────────────────
@@ -108,13 +114,19 @@ music:
   mood: "energetic"                   # driving gaming bed, not calm
   volume: 0.9
 
-# ── PUBLISHING GRID (3 Shorts/day weekdays, 4 on Fri/Sat/Sun) ────────
+# ── PUBLISHING GRID (owner rule 2026-11-13: 4 Shorts EVERY day) ────
+#
+# ONE upload session per day (08:30 UTC = 10:30 Cairo, right after
+# the Pacific-midnight quota reset) uploads ALL FOUR Shorts at once,
+# each with publishAt = its grid slot below. No more 4 separate
+# runs/day — one machine wake-up schedules the whole day.
 schedule:
   timezone: "Africa/Cairo"
-  slots: ["00:00", "08:00", "16:00"]  # base grid: 3 per day, 8h apart
-  weekend_slots: ["20:00"]            # 4th slot: Fri/Sat/Sun only
-  weekend_days: [4, 5, 6]             # Python weekday(): 4=Fri 5=Sat 6=Sun
+  slots: ["00:00", "08:00", "16:00", "20:00"]  # 4 per day, every day
   publish_lead_minutes: 25            # book only slots >=25 min out
+  daily_run_utc: "08:30"              # the one daily session (UTC).
+                                      # ALSO frozen in tools/gate.py —
+                                      # keep both in sync
 
 youtube:
   category_id: "20"                   # Gaming
@@ -122,23 +134,39 @@ youtube:
   privacy: "public"
   default_language: "en"
   synthetic_media_disclosure: false   # real gameplay footage, not AI-generated
-  # metadata templates — {map}, {creator}, {title} are filled by src/metadata.py
+  # metadata templates — {n} is the forever-incrementing number.
+  # OWNER RULE (2026-11-13): titles are HOOKS about XP + free skins.
+  # NO map code, NO creator code in titles — codes live in the
+  # burned-in bars + the description. Length always <= 95 chars.
   title_templates:
-    - "{map} 🔥 CRAZY Fortnite Map Clips #{n}"
-    - "PLAY THIS MAP 🎮 {map} | Fortnite Clips #{n}"
-    - "{map} — Insane Fortnite Map Moments #{n}"
-    - "USE CODE {creator} 🛒 {map} | Fortnite Map Clips #{n}"
+    - "How to get FREE SKINS in Fortnite 🤑 #{n}"
+    - "This Fortnite map levels you up FAST 🔥 #{n}"
+    - "The EASIEST way to level up in Fortnite ⚡ #{n}"
+    - "Get FREE skins WITHOUT V-Bucks 💸 #{n}"
+    - "This map gives XP while you AFK 😴 #{n}"
+    - "Max out your Battle Pass in ONE day 🏆 #{n}"
+    - "Level up your Battle Pass for FREE 💯 #{n}"
+    - "Free skins are hiding in this map 🎁 #{n}"
+    - "Stop grinding — use THIS map 💡 #{n}"
+    - "This Fortnite map should be ILLEGAL 🚫 #{n}"
+    - "The BEST Fortnite map right now 🔥 #{n}"
+    - "You won't believe this Fortnite map 😳 #{n}"
   # used ONLY when the source was found via an XP-map query (the
   # approved sample-1 niche) — never mislabels other footage
   xp_title_templates:
-    - "{map} 🔥 XP MAP Gameplay — Fortnite Clips #{n}"
-    - "FREE XP MAP 🎮 {map} | Fortnite Clips #{n}"
-    - "{map} — CRAZY XP Map Moments #{n}"
+    - "This XP map = FREE Battle Pass 🤑 #{n}"
+    - "Level 100 in ONE DAY? 😱 #{n}"
+    - "This XP map gives FREE skins 🎁 #{n}"
+    - "AFK XP farm — free levels while you sleep 😴 #{n}"
+    - "FREE XP map, NO timer needed ⏱️ #{n}"
+    - "The XP map that breaks Fortnite 🔥 #{n}"
+    - "This XP map pays your Battle Pass 💰 #{n}"
+    - "Unlimited XP in this Fortnite map 🤯 #{n}"
 
 daily:
   quota_budget: 10000                 # YouTube Data API units/day
-  # cost model: search 100 + upload 1600 per Short; 3/day = ~5,100
-  # plus verify fallback 1-2 — huge margin under 10,000.
+  # cost model: one session = 4 uploads x 1600 = 6,400 + a few
+  # search/verify calls — comfortable margin under 10,000.
 
 verify:
   enabled: true
@@ -148,3 +176,29 @@ verify:
 
 ingest:
   folder: "ingest"                    # rung 2: drop MP4s here manually
+
+# ── CHANNEL BRANDING (applied by tools/update_channel.py) ───────────
+# Owner rule 2026-11-13: new-channel energy — Fortnite-only copy.
+# Edit HERE, then run the channel-branding workflow once to push it
+# to YouTube (channels.update, 50 units, needs the OAuth secrets).
+branding:
+  description: |
+    Daily Fortnite Creative XP maps 🔥
+
+    Level up FAST and unlock free skins with the best XP maps — a new
+    Short every single day. Follow so you never miss free XP!
+
+    🛒 Support the channel: CREATOR CODE H15 (Fortnite item shop)
+    🗺️ Featured map: 1789-8528-6429
+  keywords:
+    - fortnite
+    - fortnite creative
+    - fortnite xp map
+    - xp map
+    - free skins
+    - level up fast
+    - fortnite battle pass
+    - fortnite clips
+    - fortnite shorts
+    - uefn
+    - fortnite map gameplay

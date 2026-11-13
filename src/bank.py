@@ -58,8 +58,6 @@ def plan(state: dict, days: int = 31) -> list[str]:
     sched = cfg()["schedule"]
     tz = ZoneInfo(sched["timezone"])
     slots = list(sched.get("slots", []))
-    weekend = list(sched.get("weekend_slots") or [])
-    wdays = {int(d) for d in (sched.get("weekend_days") or [])}
     booked = set((state.get("slots") or {}).get("short", []) or [])
     banked = {c.get("slot") for c in
               (state.get("bank") or {}).get("clips", [])}
@@ -68,7 +66,7 @@ def plan(state: dict, days: int = 31) -> list[str]:
     out: list[str] = []
     for d in range(days):
         base = (now + timedelta(days=d)).date()
-        for hhmm in slots + (weekend if base.weekday() in wdays else []):
+        for hhmm in slots:
             hh, mm = map(int, hhmm.split(":"))
             slot_dt = datetime(base.year, base.month, base.day,
                                hh, mm, tzinfo=tz)
@@ -76,6 +74,42 @@ def plan(state: dict, days: int = 31) -> list[str]:
             if slot_dt > now + lead and iso not in booked | banked:
                 out.append(iso)
     return out
+
+
+def open_targets(state: dict) -> list[str]:
+    """Open grid slots in (now + lead, next daily fire] — the exact
+    set ONE daily session fills (owner rule 2026-11-13: 4 Shorts/day,
+    one upload session schedules the whole day).
+
+    Mirrors tools/gate.py's single rule — the gate and the session
+    must always agree on what counts as work. Slots beyond the next
+    fire are NOT targets: tomorrow's session owns them."""
+    sched = cfg()["schedule"]
+    tz = ZoneInfo(sched["timezone"])
+    slots = list(sched.get("slots", []))
+    fire_h, fire_m = map(int,
+                         (sched.get("daily_run_utc") or "08:30").split(":"))
+    lead = timedelta(minutes=int(sched.get("publish_lead_minutes", 25)))
+    now_utc = datetime.now(ZoneInfo("UTC"))
+    fire = now_utc.replace(hour=fire_h, minute=fire_m,
+                           second=0, microsecond=0)
+    if fire <= now_utc + lead:
+        fire += timedelta(days=1)
+    fire_local = fire.astimezone(tz)
+    booked = set((state.get("slots") or {}).get("short", []) or [])
+    now = datetime.now(tz)
+    probe = now + lead
+    out: list[str] = []
+    for d in range(2):                       # today + tomorrow is enough
+        base = (now + timedelta(days=d)).date()
+        for hhmm in slots:
+            hh, mm = map(int, hhmm.split(":"))
+            slot_dt = datetime(base.year, base.month, base.day,
+                               hh, mm, tzinfo=tz)
+            iso = slot_dt.isoformat()
+            if probe < slot_dt <= fire_local and iso not in booked:
+                out.append(iso)
+    return sorted(out)
 
 
 # ── state helpers ───────────────────────────────────────────────────

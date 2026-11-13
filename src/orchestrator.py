@@ -1,27 +1,27 @@
-"""Orchestrator — the master loop. One run = one Short.
+"""Orchestrator — the master loop. ONE daily session = the whole day.
+
+OWNER RULE (2026-11-13): 4 Shorts/day, ONE upload session. The daily
+fire (08:30 UTC) wakes the machine ONCE; it uploads all FOUR Shorts
+in that single session, each with publishAt = its grid slot
+(00:00/08:00/16:00/20:00 Cairo). No more 4 runs/day — one wake-up
+schedules the whole day, exactly as the owner asked.
 
   1. memory        ledger.load() (state.json.bak ladder)
   2. gate          quota defer active? exit clean (the grid retries)
-  3. bank          THE BANK (owner idea 2026-11-11): when the monthly
-                   harvest has banked clips, the daily run pops one
-                   and uploads it — no yt-dlp, no cookies, no bot
-                   wall on daily IPs. Bank empty? live ladder below.
-  4. find          YouTube Data API search — rotating query, 11-month
-                   freshness hard-baked into publishedAfter
-  5. download      4-rung ladder (ingest drops -> yt-dlp+COOKIES_TXT
-                   -> archive.org mirror -> archive.org open pool ->
-                   loud DOWNLOAD-ALERT issue)
-  6. clip          scene-change + motion analysis -> best 45-120s
-                   window (owner rule 2026-11-10)
-  7. transform     9:16 vertical zoom-crop, overlays burned in,
-                   original audio discarded, numpy-synth soundtrack
-  8. metadata      codes in title + description (NO source credit —
-                   owner rule 2026-11-10)
-  9. upload        resumable upload, publishAt = next grid slot
- 10. remember      used_sources + slot booking + quota ledger, saved
+  3. targets       bank.open_targets() — every open grid slot before
+                   the next daily fire (mirrors tools/gate.py's rule)
+  4. per target    bank first (banked clip from the monthly harvest:
+                   no yt-dlp, no cookies, no bot wall) else the live
+                   ladder: find -> download (4-rung) -> clip the best
+                   45-120s window -> transform (9:16 + overlays +
+                   synth track) -> metadata -> upload with publishAt
+  5. remember      used_sources + slot booking + quota ledger, saved
+                   after EVERY short (crash-safe)
+  6. verify        oEmbed pass at the end (zero quota)
 
-Exit codes: 0 = published OR cleanly deferred/skipped (the grid
-self-heals); 1 = real failure (the workflow files an Issue).
+Exit codes: 0 = published/deferred/skipped cleanly (the grid
+self-heals); 1 = real failure with nothing produced (the workflow
+files an Issue).
 """
 from __future__ import annotations
 
@@ -56,107 +56,168 @@ def run(*, dry_run: bool = False, offline: bool = False,
     today = datetime.now(ZoneInfo(cfg()["schedule"]["timezone"]))
     day = today.date().isoformat()
     slot_hour = today.hour
-    seed = seed_for(day, slot_hour, state.get("query_cursor", 0))
+    base_seed = seed_for(day, slot_hour, state.get("query_cursor", 0))
     work = ROOT / "work"
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True, exist_ok=True)
 
-    # ── 0. THE BANK: publish a banked clip when one exists ────────
-    # (monthly harvest cache; the daily IP never touches yt-dlp)
+    # ── the session: every open slot before the next daily fire ────
+    targets = bank.open_targets(state)
+    if not targets:
+        print("[grid] fully booked until the next session — "
+              "nothing to do")
+        verify.run(state)
+        return 0
+    print(f"[session] {len(targets)} open slot(s) to fill: "
+          f"{', '.join(targets)}")
+
     bdir = Path(os.environ.get("BANK_ARTIFACT_DIR", "bank_month"))
-    if (bdir / "manifest.json").exists():
-        clip = bank.take_next(state)
-        if clip:
-            rc = bank.publish(bank_dir=bdir, clip=clip, state=state,
-                              dry_run=dry_run)
-            if rc is not None:
-                return rc          # published / deferred cleanly
+    published = 0
+    hard_failures = 0
 
-    # ── 1. find a fresh source (or go offline: ingest/ only) ───────
-    if offline:
-        source = {"id": "manual-ingest", "title": "manual ingest drop",
-                  "channel": "owner", "duration_s": 0, "published_at": day}
-        print("[sources] offline mode — using ingest/ folder only")
-    else:
+    for i, _slot in enumerate(targets):
+        if i >= int(cfg()["clip"].get("max_clips_per_run", 4)):
+            break
+
+        # session-level quota guards — stop CLEAN, the grid retries
+        q = state.get("quota") or {}
+        if (q.get("defer_until") or 0) > time.time():
+            print("[session] server quota defer stamped — "
+                  "stopping the session clean")
+            break
+        if ledger.quota_remaining(state) < 1800:
+            print("[session] local quota floor reached — stopping "
+                  "the session clean (the grid retries at the next "
+                  "fire)")
+            break
+
+        seed = base_seed + i * 31
+
+        # ── 0. THE BANK: publish a banked clip when one exists ────
+        # (monthly harvest cache; the daily IP never touches yt-dlp)
+        if (bdir / "manifest.json").exists():
+            clip = bank.take_next(state)
+            if clip:
+                rc = bank.publish(bank_dir=bdir, clip=clip, state=state,
+                                  dry_run=dry_run)
+                if rc is None:
+                    print("[bank] clip unusable — live ladder for "
+                          "this slot")
+                elif rc == 0:
+                    published += 1
+                    continue
+                else:
+                    return rc          # real failure -> alert
+
+        # ── live ladder: produce ONE Short for this slot ───────────
+        # 1. find a fresh source (or go offline: ingest/ only)
+        if offline:
+            source = {"id": "manual-ingest", "title": "manual ingest drop",
+                      "channel": "owner", "duration_s": 0,
+                      "published_at": day}
+            print("[sources] offline mode — using ingest/ folder only")
+        else:
+            try:
+                source = sources.pick_source(state, seed)
+            except sources.SourceError as e:
+                print(f"SEARCH-ALERT: {e}")
+                hard_failures += 1
+                continue
+            ledger.save(state)
+
+        # 2. download it
         try:
-            source = sources.pick_source(state, seed)
-        except sources.SourceError as e:
-            print(f"SEARCH-ALERT: {e}")
+            src_path = downloader.download(source, work, state)
+        except downloader.DownloadError as e:
+            print(e)
+            hard_failures += 1
+            continue
+
+        # 3. pick the best window in the REAL footage
+        try:
+            start, dur = clipper.best_window(src_path, seed)
+        except Exception as e:  # noqa: BLE001
+            print(f"[clip] window analysis failed ({e}) — next source")
+            hard_failures += 1
+            continue
+
+        # 4. overlays + soundtrack + render
+        top_p, foot_p = overlay.render_overlays(work)
+        wav = work / "track.wav"
+        music.make_track(wav, dur, seed)
+
+        final_name = sample_out.name if sample_out else \
+            f"short_{day.replace('-', '')}_{slot_hour:02d}_{i}.mp4"
+        final = work / final_name
+        transform.render(src_path, start, dur, (top_p, foot_p), wav,
+                         final)
+
+        # 5. metadata
+        meta = metadata.build(source, state, seed)
+
+        if sample_out is not None:
+            # sample mode: copy to the requested path, no upload
+            shutil.copy(final, sample_out)
+            print(f"\n[sample] rendered sample Short -> {sample_out}")
+            print(f"[sample] title would be: {meta['title']!r}")
+            print("[sample] description would be:\n" +
+                  "\n".join("    " + ln for ln in
+                            meta["description"].splitlines()[:6]))
+            return 0
+
+        if dry_run:
+            print(f"[dry-run] would upload {final.name} "
+                  f"({final.stat().st_size/1e6:.1f} MB) with title "
+                  f"{meta['title']!r}")
+            published += 1
+            continue
+
+        # 6. upload with publishAt booking
+        try:
+            video_id = youtube.upload_short(final, meta, state)
+        except youtube.QuotaDefer:
+            break            # clean exit; defer is already stamped
+        except youtube.AuthError as e:
+            print(f"AUTH-ALERT: {e}")
             return 1
+        if not video_id:
+            print("[upload] deferred (local quota gate) — stopping "
+                  "the session clean")
+            break
+
+        # 7. remember everything
+        ledger.mark_source_used(state, source["id"])
+        ledger.mark_short_uploaded(state, {
+            "n": meta["n"],
+            "source_id": source["id"],
+            "source_title": source.get("title", ""),
+            "source_channel": source.get("channel", ""),
+            "date": day,
+            "video_id": video_id,
+            "clip_start": start,
+            "clip_dur": dur,
+            "title": meta["title"],
+        }, units=0)             # units already spent inside upload_short
+        state["last_run"] = day
+        state["last_run_ts"] = int(time.time())
         ledger.save(state)
+        published += 1
+        print(f"\n[done] short #{meta['n']} published as {video_id} "
+              f"(source {source['id']}, clip {start:.0f}s+{dur:.0f}s)")
 
-    # ── 2. download it ──────────────────────────────────────────────
-    try:
-        src_path = downloader.download(source, work, state)
-    except downloader.DownloadError as e:
-        print(e)
-        return 1
-
-    # ── 3. pick the best window in the REAL footage ────────────────
-    start, dur = clipper.best_window(src_path, seed)
-
-    # ── 4. overlays + soundtrack + render ───────────────────────────
-    top_p, foot_p = overlay.render_overlays(work)
-    wav = work / "track.wav"
-    music.make_track(wav, dur, seed)
-
-    final_name = sample_out.name if sample_out else \
-        f"short_{day.replace('-', '')}_{slot_hour:02d}.mp4"
-    final = work / final_name
-    transform.render(src_path, start, dur, (top_p, foot_p), wav, final)
-
-    # ── 5. metadata ─────────────────────────────────────────────────
-    meta = metadata.build(source, state, seed)
-
-    if sample_out is not None:
-        # sample mode: copy to the requested path, no upload
-        shutil.copy(final, sample_out)
-        print(f"\n[sample] rendered sample Short -> {sample_out}")
-        print(f"[sample] title would be: {meta['title']!r}")
-        print("[sample] description would be:\n" +
-              "\n".join("    " + ln for ln in
-                        meta["description"].splitlines()[:6]))
-        return 0
-
-    if dry_run:
-        print(f"[dry-run] would upload {final.name} "
-              f"({final.stat().st_size/1e6:.1f} MB) with title "
-              f"{meta['title']!r}")
-        return 0
-
-    # ── 6. upload with publishAt booking ────────────────────────────
-    try:
-        video_id = youtube.upload_short(final, meta, state)
-    except youtube.QuotaDefer:
-        return 0            # clean exit; defer is already stamped
-    except youtube.AuthError as e:
-        print(f"AUTH-ALERT: {e}")
-        return 1
-    if not video_id:
-        print("[upload] deferred (local quota gate) — exiting clean")
-        return 0
-
-    # ── 7. remember everything ──────────────────────────────────────
-    ledger.mark_source_used(state, source["id"])
-    ledger.mark_short_uploaded(state, {
-        "n": meta["n"],
-        "source_id": source["id"],
-        "source_title": source.get("title", ""),
-        "source_channel": source.get("channel", ""),
-        "date": day,
-        "video_id": video_id,
-        "clip_start": start,
-        "clip_dur": dur,
-        "title": meta["title"],
-    }, units=0)             # units already spent inside upload_short
     state["last_run"] = day
     state["last_run_ts"] = int(time.time())
     ledger.save(state)
-    print(f"\n[done] short #{meta['n']} published as {video_id} "
-          f"(source {source['id']}, clip {start:.0f}s+{dur:.0f}s)")
+    print(f"\n[session] DONE: {published}/{len(targets)} published "
+          "this session — the grid self-heals anything left open")
 
     # ── 8. opportunistic verify pass (zero quota) ──────────────────
     verify.run(state)
+
+    if published == 0 and hard_failures:
+        print(f"[session] nothing produced ({hard_failures} hard "
+              "failures) — alerting")
+        return 1
     return 0
 
 
@@ -165,20 +226,20 @@ def run(*, dry_run: bool = False, offline: bool = False,
 def harvest(count: int | None = None,
             budget_minutes: float | None = None) -> int:
     """One IP, one session, once a month: search fresh sources,
-    download a ~5-min slice of each, clip + render ~93 Shorts, and
+    download a ~5-min slice of each, clip + render ~124 Shorts, and
     bank them into a single GitHub artifact. The daily machine then
-    publishes one banked clip per grid slot (pure API upload —
-    never IP-flagged). Blocked by the bot wall? Exit clean and let
-    the guard cron retry tomorrow; daily publishing continues via
-    the live ladder meanwhile. A retry rebuilds the whole month bank
-    from scratch (rebuild semantics — see bank.py docstring)."""
+    publishes the whole day from the bank in ONE session (pure API
+    upload — never IP-flagged). Blocked by the bot wall? Exit clean
+    and let the guard cron retry tomorrow; daily publishing continues
+    via the live ladder meanwhile. A retry rebuilds the whole month
+    bank from scratch (rebuild semantics — see bank.py docstring)."""
     state = ledger.load()
     hconf = cfg().get("harvest") or {}
     days_ahead = int(hconf.get("days_ahead", 31))
     plan_slots = bank.plan(state, days=days_ahead)
-    target = int(count or hconf.get("max_clips", 93))
+    target = int(count or hconf.get("max_clips", 124))
     target = min(target, len(plan_slots))
-    budget = float(budget_minutes or hconf.get("budget_minutes", 280))
+    budget = float(budget_minutes or hconf.get("budget_minutes", 325))
     deadline = time.monotonic() + budget * 60
 
     if target <= 0:
@@ -186,7 +247,7 @@ def harvest(count: int | None = None,
               "to do")
         return 0
     print(f"[harvest] banking {target} Shorts for the next {days_ahead} "
-          "days: ONE IP, ONE session, sliced downloads, human pacing")
+          f"days: ONE IP, ONE session, sliced downloads, human pacing")
 
     # fresh month bank (rebuild semantics — reset, not append)
     bank.reset(state)
@@ -281,7 +342,3 @@ def harvest(count: int | None = None,
           "artifact upload follows; daily runs publish them one slot "
           "at a time (no yt-dlp on daily IPs ever again)")
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(run())
