@@ -1,0 +1,33 @@
+# One-shot: apply channel.yaml's branding block (description +
+# keywords) to the YouTube channel. Manual dispatch only — run it
+# after editing the branding section in channel.yaml.
+
+name: channel-branding
+
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: clip-factory-branding   # never overlap the main machine
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  branding:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: pip install --quiet -r requirements.txt
+      - name: Apply branding from channel.yaml
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: python tools/update_channel.py
