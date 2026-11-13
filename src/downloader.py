@@ -12,7 +12,11 @@ starves the machine — it falls through to the next:
           now MULTI-JAR (owner idea 2026-11-11): the single secret may
           hold several exports separated by '===== JAR 2 =====' lines;
           the ladder rotates across jars. The workflows install deno
-          (yt-dlp's JS runtime) so the web client can decipher formats.
+          (yt-dlp's JS runtime) and requirements.txt pins yt-dlp[default]
+          (the EJS challenge-solver dist) — with cookies armed, BOTH
+          are needed to beat the SABR-only experiment logged-in
+          accounts hit (live-confirmed 2026-11-13: web + jar + EJS
+          downloads fine from a datacenter IP).
   RUNG 2  archive.org MIRROR of the exact YouTube video just picked
           (items are named youtube-<video id>) — byte-identical
           footage, no bot-check, honest source credit unchanged.
@@ -56,6 +60,11 @@ FMT = ("bv*[height<=1440][ext=mp4]+ba[ext=m4a]/"
        "b[height<=1440][ext=mp4]/bv*[height<=1440]+ba/b[height<=1440]/b")
 PLAYER_CLIENTS = ["web", "android_vr", "tv", "web_embedded", "ios",
                   "tv_simply"]
+# cookie-capable ladder (2026-11-13): with a jar loaded yt-dlp
+# auto-skips android_vr/ios/tv_simply ("does not support cookies") —
+# wasted attempts. web/web_embedded work once the EJS solver from
+# yt-dlp[default] is installed; tv stays as a last try.
+JAR_CLIENTS = ["web", "web_embedded", "tv"]
 
 AO_UA = ("Mozilla/5.0 (X11; Linux x86_64) fort-clip-factory/1.0")
 AO_SEARCH = "https://archive.org/advancedsearch.php"
@@ -247,12 +256,12 @@ def _run_ytdlp(url: str, out: Path, jars: list[Path],
     if sections:
         base += ["--download-sections", sections]
 
-    # attempt ladder: every jar x the 3 most reliable clients (cap 12);
+    # attempt ladder: every jar x the cookie-capable clients (cap 12);
     # anonymous (no jars) -> the full 6-client ladder as before
     if jars:
         combos = [(client, jar)
                   for jar in jars
-                  for client in PLAYER_CLIENTS[:3]][:12]
+                  for client in JAR_CLIENTS][:12]
     else:
         combos = [(client, None) for client in PLAYER_CLIENTS]
 

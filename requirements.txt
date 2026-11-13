@@ -1,4 +1,9 @@
 PyYAML>=6.0
 numpy>=1.26
 Pillow>=10.0
-yt-dlp>=2026.1.1
+# [default] pulls yt-dlp-ejs — the challenge-solver dist that (with
+# the deno runtime the workflows install) lets the web client survive
+# the SABR-only experiment logged-in accounts hit. Without it the
+# ladder sees "Only images are available" even with good cookies
+# (confirmed live 2026-11-13).
+yt-dlp[default]>=2026.1.1

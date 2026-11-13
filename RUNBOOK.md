@@ -119,6 +119,19 @@ domain, repairs a missing header) and logs
 the cookies "may be expired", re-export and set the secret again
 (rotation: rare; usually only when YOU log out of that account).
 
+### The other half of the fix: yt-dlp[default] (EJS solver)
+
+Cookies beat the bot-check, but logged-in accounts also hit YouTube's
+**SABR-only streaming experiment** — the web client then sees "Only
+images are available" even with perfect cookies (2026-11-13 run).
+The cure is the EJS challenge-solver dist: requirements.txt pins
+`yt-dlp[default]` (pulls `yt-dlp-ejs`), and the workflows install
+deno (its JS runtime). Live-confirmed 2026-11-13: web client +
+cookies + EJS = download OK from a datacenter IP. One jar note:
+`android_vr`/`ios`/`tv_simply` are auto-skipped by yt-dlp when a
+jar is loaded ("does not support cookies") — the jar ladder only
+tries the cookie-capable clients (web, web_embedded, tv).
+
 ### Exporting cookies ON A PHONE (Android)
 
 1. Install **Firefox** from the Play Store (it officially supports
