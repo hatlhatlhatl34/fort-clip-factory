@@ -1,9 +1,9 @@
-# Hourly heal crumb — a cheap nudge between the 3 main crons.
+# Hourly heal crumb — the safety net BETWEEN daily sessions.
 
-# If the gate says a grid hole exists (a missed run, a quota window
-# that cleared early, a healed defer), this fires the factory outside
-# its normal hours. It RUNs only when there is real work: the gate
-# SKIPs ~99% of the time, costing seconds.
+# The gate RUNs only when an open grid slot would expire before the
+# next 08:30 UTC session could claim it (a missed session, a quota
+# window that cleared early). It then heals those holes in one go.
+# Otherwise SKIP — a seconds-long no-op ~99% of the time.
 
 name: hourly-heal
 
@@ -36,7 +36,7 @@ jobs:
     needs: gate
     if: needs.gate.outputs.verdict == 'RUN'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120      # a heal can fill several slots at once
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -89,6 +89,8 @@ jobs:
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
           COOKIES_TXT: ${{ secrets.COOKIES_TXT }}
+          COOKIES_TXT2: ${{ secrets.COOKIES_TXT2 }}
+          COOKIES_TXT3: ${{ secrets.COOKIES_TXT3 }}
           BANK_ARTIFACT_DIR: bank_month
         run: |
           if [ -z "$YT_REFRESH_TOKEN" ]; then

@@ -1,17 +1,13 @@
 name: daily-clip-factory
 
-# The main machine: fires ~8h apart (21:30 / 05:30 / 13:30 UTC =
-# 23:30 / 07:30 / 15:30 Cairo winter, 00:30 / 08:30 / 16:30 summer)
-# plus a weekend cron (16:00 UTC Fri/Sat/Sun) for the 4th slot at
-# 20:00 Cairo. The gate + publishAt grid absorb the drift: each run
-# books the NEXT open grid slot, so the published grid stays exactly
-# 3 Shorts/day on weekdays and 4/day on Fri/Sat/Sun.
+# The main machine. OWNER RULE (2026-11-13): ONE upload session per
+# day — 08:30 UTC (10:30 Cairo, right after the Pacific-midnight
+# quota reset). The single session uploads ALL FOUR Shorts of the
+# day at once, each with publishAt = its grid slot (00:00 / 08:00 /
+# 16:00 / 20:00 Cairo, 4/day every day). No more 4 separate runs.
 on:
   schedule:
-    - cron: "30 21 * * *"   # ~ Cairo 00:00 slot
-    - cron: "30 5 * * *"    # ~ Cairo 08:00 slot
-    - cron: "30 13 * * *"   # ~ Cairo 16:00 slot
-    - cron: "0 16 * * 5,6,0" # weekend 20:00 Cairo slot (Fri/Sat/Sun)
+    - cron: "30 8 * * *"   # THE daily session (UTC)
   workflow_dispatch: {}
 
 concurrency:
@@ -38,7 +34,9 @@ jobs:
     needs: gate
     if: needs.gate.outputs.verdict == 'RUN'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120      # 4 Shorts in one session (bank pops
+                              # are fast; live-ladder fallback needs
+                              # download+render time x4)
     steps:
       - uses: actions/checkout@v4
 
@@ -98,6 +96,8 @@ jobs:
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
           COOKIES_TXT: ${{ secrets.COOKIES_TXT }}
+          COOKIES_TXT2: ${{ secrets.COOKIES_TXT2 }}
+          COOKIES_TXT3: ${{ secrets.COOKIES_TXT3 }}
           BANK_ARTIFACT_DIR: bank_month
         run: |
           if [ -z "$YT_REFRESH_TOKEN" ]; then

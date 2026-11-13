@@ -136,6 +136,20 @@ def _quality_ok(p: Path, min_dur: float = 0.0) -> bool:
 
 _JAR_SEP = re.compile(r"^=+\s*jar\s*#?\s*\d+\s*=*$", re.IGNORECASE)
 
+# TRUE rotation (owner pool 2026-11-13): the jar that leads the
+# ladder advances one position on EVERY download call, so each of
+# the 5 accounts leads ~1/5 of the session's downloads instead of
+# account #1 always going first (round-robin, crash-safe, stateless).
+_JAR_CURSOR = [0]
+
+
+def _rotate(jars: list[Path]) -> list[Path]:
+    if len(jars) < 2:
+        return jars
+    off = _JAR_CURSOR[0] % len(jars)
+    _JAR_CURSOR[0] = (_JAR_CURSOR[0] + 1) % len(jars)
+    return jars[off:] + jars[:off]
+
 
 def _write_jar(work: Path, block: str, idx: int) -> Path | None:
     """Validate + write one cookie jar (work/cookies_<idx>.txt).
@@ -171,17 +185,23 @@ def _write_jar(work: Path, block: str, idx: int) -> Path | None:
 
 
 def _cookie_jars(work: Path) -> list[Path]:
-    """COOKIES_TXT secret -> validated jar files (never printed,
-    never committed; deleted by the caller after the run).
+    """COOKIES_TXT (+ COOKIES_TXT2/3) secrets -> validated jar files
+    (never printed, never committed; deleted by the caller after the
+    run).
 
-    ONE secret, MANY accounts (owner idea 2026-11-11): paste several
-    exports into the single COOKIES_TXT secret, separated by lines
-    of  '===== JAR 2 ====='  style. 6-7 accounts + the monthly
-    harvest rotation = each account is touched a handful of times
-    a YEAR — the smallest footprint possible."""
-    raw = os.environ.get("COOKIES_TXT", "")
-    if not raw.strip():
+    ONE POOL, up to three secrets (GitHub caps a single secret at 48
+    KB — 5 accounts don't fit in one): the three values are stitched
+    together with a parseable '===== JAR N =====' separator before
+    the jar splitter runs. Multi-account + monthly harvest rotation
+    + true round-robin = each account is touched only a handful of
+    times a YEAR — the smallest footprint possible.
+    """
+    parts = [os.environ.get(n, "").strip()
+             for n in ("COOKIES_TXT", "COOKIES_TXT2", "COOKIES_TXT3")]
+    parts = [p for p in parts if p]
+    if not parts:
         return []
+    raw = "\n===== JAR 0 =====\n".join(parts)
     blocks, cur = [], []
     for line in raw.splitlines():
         if _JAR_SEP.match(line.strip()):
@@ -256,11 +276,11 @@ def _run_ytdlp(url: str, out: Path, jars: list[Path],
     if sections:
         base += ["--download-sections", sections]
 
-    # attempt ladder: every jar x the cookie-capable clients (cap 12);
-    # anonymous (no jars) -> the full 6-client ladder as before
+    # attempt ladder: every rotated jar x the cookie-capable clients
+    # (cap 12); anonymous (no jars) -> the full 6-client ladder as before
     if jars:
         combos = [(client, jar)
-                  for jar in jars
+                  for jar in _rotate(jars)
                   for client in JAR_CLIENTS][:12]
     else:
         combos = [(client, None) for client in PLAYER_CLIENTS]
