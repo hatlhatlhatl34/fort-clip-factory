@@ -172,6 +172,16 @@ IP with the cookie jars; the daily runs do ONLY the API upload
 * **Never starves:** bank empty / artifact gone / download failed →
   the daily run falls back to the live ladder exactly as before.
   The bank is a cache, never a single point of failure.
+* **Push-race recovery (2026-11-14 incident):** if a harvest's
+  memory push loses a git race (`git push || true` swallows it),
+  GitHub can end up with a full artifact but state.json saying
+  bank.clips = 0. Recover with
+  `python tools/restore_bank.py --manifest <manifest.json> --run-id <id> --apply`
+  — it renumbers the clips past the published shorts, re-titles
+  them with today's templates (Fortnite rule included), re-marks
+  the used sources, and fixes bank_pointer.json. The manifest can
+  be pulled out of the artifact zip with HTTP range requests (no
+  1.4 GB download needed).
 * Quota stays legal: uploads stay spread daily (an upload is 1600
   API units of the 10,000/day budget — max ~6/day anyway).
 
