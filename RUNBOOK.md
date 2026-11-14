@@ -229,6 +229,11 @@ Quota math: one session = 4 x upload 1600 + search/verify crumbs
   (owner rule 2026-11-13: titles are pure XP/free-skins hooks like
   "How to get FREE SKINS in Fortnite 🤑 #N"; the map code still
   burns into every frame's top bar).
+* **the word "Fortnite" is in EVERY title** (owner rule 2026-11-14):
+  titles talk about XP maps + free skins FOR FORTNITE, so every
+  template in channel.yaml carries the game's name, and
+  src/metadata.py auto-repairs any title that loses it — a
+  Fortnite-less title can never ship.
 * original audio is discarded; the soundtrack is synthesized by
   numpy per clip (zero music copyright).
 * descriptions NEVER mention the source video or channel (owner

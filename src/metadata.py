@@ -1,5 +1,11 @@
 """Metadata — titles, descriptions, tags.
 
+OWNER RULE (2026-11-14): the word "Fortnite" is IN EVERY TITLE.
+Titles talk about XP maps + free skins FOR FORTNITE, so the game's
+name must appear in every combination. Templates in channel.yaml
+all comply; build() additionally REPAIRS any title that loses the
+word (future edit, bad merge) — the rule can never silently break.
+
 OWNER RULE (2026-11-13): titles are pure HOOKS about XP + free
 skins — the map code NEVER appears in a title (it lives in the
 description + the burned-in top bar). Templates come from
@@ -38,6 +44,22 @@ def build(source: dict, state: dict, seed: int) -> dict:
     rng = random.Random(seed)
 
     title = rng.choice(templates).format(n=n)
+
+    # OWNER RULE (2026-11-13): codes NEVER appear in a title — if a
+    # template ever smuggles one in, ship a guaranteed-clean hook
+    # instead (the fallback itself obeys every title rule).
+    clean_hook = f"How to get FREE SKINS in Fortnite 🤑 #{n}"
+    if (codes["map_code"].lower() in title.lower()
+            or codes["creator_code"].lower() in title.lower()):
+        title = clean_hook
+
+    # OWNER RULE (2026-11-14): the word "Fortnite" is IN EVERY TITLE.
+    # Belt and suspenders: if a template somehow lost the word, the
+    # builder repairs the title in place — a Fortnite-less title can
+    # never ship.
+    if "fortnite" not in title.lower():
+        title = f"Fortnite: {title}"
+
     title = title[:95]                       # YouTube hard limit is 100
 
     desc = [

@@ -2,7 +2,8 @@
 
   1. ONE daily session at 08:30 UTC fills ALL open grid slots
   2. 4 Shorts/day grid (00:00/08:00/16:00/20:00 Cairo, every day)
-  3. hooking titles: NO map code in titles, {n} only, <= 95 chars
+  3. hooking titles: NO map code in titles, {n} only, <= 95 chars,
+     and the word "Fortnite" in EVERY title (owner rule 2026-11-14)
   4. cookie-jar pool: true round-robin rotation + multi-secret stitch
   5. bucketing: 5 jars -> 3 secrets under GitHub's 48 KB cap
 
@@ -56,6 +57,11 @@ def main() -> int:
     check("no map code in any template", ok)
     ok = all(len(t.format(n=999)) <= 95 for t in templates)
     check("all titles <= 95 chars", ok)
+    # OWNER RULE (2026-11-14): the word "Fortnite" in EVERY template
+    ok = all("fortnite" in t.format(n=999).lower() for t in templates)
+    check("every template contains Fortnite", ok,
+          str([t for t in templates
+               if "fortnite" not in t.format(n=999).lower()]))
 
     brand = cfg().get("branding") or {}
     check("branding block present", bool(brand.get("description")))
@@ -66,13 +72,26 @@ def main() -> int:
              "bank": {"reserved_n": [13]}}
     titles = set()
     clean = True
+    fortnite_ok = True
     for seed in range(40):
         src = {"query": "fortnite xp map gameplay"} if seed % 2 else {}
         meta = metadata.build(src, state, seed)
         titles.add(meta["title"])
         if "1789" in meta["title"] or "H15" in meta["title"]:
             clean = False
+        if "fortnite" not in meta["title"].lower():
+            fortnite_ok = False
     check("no code in 40 generated titles", clean)
+    check("every generated title contains Fortnite", fortnite_ok)
+    # the runtime repair: a Fortnite-less title can never ship even
+    # if a future template edit breaks the config rule
+    broken = {"query": "", "title": ""}
+    saved = cfg()["youtube"]["title_templates"]
+    cfg()["youtube"]["title_templates"] = ["Free skins, no codes #{n}"]
+    m = metadata.build(broken, state, 3)
+    cfg()["youtube"]["title_templates"] = saved
+    check("runtime guard prefixes Fortnite",
+          m["title"].startswith("Fortnite"), m["title"])
     check("40 seeds -> >= 10 distinct titles", len(titles) >= 10,
           f"{len(titles)} distinct")
     m = metadata.build({"query": "fortnite xp map gameplay"}, state, 1)

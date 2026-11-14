@@ -138,30 +138,34 @@ youtube:
   # OWNER RULE (2026-11-13): titles are HOOKS about XP + free skins.
   # NO map code, NO creator code in titles — codes live in the
   # burned-in bars + the description. Length always <= 95 chars.
+  # OWNER RULE (2026-11-14): the word "Fortnite" is IN EVERY TITLE
+  # (all combinations, both families) — a title without the game's
+  # name can never ship. metadata.py enforces it at runtime too.
   title_templates:
     - "How to get FREE SKINS in Fortnite 🤑 #{n}"
     - "This Fortnite map levels you up FAST 🔥 #{n}"
     - "The EASIEST way to level up in Fortnite ⚡ #{n}"
-    - "Get FREE skins WITHOUT V-Bucks 💸 #{n}"
-    - "This map gives XP while you AFK 😴 #{n}"
-    - "Max out your Battle Pass in ONE day 🏆 #{n}"
-    - "Level up your Battle Pass for FREE 💯 #{n}"
-    - "Free skins are hiding in this map 🎁 #{n}"
-    - "Stop grinding — use THIS map 💡 #{n}"
+    - "Fortnite free skins WITHOUT V-Bucks 💸 #{n}"
+    - "This Fortnite map gives XP while you AFK 😴 #{n}"
+    - "Max out your Fortnite Battle Pass in ONE day 🏆 #{n}"
+    - "Level up your Fortnite Battle Pass for FREE 💯 #{n}"
+    - "FREE skins are hiding in this Fortnite map 🎁 #{n}"
+    - "Stop grinding — THIS Fortnite map does it for you 💡 #{n}"
     - "This Fortnite map should be ILLEGAL 🚫 #{n}"
     - "The BEST Fortnite map right now 🔥 #{n}"
     - "You won't believe this Fortnite map 😳 #{n}"
   # used ONLY when the source was found via an XP-map query (the
-  # approved sample-1 niche) — never mislabels other footage
+  # approved sample-1 niche) — never mislabels other footage.
+  # Same 2026-11-14 rule: "Fortnite" in every single one.
   xp_title_templates:
-    - "This XP map = FREE Battle Pass 🤑 #{n}"
-    - "Level 100 in ONE DAY? 😱 #{n}"
-    - "This XP map gives FREE skins 🎁 #{n}"
-    - "AFK XP farm — free levels while you sleep 😴 #{n}"
-    - "FREE XP map, NO timer needed ⏱️ #{n}"
+    - "This Fortnite XP map = FREE Battle Pass 🤑 #{n}"
+    - "Fortnite Level 100 in ONE DAY? 😱 #{n}"
+    - "This Fortnite XP map gives FREE skins 🎁 #{n}"
+    - "Fortnite AFK XP farm — levels while you sleep 😴 #{n}"
+    - "FREE Fortnite XP map, NO timer needed ⏱️ #{n}"
     - "The XP map that breaks Fortnite 🔥 #{n}"
-    - "This XP map pays your Battle Pass 💰 #{n}"
-    - "Unlimited XP in this Fortnite map 🤯 #{n}"
+    - "This Fortnite XP map pays your Battle Pass 💰 #{n}"
+    - "Unlimited Fortnite XP in this map 🤯 #{n}"
 
 daily:
   quota_budget: 10000                 # YouTube Data API units/day
