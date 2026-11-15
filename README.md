@@ -25,9 +25,9 @@ Both also live in every title and description.
 4. **TRANSFORM** — 1080×1920 vertical zoom-crop; original audio is
    discarded; a seeded numpy-synthesized gaming track becomes the
    soundtrack (zero music copyright).
-5. **PUBLISH** — resumable upload with `publishAt` on the
-   00:00 / 08:00 / 16:00 Cairo grid (+ 20:00 on Fri/Sat/Sun);
-   description credits the source.
+5. **PUBLISH** — resumable upload with `publishAt` on the 6-hour grid
+   (00:00 / 06:00 / 12:00 / 18:00 Cairo — 4 Shorts every day, one
+   every 6 hours); description credits the source.
 
 ## Layout
 

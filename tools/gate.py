@@ -4,10 +4,11 @@
 Stdlib only (runs before pip install, costs ~15 seconds). Prints RUN
 or SKIP and exits 0 either way — SKIP is a healthy, cheap outcome.
 
-OWNER RULE (2026-11-13): ONE upload session per day at 08:30 UTC
+OWNER RULE (2026-11-14): ONE upload session per day at 08:30 UTC
 (channel.yaml schedule.daily_run_utc — frozen copy below, keep in
-sync). That one session books ALL FOUR grid slots of the day+1 window
-(00:00/08:00/16:00/20:00 Cairo, 4/day every day).
+sync). That one session books ALL FOUR 6-hour grid slots of the
+day+1 window (00:00/06:00/12:00/18:00 Cairo, 4/day every day —
+one Short every 6 hours, 6+6+6+6 = 24h).
 
 The single rule (used by BOTH the daily cron and the hourly heal):
 
@@ -42,7 +43,7 @@ STATE_BAK = Path(__file__).resolve().parent.parent / "data" / "state.json.bak"
 # keep in sync with channel.yaml schedule (gate runs before pip
 # install, so no YAML — values frozen here)
 GRID_TZ = ZoneInfo("Africa/Cairo")
-GRID = ("00:00", "08:00", "16:00", "20:00")   # 4 slots, EVERY day
+GRID = ("00:00", "06:00", "12:00", "18:00")   # 4 slots every 6h, EVERY day
 DAILY_FIRE_UTC = (8, 30)                       # the one daily session
 BOOKABLE_MARGIN = 40                           # minutes of render time
                                               # before publish

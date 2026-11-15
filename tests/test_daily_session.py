@@ -40,6 +40,12 @@ def main() -> int:
     sched = cfg()["schedule"]
     check("grid is 4 slots/day", len(sched.get("slots", [])) == 4,
           str(sched.get("slots")))
+    # owner rule 2026-11-14: even 6-hour spacing (6+6+6+6 = 24h)
+    hh = sorted(int(s.split(":")[0]) for s in sched.get("slots", []))
+    wrap = 24 + hh[0] - hh[-1]
+    gaps = [b - a for a, b in zip(hh, hh[1:])] + [wrap]
+    check("grid spacing is every 6 hours", gaps == [6, 6, 6, 6],
+          f"gaps={gaps}")
     check("no weekend slots left", not sched.get("weekend_slots"))
     check("daily session time set",
           sched.get("daily_run_utc") == "08:30")

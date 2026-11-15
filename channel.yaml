@@ -114,15 +114,15 @@ music:
   mood: "energetic"                   # driving gaming bed, not calm
   volume: 0.9
 
-# ── PUBLISHING GRID (owner rule 2026-11-13: 4 Shorts EVERY day) ────
+# ── PUBLISHING GRID (owner rule 2026-11-14: 4 Shorts EVERY day, ────
+# ONE every 6 hours — 6+6+6+6 = 24h of even coverage) ────────────
 #
-# ONE upload session per day (08:30 UTC = 10:30 Cairo, right after
-# the Pacific-midnight quota reset) uploads ALL FOUR Shorts at once,
-# each with publishAt = its grid slot below. No more 4 separate
-# runs/day — one machine wake-up schedules the whole day.
+# A Short goes live every 6 hours around the clock; the 08:30 UTC
+# session books the next 4 open slots from now (at 10:30 Cairo:
+# 12:00 + 18:00 today, 00:00 + 06:00 tomorrow).
 schedule:
   timezone: "Africa/Cairo"
-  slots: ["00:00", "08:00", "16:00", "20:00"]  # 4 per day, every day
+  slots: ["00:00", "06:00", "12:00", "18:00"]  # every 6 hours, 4/day
   publish_lead_minutes: 25            # book only slots >=25 min out
   daily_run_utc: "08:30"              # the one daily session (UTC).
                                       # ALSO frozen in tools/gate.py —

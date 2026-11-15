@@ -3,9 +3,10 @@
 The machine clips REAL Fortnite map gameplay videos from YouTube into
 vertical Shorts that carry **map code 1789-8528-6429** (top bar, every
 frame) and **creator code H15** (footer, every frame), publishing
-**4 Shorts every day** (owner rule 2026-11-13) at 00:00 / 08:00 /
-16:00 / 20:00 Cairo — ONE upload session per day (08:30 UTC) that
-uploads all four at once, each scheduled with publishAt.
+**4 Shorts every day, ONE every 6 hours** (owner rule 2026-11-14:
+6+6+6+6 = 24h of even coverage) at 00:00 / 06:00 / 12:00 / 18:00
+Cairo — ONE upload session per day (08:30 UTC) that uploads all
+four at once, each scheduled with publishAt.
 
 **Services used (by owner decree): YouTube Data API + GitHub only.**
 No render farms, no paid APIs, no bots — the whole machine runs on
@@ -213,8 +214,8 @@ of the 10,000 daily quota — comfortable margin. Weekdays ≈ 5,100.
 ```
 08:30 UTC cron (the ONLY daily wake-up) -> gate RUN -> ONE session:
     pops up to 4 banked clips (or live-ladder fallback) ->
-    uploads all 4 at once -> publishAt 16:00+20:00 Cairo today,
-    00:00+08:00 Cairo tomorrow
+    uploads all 4 at once -> publishAt 12:00+18:00 Cairo today,
+    00:00+06:00 Cairo tomorrow (one Short every 6 hours)
 hourly heal cron -> SKIP unless a slot would expire before the next
     08:30 UTC session can claim it -> then heals every hole at once
 watchdog 6x/day -> oEmbed verify; Issue if a Short is late
