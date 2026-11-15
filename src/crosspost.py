@@ -927,8 +927,11 @@ def _fetch_public_short(video_id: str, workdir: Path, n) -> Path | str | None:
             alt.replace(out)
             return out
         blob = (r.stderr or "") + (r.stdout or "")
-        tail = blob.strip().splitlines()
-        last = tail[-1][:160] if tail else "no yt-dlp output"
+        errs = [l for l in blob.splitlines()
+                if l.startswith("ERROR") or "ERROR:" in l]
+        last = (errs[-1][:160] if errs
+                else (blob.strip().splitlines() or ["no yt-dlp output"])
+                [-1][:160])
         if any(m in blob for m in gone_markers):
             print(f"[backfill] #{n}: source video is GONE from "
                   "YouTube (deleted/private) — settling permanently")

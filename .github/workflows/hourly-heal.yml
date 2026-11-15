@@ -175,6 +175,9 @@ jobs:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          COOKIES_TXT: ${{ secrets.COOKIES_TXT }}
+          COOKIES_TXT2: ${{ secrets.COOKIES_TXT2 }}
+          COOKIES_TXT3: ${{ secrets.COOKIES_TXT3 }}
         run: |
           python -m src.crosspost --due 2>&1 | tee crosspost.log
           python -m src.crosspost --backfill 2>&1 | tee -a crosspost.log
