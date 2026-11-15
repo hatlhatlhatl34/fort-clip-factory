@@ -14,16 +14,18 @@
    "owner_deleted": true,
    "crosspost": {
     "ig": {
-     "status": "pending",
-     "attempts": 1,
+     "status": "gave_up",
+     "attempts": 8,
      "error": "backfill download failed",
-     "ts": 1794749519
+     "ts": 1794751223,
+     "reason": "source video deleted from YouTube"
     },
     "fb": {
-     "status": "pending",
-     "attempts": 1,
+     "status": "gave_up",
+     "attempts": 8,
      "error": "backfill download failed",
-     "ts": 1794749519
+     "ts": 1794751223,
+     "reason": "source video deleted from YouTube"
     }
    }
   },
@@ -40,16 +42,18 @@
    "owner_deleted": true,
    "crosspost": {
     "ig": {
-     "status": "pending",
-     "attempts": 1,
+     "status": "gave_up",
+     "attempts": 8,
      "error": "backfill download failed",
-     "ts": 1794749519
+     "ts": 1794751223,
+     "reason": "source video deleted from YouTube"
     },
     "fb": {
-     "status": "pending",
-     "attempts": 1,
+     "status": "gave_up",
+     "attempts": 8,
      "error": "backfill download failed",
-     "ts": 1794749519
+     "ts": 1794751223,
+     "reason": "source video deleted from YouTube"
     }
    }
   },
@@ -67,15 +71,15 @@
    "crosspost": {
     "ig": {
      "status": "pending",
-     "attempts": 1,
+     "attempts": 2,
      "error": "backfill download failed",
-     "ts": 1794749521
+     "ts": 1794751224
     },
     "fb": {
      "status": "pending",
-     "attempts": 1,
+     "attempts": 2,
      "error": "backfill download failed",
-     "ts": 1794749521
+     "ts": 1794751224
     }
    }
   },
@@ -93,15 +97,15 @@
    "crosspost": {
     "ig": {
      "status": "pending",
-     "attempts": 1,
+     "attempts": 2,
      "error": "backfill download failed",
-     "ts": 1794749522
+     "ts": 1794751226
     },
     "fb": {
      "status": "pending",
-     "attempts": 1,
+     "attempts": 2,
      "error": "backfill download failed",
-     "ts": 1794749522
+     "ts": 1794751226
     }
    }
   },
@@ -281,10 +285,12 @@
    },
    "crosspost": {
     "ig": {
-     "status": "failed",
-     "attempts": 1,
+     "status": "done",
+     "attempts": 2,
      "error": "rupload -> 500: {\"debug_info\":{\"retriable\":false,\"type\":\"ProcessingFailedError\",\"message\":\"{\\\"success\\\":false,\\\"error\\\":{\\\"message\\\":\\\"{\\\\\\\"message\\\\\\\":\\\\\\\"Video Transcoding Error: both HD and SD progressive failed to tr",
-     "ts": 1794749508
+     "ts": 1794751221,
+     "media_id": "18118457888034716",
+     "permalink": "https://www.instagram.com/reel/Dfw8cS5AZW5/"
     },
     "fb": {
      "status": "done",
