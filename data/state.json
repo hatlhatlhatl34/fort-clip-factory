@@ -71,15 +71,15 @@
    "crosspost": {
     "ig": {
      "status": "pending",
-     "attempts": 2,
+     "attempts": 3,
      "error": "backfill download failed",
-     "ts": 1794751224
+     "ts": 1794751407
     },
     "fb": {
      "status": "pending",
-     "attempts": 2,
+     "attempts": 3,
      "error": "backfill download failed",
-     "ts": 1794751224
+     "ts": 1794751407
     }
    }
   },
@@ -97,15 +97,15 @@
    "crosspost": {
     "ig": {
      "status": "pending",
-     "attempts": 2,
+     "attempts": 3,
      "error": "backfill download failed",
-     "ts": 1794751226
+     "ts": 1794751417
     },
     "fb": {
      "status": "pending",
-     "attempts": 2,
+     "attempts": 3,
      "error": "backfill download failed",
-     "ts": 1794751226
+     "ts": 1794751417
     }
    }
   },
@@ -119,7 +119,21 @@
    "clip_start": 877.04,
    "clip_dur": 48.0,
    "title": "USE CODE H15 \ud83d\uded2 1789-8528-6429 | Fortnite Map Clips #5",
-   "verified": "2026-11-12T02:28:23+00:00"
+   "verified": "2026-11-12T02:28:23+00:00",
+   "crosspost": {
+    "ig": {
+     "status": "pending",
+     "attempts": 1,
+     "error": "backfill download failed",
+     "ts": 1794751429
+    },
+    "fb": {
+     "status": "pending",
+     "attempts": 1,
+     "error": "backfill download failed",
+     "ts": 1794751429
+    }
+   }
   },
   {
    "n": 6,
@@ -131,7 +145,21 @@
    "clip_start": 2804.24,
    "clip_dur": 47.0,
    "title": "1789-8528-6429 \ud83d\udd25 CRAZY Fortnite Map Clips #6",
-   "verified": "2026-11-12T14:01:41+00:00"
+   "verified": "2026-11-12T14:01:41+00:00",
+   "crosspost": {
+    "ig": {
+     "status": "pending",
+     "attempts": 1,
+     "error": "backfill download failed",
+     "ts": 1794751441
+    },
+    "fb": {
+     "status": "pending",
+     "attempts": 1,
+     "error": "backfill download failed",
+     "ts": 1794751441
+    }
+   }
   },
   {
    "n": 7,
