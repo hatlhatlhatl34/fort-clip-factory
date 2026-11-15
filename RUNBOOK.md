@@ -438,6 +438,16 @@ token gains `instagram_manage_content` (neither the publish nor page
 token can DELETE IG media — graph answers `#10 Insufficient
 permissions`); deleting them by hand in the app takes ~10 s each.
 
+**crosspost-now.yml — the stateless one-shot finisher (2026-11-15):**
+manual `workflow_dispatch` that publishes due + backfill reels on a
+free runner while a long harvest holds the `clip-factory` group. It
+carries NO concurrency group and NO memory commit — the ephemeral
+state dies with the runner, so it can never race another writer; the
+next grouped heal ADOPTS whatever went live (dedupe gate + backfill
+fast-path) into the ledger without re-posting. This finished the
+full 17-video mirror the same evening the throttled-IP sandbox could
+not.
+
 ## Phase 2 — DONE (owner rule 2026-11-15)
 
 Multi-platform distribution as originally parked (2026-11-13):
