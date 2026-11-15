@@ -98,6 +98,22 @@ jobs:
             exit 0
           fi
           python main.py 2>&1 | tee factory.log
+
+      - name: Stamp the media-cache artifact name
+        if: ${{ !cancelled() }}
+        id: mcache
+        run: echo "name=media-cache-$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache published media for the reels cross-poster
+        # heal-published Shorts get reels too (owner rule 2026-11-15)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.mcache.outputs.name }}
+          path: media_cache
+          retention-days: 30
+          if-no-files-found: ignore
+
       - name: File an issue on failure
         if: failure()
         uses: actions/github-script@v7
@@ -118,3 +134,52 @@ jobs:
           git config user.email "actions@github.com"
           git add -A data ingest 2>/dev/null || true
           git diff --cached --quiet || (git commit -m "memory: heal run" && git push) || true
+
+  crosspost:
+    # OWNER RULE (2026-11-15): every Short -> YouTube Short + Instagram
+    # Reel + Facebook Reel — the SAME mp4. Runs EVERY hour (independent
+    # of the gate verdict): at each 6-hour grid slot (00/06/12/18 Cairo)
+    # it fetches the cached video back and pushes it to Meta's
+    # resumable-upload endpoints minutes after the YouTube twin goes
+    # live. Failures retry next hour and NEVER touch the YouTube
+    # pipeline. Unarmed platforms (missing token/id) are cleanly OFF.
+    needs: [gate, factory]     # strictly after any factory work in this
+                               # run — never two state writers at once
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet PyYAML
+      - name: Cross-post due Shorts to Instagram + Facebook
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          FB_ACCESS_TOKEN: ${{ secrets.FB_ACCESS_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python -m src.crosspost --due 2>&1 | tee crosspost.log
+      - name: File an issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let log = '';
+            try { log = fs.readFileSync('crosspost.log', 'utf8').slice(-3000); } catch (e) {}
+            const alerts = log.split('\n').filter(l =>
+              l.includes('ALERT') || l.includes('FAILED')).slice(0, 20).join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title: `Crosspost failure ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
+              body: `The reels cross-poster failed.\n\n\`\`\`\n${alerts || log.slice(-1500) || 'no log'}\n\`\`\``,
+              labels: ['machine-failure']
+            });
+      - name: Commit memory back
+        if: always()
+        run: |
+          git config user.name "fort-clip-factory"
+          git config user.email "actions@github.com"
+          git add -A data 2>/dev/null || true
+          git diff --cached --quiet || (git commit -m "memory: crosspost run" && git push) || true

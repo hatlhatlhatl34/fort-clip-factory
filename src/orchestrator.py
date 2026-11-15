@@ -35,7 +35,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from . import bank, clipper, downloader, ledger, metadata, music
-from . import overlay, sources, transform, verify, youtube
+from . import crosspost, overlay, sources, transform, verify, youtube
 from .config import ROOT, cfg
 from .rng import seed_for
 
@@ -60,6 +60,9 @@ def run(*, dry_run: bool = False, offline: bool = False,
     work = ROOT / "work"
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True, exist_ok=True)
+    # today's reel-media cache starts clean — yesterday's bytes already
+    # rode their own artifact, and stale files would double every upload
+    shutil.rmtree(ROOT / "media_cache", ignore_errors=True)
 
     # ── the session: every open slot before the next daily fire ────
     targets = bank.open_targets(state)
@@ -187,7 +190,7 @@ def run(*, dry_run: bool = False, offline: bool = False,
 
         # 7. remember everything
         ledger.mark_source_used(state, source["id"])
-        ledger.mark_short_uploaded(state, {
+        rec = {
             "n": meta["n"],
             "source_id": source["id"],
             "source_title": source.get("title", ""),
@@ -197,7 +200,12 @@ def run(*, dry_run: bool = False, offline: bool = False,
             "clip_start": start,
             "clip_dur": dur,
             "title": meta["title"],
-        }, units=0)             # units already spent inside upload_short
+        }
+        # cache the exact published bytes for the reels cross-poster
+        # (owner rule 2026-11-15 — same Short -> YT + IG + FB)
+        crosspost.cache_video(state, rec, final)
+        ledger.mark_short_uploaded(state, rec,
+                                   units=0)   # units spent in upload_short
         state["last_run"] = day
         state["last_run_ts"] = int(time.time())
         ledger.save(state)

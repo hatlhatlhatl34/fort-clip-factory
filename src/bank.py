@@ -56,7 +56,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from . import ledger, youtube
+from . import crosspost, ledger, youtube
 from .config import ROOT, cfg
 
 POINTER = ROOT / "data" / "bank_pointer.json"
@@ -258,7 +258,7 @@ def publish(bank_dir: Path, clip: dict, state: dict,
         reserved.remove(meta["n"])
 
     today = datetime.now(ZoneInfo(cfg()["schedule"]["timezone"]))
-    ledger.mark_short_uploaded(state, {
+    rec = {
         "n": meta.get("n"),
         "source_id": clip.get("source_id", ""),
         "source_title": clip.get("source_title", ""),
@@ -270,7 +270,12 @@ def publish(bank_dir: Path, clip: dict, state: dict,
         "title": meta.get("title", ""),
         "slot": clip.get("slot", ""),
         "banked": True,
-    }, units=0)                  # units already spent inside upload
+    }
+    # cache the exact published bytes for the reels cross-poster
+    # (owner rule 2026-11-15: same Short -> YT + IG + FB). Never
+    # raises — a cache miss only skips this Short's reels.
+    crosspost.cache_video(state, rec, f)
+    ledger.mark_short_uploaded(state, rec, units=0)   # units spent in upload
 
     clips = (state.get("bank") or {}).get("clips") or []
     clips[:] = [c for c in clips if c is not clip]

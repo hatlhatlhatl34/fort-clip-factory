@@ -223,9 +223,13 @@ of the 10,000 daily quota — comfortable margin. Weekdays ≈ 5,100.
 08:30 UTC cron (the ONLY daily wake-up) -> gate RUN -> ONE session:
     pops up to 4 banked clips (or live-ladder fallback) ->
     uploads all 4 at once -> publishAt 12:00+18:00 Cairo today,
-    00:00+06:00 Cairo tomorrow (one Short every 6 hours)
-hourly heal cron -> SKIP unless a slot would expire before the next
-    08:30 UTC session can claim it -> then heals every hole at once
+    00:00+06:00 Cairo tomorrow (one Short every 6 hours) ->
+    caches each final MP4 for the reels cross-poster
+hourly heal cron -> gate SKIPs the factory ~99% of the time, BUT the
+    crosspost job runs EVERY hour: at each grid slot it pushes the
+    same MP4 as an Instagram Reel + Facebook Reel (see section 8);
+    the factory part only RUNs when a slot would expire before the
+    next 08:30 UTC session -> then heals every hole at once
 watchdog 6x/day -> oEmbed verify; Issue if a Short is late
 monthly harvest (1st + daily guard) -> banks ~124 clips for the month
 ```
@@ -263,10 +267,91 @@ Quota math: one session = 4 x upload 1600 + search/verify crumbs
   dispatch — runs tools/update_channel.py with the OAuth secrets;
   avatar/banner changes need YouTube Studio, not the API).
 
-## Phase 2 (parked, owner 2026-11-13)
+## 8. CROSS-POSTING — Instagram Reels + Facebook Reels (owner rule 2026-11-15)
 
-After the machine is proven: post the same Shorts to OTHER
-platforms. NOT before everything above is green and boring. The
-Shorts render pipeline already produces platform-neutral
-1080x1920 MP4s — the multi-platform step will reuse the bank
-artifact, not re-download anything.
+**The SAME Short now goes everywhere**: the exact MP4 that YouTube
+publishes as a Short becomes an Instagram Reel and a Facebook Reel.
+
+```
+08:30 UTC session:  uploads 4 Shorts (publishAt = grid slots) AND
+                    caches each final into a media-cache-<date>
+                    artifact (state.shorts[].media points at it)
+hourly heal:        at each 6-hour grid slot (00/06/12/18 Cairo) the
+                    crosspost job fetches the cached MP4 back and
+                    pushes the SAME bytes to Meta's resumable-upload
+                    endpoints — reels go live within minutes of their
+                    YouTube twin. Failures retry next hour (8 tries),
+                    never touch the YouTube pipeline, alert once
+                    after the budget is spent.
+```
+
+Instagram flow: `POST /{ig_id}/media` (`media_type=REELS`,
+`upload_type=resumable`, caption) → binary POST to
+`rupload.facebook.com/ig-api-upload/{v}/{container}` → poll
+`status_code` → `FINISHED` → `POST /{ig_id}/media_publish`.
+Facebook flow: `POST /{page_id}/video_reels`
+(`upload_phase=start`) → binary POST to the returned `upload_url` →
+`upload_phase=finish` with `video_state=PUBLISHED` + description.
+No public hosting is ever needed — pure resumable uploads.
+
+Secrets (Settings → Secrets and variables → Actions):
+
+* `IG_ACCESS_TOKEN` — **set 2026-11-15** (Business system-user token,
+  never expires, `instagram_content_publish` granted).
+* `FB_ACCESS_TOKEN` — **not set yet** (see arming below).
+
+Arming each platform (channel.yaml `crosspost:`):
+
+* `ig_user_id` — the Instagram professional account id (1784...).
+  Empty today: the system-user token carries the right permissions
+  but no account id is visible via the API yet.
+* `fb_page_id` — a Facebook **Page** id. Empty today: the personal
+  profile "Hfifteen Master" has NO Page, and the token pasted on
+  2026-11-15 was a 1-hour Explorer token (expired 09:00 UTC) — reels
+  NEED a Page + a Page token.
+
+**The 3-minute Meta-side checklist to finish arming** (one time):
+
+1. **Instagram**: in Meta Business Settings → (Business) → Instagram
+   accounts: confirm your IG professional account is there and
+   assigned to the "Fortnite System User" (full control). Then just
+   tell the bot your **@username** (or paste the account id shown in
+   Business Settings) — it goes into `crosspost.ig_user_id` and reels
+   start flowing the same hour.
+2. **Facebook**: create a Facebook **Page** (e.g. "H15 Fortnite") —
+   personal profiles cannot carry reels via API.
+3. **Permanent FB token**: Business Settings → System users →
+   "Fortnite System User" → Add assets → Pages → your new page (full
+   control) → Generate token with `pages_manage_posts` +
+   `pages_read_engagement` → paste it to the bot (system-user tokens
+   NEVER expire, unlike Explorer tokens which die in ~1 hour).
+
+Auto-discovery: every hourly run re-probes `/me/accounts` with
+whatever tokens exist — the moment a token can see a Page (+ its
+linked IG account), the ids are recorded in `state.crosspost_ids`
+and reels start, with zero code changes. Until then each unarmed
+platform is cleanly OFF (YouTube keeps publishing alone — never an
+error).
+
+Limits & rules baked in:
+
+* Instagram Content Publishing API: 100 posts / 24 h moving window
+  (we use 4/day) — the run logs the quota config each pass.
+* Facebook reels: **3–90 s hard cap** → `clip.target_len_s` is now
+  [45, 90] so every Short fits ALL platforms; the 4 legacy banked
+  clips over 90 s still ship to YouTube + Instagram and skip only
+  the FB reel (logged in state, no alert spam).
+* Reel captions = the YouTube hook (#{n} bookkeeping tag dropped,
+  Fortnite rule enforced) + CREATOR CODE H15 + MAP CODE + the
+  crosspost.hashtags set.
+* Token health is checked every run; a dead token alerts once per
+  day and pauses that platform instead of burning retries.
+
+## Phase 2 — DONE (owner rule 2026-11-15)
+
+Multi-platform distribution as originally parked (2026-11-13):
+post the same Shorts to OTHER platforms once the machine is proven.
+**Shipped 2026-11-15** — see section 8 above: the reels cross-poster
+reuses the cached session media (no re-downloads, no re-renders),
+keeps YouTube untouched, and self-arms the moment the Meta-side ids
+land.

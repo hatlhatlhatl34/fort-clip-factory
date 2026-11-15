@@ -5,6 +5,7 @@
 # scratch
 work/
 bank/
+media_cache/
 *.mp4
 !ingest/*.mp4
 *.wav

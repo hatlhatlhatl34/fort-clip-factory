@@ -4,7 +4,8 @@ Ported from forever-factory (60+ episodes of proven uploads), adapted:
   * shorts-only (no thumbnails, no long-video machinery)
   * made_for_kids = False, synthetic-media disclosure OFF (real
     gameplay footage is not AI-generated media)
-  * publish grid = 00:00/08:00/16:00 Cairo, booked via publishAt
+  * publish grid = 00:00/06:00/12:00/18:00 Cairo (one Short every
+    6 hours), booked via publishAt
   * the full quota-defer classification (daily vs rolling vs
     unrecognized-fail-loudly) is preserved verbatim — it is the
     difference between a machine that heals and one that dies quietly.
@@ -136,11 +137,11 @@ def verify_credentials() -> dict:
 def next_slot(state: dict) -> str | None:
     """Next free grid slot (ISO, Cairo) for publishAt.
 
-    Grid = 00:00/08:00/16:00 Cairo every day PLUS 20:00 on Fri/Sat/
-    Sun (weekend_slots) — 3 Shorts/day on weekdays, 4/day on weekends.
-    Scans today/tomorrow/day-after, skipping slots already booked in
-    state.slots. A missed slot just means the next Short takes the
-    next open one — the grid self-heals."""
+    Grid = 00:00/06:00/12:00/18:00 Cairo EVERY day (owner rule
+    2026-11-14: one Short every 6 hours, 4/day). Scans today/tomorrow/
+    day-after, skipping slots already booked in state.slots. A missed
+    slot just means the next Short takes the next open one — the grid
+    self-heals."""
     from zoneinfo import ZoneInfo
     sched = cfg()["schedule"]
     tz = ZoneInfo(sched["timezone"])
