@@ -164,17 +164,24 @@
    "verified": "2026-11-15T01:14:16+00:00",
    "crosspost": {
     "ig": {
-     "status": "pending",
+     "status": "done",
      "attempts": 1,
      "error": "backfill download failed",
-     "ts": 1794765711
+     "ts": 1794784343,
+     "media_id": "18128205742920591",
+     "adopted": true,
+     "permalink": "https://www.instagram.com/reel/Dfxn1M3IQ5f/"
     },
     "fb": {
-     "status": "pending",
+     "status": "done",
      "attempts": 1,
      "error": "backfill download failed",
-     "ts": 1794765711
-    }
+     "ts": 1794784343,
+     "media_id": "1123055763952083",
+     "adopted": true,
+     "permalink": "https://www.facebook.com/reel/1123055763952083/"
+    },
+    "yt_links": true
    },
    "media": null
   },
@@ -191,17 +198,24 @@
    "verified": "2026-11-15T01:14:16+00:00",
    "crosspost": {
     "ig": {
-     "status": "pending",
+     "status": "done",
      "attempts": 1,
      "error": "backfill download failed",
-     "ts": 1794765810
+     "ts": 1794784344,
+     "media_id": "18120082540803392",
+     "adopted": true,
+     "permalink": "https://www.instagram.com/reel/Dfxn9TJjobF/"
     },
     "fb": {
-     "status": "pending",
+     "status": "done",
      "attempts": 1,
      "error": "backfill download failed",
-     "ts": 1794765810
-    }
+     "ts": 1794784344,
+     "media_id": "2141366123137630",
+     "adopted": true,
+     "permalink": "https://www.facebook.com/reel/2141366123137630/"
+    },
+    "yt_links": true
    },
    "media": null
   },
@@ -218,17 +232,24 @@
    "verified": "2026-11-15T01:14:16+00:00",
    "crosspost": {
     "ig": {
-     "status": "pending",
+     "status": "done",
      "attempts": 1,
      "error": "backfill download failed",
-     "ts": 1794765904
+     "ts": 1794784345,
+     "media_id": "18130626683310366",
+     "adopted": true,
+     "permalink": "https://www.instagram.com/reel/DfxoE9nD1J5/"
     },
     "fb": {
-     "status": "pending",
+     "status": "done",
      "attempts": 1,
      "error": "backfill download failed",
-     "ts": 1794765904
-    }
+     "ts": 1794784345,
+     "media_id": "1728872342164530",
+     "adopted": true,
+     "permalink": "https://www.facebook.com/reel/1728872342164530/"
+    },
+    "yt_links": true
    },
    "media": null
   },
@@ -245,17 +266,24 @@
    "verified": "2026-11-15T09:09:50+00:00",
    "crosspost": {
     "ig": {
-     "status": "pending",
+     "status": "done",
      "attempts": 1,
      "error": "backfill download failed",
-     "ts": 1794766011
+     "ts": 1794784345,
+     "media_id": "18114628520336416",
+     "adopted": true,
+     "permalink": "https://www.instagram.com/reel/DfxoMMlpdJe/"
     },
     "fb": {
-     "status": "pending",
+     "status": "done",
      "attempts": 1,
      "error": "backfill download failed",
-     "ts": 1794766011
-    }
+     "ts": 1794784346,
+     "media_id": "29678379178422426",
+     "adopted": true,
+     "permalink": "https://www.facebook.com/reel/29678379178422426/"
+    },
+    "yt_links": true
    },
    "media": null
   },
@@ -550,11 +578,20 @@
    },
    "crosspost": {
     "ig": {
-     "status": "pending"
+     "status": "done",
+     "media_id": "17997324483023565",
+     "ts": 1794784331,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/Dfx7mWVDkT1/"
     },
     "fb": {
-     "status": "pending"
-    }
+     "status": "done",
+     "media_id": "1903458907489388",
+     "ts": 1794784342,
+     "attempts": 1,
+     "permalink": "https://www.facebook.com/reel/1903458907489388/"
+    },
+    "yt_links": true
    },
    "slot": "2026-11-16T00:00:00+02:00"
   },
