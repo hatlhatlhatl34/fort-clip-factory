@@ -32,6 +32,7 @@ import re
 import shutil
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -772,6 +773,68 @@ def _run() -> int:
     crosspost.youtube_add_links(stl, shl)
     check("yt link update is non-fatal without creds",
           "yt_links" not in (shl.get("crosspost") or {}))
+
+    # ── 13. THROTTLED: storyboard-only bot-gate -> cooldown, no
+    # attempts burned, remaining candidates skipped this run
+    # (live-diagnosed 2026-11-15 18:06)
+    os.environ["IG_ACCESS_TOKEN"] = "IGT"
+    os.environ["FB_ACCESS_TOKEN"] = "FBT"
+    try:
+        th_state = {
+            "shorts": [{"n": 60, "video_id": "y60", "slot": None,
+                         "clip_dur": 55.0, "crosspost": {}},
+                       {"n": 61, "video_id": "y61", "slot": None,
+                         "clip_dur": 55.0, "crosspost": {}}],
+            "crosspost_ids": {"ig": "17841234567890123",
+                              "fb": "1234567890"},
+            "alerts_sent": {},
+        }
+        fetched = {"n": 0}
+
+        def throttle_fetch(video_id, workdir, n=None):
+            fetched["n"] += 1
+            return "THROTTLED"
+
+        apply, restore = patched(
+            _conf=bf_conf, _graph=bf_graph,
+            _fetch_public_short=throttle_fetch,
+            auto_discover=discover, alert_once=alert,
+            youtube_add_links=bf_yt)
+        apply()
+        try:
+            rc3 = crosspost.run_backfill(th_state)
+        finally:
+            restore()
+        check("THROTTLED backfill exits 0", rc3 == 0)
+        check("THROTTLED sets a cooldown timestamp",
+              float(th_state.get("backfill_cooldown_until") or 0)
+              > 0)
+        c60 = (th_state["shorts"][0].get("crosspost") or {})
+        check("THROTTLED burns no attempts",
+              not (c60.get("ig") or {}).get("attempts")
+              and (c60.get("ig") or {}).get("status", "pending")
+              in ("pending", None), str(c60))
+        check("THROTTLED stops the run at the first wall",
+              fetched["n"] == 1, f"fetched={fetched['n']}")
+
+        # cooldown active -> the whole backfill idles out
+        th_state["backfill_cooldown_until"] = (
+            time.time() + 3600)
+        apply, restore = patched(
+            _conf=bf_conf, _graph=bf_graph,
+            _fetch_public_short=throttle_fetch,
+            auto_discover=discover, alert_once=alert,
+            youtube_add_links=bf_yt)
+        apply()
+        try:
+            rc4 = crosspost.run_backfill(th_state)
+        finally:
+            restore()
+        check("cooldown gate exits 0 without fetching",
+              rc4 == 0 and fetched["n"] == 1)
+    finally:
+        os.environ.pop("IG_ACCESS_TOKEN", None)
+        os.environ.pop("FB_ACCESS_TOKEN", None)
 
     print()
     if FAILURES:

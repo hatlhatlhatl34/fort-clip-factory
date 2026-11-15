@@ -899,8 +899,12 @@ def _fetch_public_short(video_id: str, workdir: Path, n) -> Path | str | None:
     challenge-solver + deno runtime the job installs. YouTube
     bot-gates anonymous datacenter IPs (live-diagnosed 2026-11-15,
     twice). Returns the Path, None on a soft failure (retry next
-    run), or "GONE" when the source video was deleted/made private
-    — permanent, so the caller settles instead of burning retries."""
+    run), "GONE" when the source video was deleted/made private
+    (permanent — the caller settles instead of burning retries), or
+    "THROTTLED" when EVERY combo hit the bot-gate / 429 /
+    storyboard-only wall (live-diagnosed 2026-11-15 18:06: after ~15
+    backfill downloads in 2 h YouTube served storyboard-only even
+    WITH cookies) — the caller cools down instead of hammering."""
     url = f"https://www.youtube.com/shorts/{video_id}"
     out = workdir / f"short_{n}.mp4"
     try:
@@ -909,16 +913,26 @@ def _fetch_public_short(video_id: str, workdir: Path, n) -> Path | str | None:
     except Exception:                          # noqa: BLE001
         FMT, JAR_CLIENTS = "bv*+ba/b", ["web", "web_embedded", "tv"]
         jars = []
+    # cookie-less clients hit DIFFERENT throttle pools (youtubei API,
+    # no cookie support by design) — the tail of the ladder
+    cookieless = ("android_vr", "tv_simply", "ios")
     if jars:
         combos = [(c, j) for j in _rotate(jars)
                    for c in JAR_CLIENTS][:12]
+        combos += [(c, None) for c in cookieless]
     else:
-        combos = [(c, None) for c in JAR_CLIENTS]
+        combos = ([(c, None) for c in cookieless]
+                  + [(c, None) for c in JAR_CLIENTS])
     gone_markers = ("Video unavailable", "removed by the uploader",
                     "Private video", "account associated with",
                     "has been terminated")
+    throttle_markers = ("Requested format is not available",
+                        "Only images are available",
+                        "HTTP Error 429", "Too Many Requests",
+                        "Sign in to confirm")
     deadline = time.monotonic() + 480
     last = "no yt-dlp output"
+    throttled = False
     for client, jar in combos:
         if time.monotonic() > deadline - 30:
             print(f"[backfill] #{n}: ladder out of time budget")
@@ -940,6 +954,8 @@ def _fetch_public_short(video_id: str, workdir: Path, n) -> Path | str | None:
         if out.exists() and out.stat().st_size > 100_000:
             return out
         blob = (r.stderr or "") + (r.stdout or "")
+        if any(m in blob for m in throttle_markers):
+            throttled = True
         errs = [l for l in blob.splitlines() if "ERROR" in l]
         last = errs[-1][:160] if errs else "no error line"
         if any(m in blob for m in gone_markers):
@@ -949,6 +965,11 @@ def _fetch_public_short(video_id: str, workdir: Path, n) -> Path | str | None:
         if out.exists() and out.stat().st_size < 100_000:
             out.unlink(missing_ok=True)       # error-page stub
         time.sleep(2)
+    if throttled:
+        print(f"[backfill] #{n}: YouTube served storyboard-only / "
+              "throttled on every combo — cooling down, attempts "
+              "NOT burned")
+        return "THROTTLED"
     print(f"[backfill] download failed for #{n}: {last}")
     return None
 
@@ -1010,6 +1031,16 @@ def run_backfill(state: dict) -> int:
     if not bf.get("enabled", True):
         print("[backfill] disabled in channel.yaml — nothing to do")
         return 0
+    # YouTube throttle cooldown (live-diagnosed 2026-11-15 18:06):
+    # storyboard-only formats even WITH cookies after ~15 downloads
+    # in 2 h. Hammering worsens it; the backfill waits it out.
+    cool = float(state.get("backfill_cooldown_until") or 0)
+    if cool > time.time():
+        until = datetime.fromtimestamp(
+            cool, ZoneInfo(cfg()["schedule"]["timezone"]))
+        print(f"[backfill] cooling down until {until:%H:%M %Z} "
+              "(YouTube throttle) — due-reels unaffected")
+        return 0
     auto_discover(state)
     igt, fbt = ig_token(), fb_token()
     ig_id, page_id = ig_user_id(state), fb_page_id(state)
@@ -1062,6 +1093,26 @@ def run_backfill(state: dict) -> int:
             print(f"[backfill] #{n} cache fetch: {e}")
         if video is None:
             video = _fetch_public_short(yt_vid, workdir, n)
+        if video == "THROTTLED":
+            # YouTube served storyboard-only on every combo: cool down
+            # (3 h default) WITHOUT burning the retry budget — the
+            # remaining candidates would hit the same wall this run.
+            cooldown_s = int(bf.get("cooldown_s", 3 * 3600))
+            state["backfill_cooldown_until"] = time.time() + cooldown_s
+            ledger.save(state)
+            print(f"[backfill] YouTube throttled the downloads — "
+                  f"cooling down {cooldown_s // 60} min (attempts "
+                  "preserved); trying again after the cooldown")
+            alert_once(
+                state, "yt-throttle",
+                "YouTube throttled the backfill downloads",
+                "yt-dlp got storyboard-only formats / 429 on every "
+                "cookie x player-client combo (bot-gate). The "
+                "backfill cools down and retries automatically; the "
+                "daily grid Shorts and their reels are unaffected "
+                "(fresh media comes from the session cache, no "
+                "download needed).")
+            break
         if video == "GONE":
             # the source Short no longer exists on YouTube — settle
             # permanently instead of burning 8 retries

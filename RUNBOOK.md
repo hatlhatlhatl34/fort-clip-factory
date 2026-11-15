@@ -416,6 +416,15 @@ Links are configured in `channel.yaml` under `crosspost.links`.
   pool (COOKIES_TXT/2/3) as the factory. Shorts deleted from
   YouTube are settled as GONE immediately instead of burning
   retries.
+* After ~15 backfill downloads in 2 h YouTube starts serving
+  STORYBOARD-ONLY formats even with cookies ("Requested format is
+  not available", live-diagnosed 2026-11-15 18:06) — account-level
+  throttling. The ladder's tail now also tries the cookie-less
+  clients (android_vr / tv_simply / ios — different throttle pools),
+  and a full wall trips a 3 h cooldown (`state.backfill_cooldown_until`,
+  `crosspost.backfill.cooldown_s`) that preserves the retry budget.
+  The daily grid Shorts are unaffected: their reels use the session
+  media cache, no YouTube download involved.
 
 ## Phase 2 — DONE (owner rule 2026-11-15)
 
