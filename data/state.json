@@ -14,14 +14,18 @@
    "owner_deleted": true,
    "crosspost": {
     "ig": {
-     "status": "pending",
-     "attempts": 0,
-     "note": "re-armed 2026-11-15: download give-ups from the pre-ladder-fix era get one retry with the proven ladder; GONE-detection settles them permanently if the source was deleted"
+     "status": "gave_up",
+     "attempts": 8,
+     "note": "re-armed 2026-11-15: download give-ups from the pre-ladder-fix era get one retry with the proven ladder; GONE-detection settles them permanently if the source was deleted",
+     "reason": "source video deleted from YouTube",
+     "ts": 1794764746
     },
     "fb": {
-     "status": "pending",
-     "attempts": 0,
-     "note": "re-armed 2026-11-15: download give-ups from the pre-ladder-fix era get one retry with the proven ladder; GONE-detection settles them permanently if the source was deleted"
+     "status": "gave_up",
+     "attempts": 8,
+     "note": "re-armed 2026-11-15: download give-ups from the pre-ladder-fix era get one retry with the proven ladder; GONE-detection settles them permanently if the source was deleted",
+     "reason": "source video deleted from YouTube",
+     "ts": 1794764746
     }
    }
   },
@@ -38,14 +42,18 @@
    "owner_deleted": true,
    "crosspost": {
     "ig": {
-     "status": "pending",
-     "attempts": 0,
-     "note": "re-armed 2026-11-15: download give-ups from the pre-ladder-fix era get one retry with the proven ladder; GONE-detection settles them permanently if the source was deleted"
+     "status": "gave_up",
+     "attempts": 8,
+     "note": "re-armed 2026-11-15: download give-ups from the pre-ladder-fix era get one retry with the proven ladder; GONE-detection settles them permanently if the source was deleted",
+     "reason": "source video deleted from YouTube",
+     "ts": 1794764747
     },
     "fb": {
-     "status": "pending",
-     "attempts": 0,
-     "note": "re-armed 2026-11-15: download give-ups from the pre-ladder-fix era get one retry with the proven ladder; GONE-detection settles them permanently if the source was deleted"
+     "status": "gave_up",
+     "attempts": 8,
+     "note": "re-armed 2026-11-15: download give-ups from the pre-ladder-fix era get one retry with the proven ladder; GONE-detection settles them permanently if the source was deleted",
+     "reason": "source video deleted from YouTube",
+     "ts": 1794764747
     }
    }
   },
@@ -299,7 +307,24 @@
    "clip_start": 231.02,
    "clip_dur": 45.0,
    "title": "1789-8528-6429 \ud83d\udd25 XP MAP Gameplay \u2014 Fortnite Clips #11",
-   "verified": "2026-11-13T22:02:00+00:00"
+   "verified": "2026-11-13T22:02:00+00:00",
+   "crosspost": {
+    "ig": {
+     "status": "done",
+     "media_id": "17921582946460161",
+     "ts": 1794764787,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/DfxWWUXElK9/"
+    },
+    "fb": {
+     "status": "done",
+     "media_id": "1612970676683226",
+     "ts": 1794764793,
+     "attempts": 1,
+     "permalink": "https://www.facebook.com/reel/1612970676683226/"
+    },
+    "yt_links": true
+   }
   },
   {
    "n": 19,
@@ -311,7 +336,24 @@
    "clip_start": 150.34,
    "clip_dur": 48.0,
    "title": "USE CODE H15 \ud83d\uded2 1789-8528-6429 | Fortnite Map Clips #19",
-   "verified": "2026-11-13T22:02:00+00:00"
+   "verified": "2026-11-13T22:02:00+00:00",
+   "crosspost": {
+    "ig": {
+     "status": "done",
+     "media_id": "18195917446399355",
+     "ts": 1794764851,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/DfxWcSeEsOp/"
+    },
+    "fb": {
+     "status": "done",
+     "media_id": "1121513534203801",
+     "ts": 1794764859,
+     "attempts": 1,
+     "permalink": "https://www.facebook.com/reel/1121513534203801/"
+    },
+    "yt_links": true
+   }
   },
   {
    "n": 20,
