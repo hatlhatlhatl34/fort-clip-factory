@@ -64,7 +64,11 @@ heal run. Live-probed 2026-11-15: Instagram reports NO
 content_publishing_limit (empty config) and Facebook documents no
 reel cap, so the whole catalogue gets mirrored. Legacy Shorts without
 a media pointer are downloaded back from their own public YouTube
-URL via yt-dlp (no cookies — our own public videos).
+URL via yt-dlp using the cookie pool (YouTube bot-gates anonymous
+datacenter IPs); Shorts deleted from YouTube are settled as GONE
+(no retry burn). IG's transcoders reject 4:4:4 chroma, so a file
+that fails Meta's transcode is re-encoded to yuv420p and retried
+once — and the factory render now emits yuv420p at birth.
 """
 from __future__ import annotations
 
@@ -850,40 +854,111 @@ def _attempt_reel(state: dict, s: dict, platform: str, video: Path,
                   f"{st['permalink']}")
         ledger.save(state)
         return True
-    except Exception as e:                     # noqa: BLE001
+    except Exception as first_err:              # noqa: BLE001
+        # IG second chance: 4:4:4 chroma files fail Meta's transcode
+        # — re-encode to yuv420p and retry once within this attempt
+        # (live-diagnosed + live-verified 2026-11-15).
+        if platform == "ig" and any(k in str(first_err).lower() for k
+                                    in ("transcode", "processingfailed",
+                                        "rupload")):
+            try:
+                fixed = _ig_reencode(video, n)
+                if fixed:
+                    media_id = ig_publish_reel(fixed, caption, ig_id, igt)
+                    st.update(status="done", media_id=media_id,
+                              ts=int(time.time()), attempts=attempts + 1)
+                    st["permalink"] = _permalink(igt, media_id, ig=True)
+                    print(f"[crosspost] #{n} -> Instagram reel "
+                          f"{media_id} (re-encoded yuv420p) "
+                          f"{st['permalink']}")
+                    ledger.save(state)
+                    return True
+            except Exception as e:                # noqa: BLE001
+                first_err = e
         st.update(status="failed", attempts=attempts + 1,
-                  error=str(e)[:220], ts=int(time.time()))
+                  error=str(first_err)[:220], ts=int(time.time()))
         print(f"[crosspost] #{n} {platform.upper()} FAILED "
-              f"(attempt {attempts + 1}/{max_attempts}): {e}")
+              f"(attempt {attempts + 1}/{max_attempts}): {first_err}")
         ledger.save(state)
         return False
 
 
 # ── the backfill: the whole catalogue gets its reels ───────────────
 
-def _fetch_public_short(video_id: str, workdir: Path, n) -> Path | None:
+def _fetch_public_short(video_id: str, workdir: Path, n) -> Path | str | None:
     """Backfill source: pull our own already-public YouTube Short back
-    down with yt-dlp (public video, no cookies needed)."""
-    out = workdir / f"short_{n}.mp4"
+    down with yt-dlp. Uses the cookie pool (COOKIES_TXT/2/3 secrets)
+    — YouTube bot-gates anonymous datacenter IPs (live-diagnosed
+    2026-11-15), and these are the same jars the factory already
+    rotates. Returns the Path, None on a soft failure (retry next
+    run), or the string "GONE" when the source video was deleted/
+    made private — that is permanent, so the caller settles the
+    crosspost records instead of burning retries."""
     url = f"https://www.youtube.com/shorts/{video_id}"
-    cmd = [sys.executable, "-m", "yt_dlp", "-f", "bv*+ba/b",
-           "--merge-output-format", "mp4", "--no-playlist",
-           "--retries", "3", "--no-warnings", "-o", str(out), url]
+    out = workdir / f"short_{n}.mp4"
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True,
-                           timeout=600)
+        from .downloader import _cookie_jars
+        jars = _cookie_jars(workdir)
+    except Exception:                          # noqa: BLE001
+        jars = []
+    gone_markers = ("Video unavailable", "removed by the uploader",
+                    "Private video", "account associated with",
+                    "has been terminated")
+    cookie_args: list[str | None] = \
+        [f"--cookies={j}" for j in jars] + [None]
+    last = "no yt-dlp output"
+    for extra in cookie_args:
+        cmd = [sys.executable, "-m", "yt_dlp", "-f", "bv*+ba/b",
+               "--merge-output-format", "mp4", "--no-playlist",
+               "--retries", "2", "--no-warnings"]
+        if extra:
+            cmd.append(extra)
+        cmd += ["-o", str(out), url]
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True,
+                               timeout=600)
+        except Exception as e:                  # noqa: BLE001
+            last = f"timeout: {e}"
+            continue
+        if out.exists() and out.stat().st_size > 100_000:
+            return out
+        alt = workdir / f"{video_id}.mp4"
+        if alt.exists() and alt.stat().st_size > 100_000:
+            alt.replace(out)
+            return out
+        blob = (r.stderr or "") + (r.stdout or "")
+        tail = blob.strip().splitlines()
+        last = tail[-1][:160] if tail else "no yt-dlp output"
+        if any(m in blob for m in gone_markers):
+            print(f"[backfill] #{n}: source video is GONE from "
+                  "YouTube (deleted/private) — settling permanently")
+            return "GONE"
+    print(f"[backfill] download failed for #{n}: {last}")
+    return None
+
+
+def _ig_reencode(video: Path, n) -> Path | None:
+    """Instagram's transcoders reject 4:4:4 chroma (live-diagnosed
+    2026-11-15: "Video Transcoding Error: both HD and SD progressive
+    failed to transcode") — the factory render emitted yuv444p before
+    the yuv420p fix. Normalize any file to yuv420p High and let the
+    caller retry the upload once. Best-effort: returns None on any
+    ffmpeg problem."""
+    out = video.with_name(video.stem + "_ig420.mp4")
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(video),
+           "-c:v", "libx264", "-preset", "veryfast",
+           "-profile:v", "high", "-pix_fmt", "yuv420p", "-crf", "20",
+           "-c:a", "copy", "-movflags", "+faststart", str(out)]
+    try:
+        subprocess.run(cmd, capture_output=True, text=True, timeout=900)
     except Exception as e:                      # noqa: BLE001
-        print(f"[backfill] yt-dlp timeout for #{n}: {e}")
+        print(f"[crosspost] IG re-encode failed for #{n}: {e}")
         return None
     if out.exists() and out.stat().st_size > 100_000:
+        print(f"[crosspost] #{n} re-encoded to yuv420p for Instagram "
+              f"({out.stat().st_size / 1e6:.1f} MB)")
         return out
-    alt = workdir / f"{video_id}.mp4"
-    if alt.exists() and alt.stat().st_size > 100_000:
-        alt.replace(out)
-        return out
-    tail = (r.stderr or r.stdout or "").strip().splitlines()
-    print(f"[backfill] download failed for #{n}: "
-          + (tail[-1][:160] if tail else "no yt-dlp output"))
+    print(f"[crosspost] IG re-encode produced nothing for #{n}")
     return None
 
 
@@ -971,6 +1046,17 @@ def run_backfill(state: dict) -> int:
             print(f"[backfill] #{n} cache fetch: {e}")
         if video is None:
             video = _fetch_public_short(yt_vid, workdir, n)
+        if video == "GONE":
+            # the source Short no longer exists on YouTube — settle
+            # permanently instead of burning 8 retries
+            for p in ("ig", "fb"):
+                stx = (s.setdefault("crosspost", {})
+                       .setdefault(p, {"status": "pending"}))
+                stx.update(status="gave_up", attempts=max_attempts,
+                           reason="source video deleted from YouTube",
+                           ts=int(time.time()))
+            ledger.save(state)
+            continue
         if video is None:
             for p in ("ig", "fb"):
                 stx = (s.setdefault("crosspost", {})

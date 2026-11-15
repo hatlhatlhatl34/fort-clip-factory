@@ -687,6 +687,81 @@ def _run() -> int:
         os.environ.pop("IG_ACCESS_TOKEN", None)
         os.environ.pop("FB_ACCESS_TOKEN", None)
 
+    # GONE: a source video deleted from YouTube settles permanently
+    os.environ["IG_ACCESS_TOKEN"] = "IGT"
+    os.environ["FB_ACCESS_TOKEN"] = "FBT"
+    try:
+        gone_state = {
+            "shorts": [{"n": 50, "video_id": "y50", "slot": None,
+                        "clip_dur": 55.0, "crosspost": {}}],
+            "crosspost_ids": {"ig": "17841234567890123",
+                              "fb": "1234567890"},
+            "alerts_sent": {},
+        }
+
+        def gone_fetch(video_id, workdir, n=None):
+            return "GONE"
+
+        apply, restore = patched(
+            _conf=bf_conf, _graph=bf_graph,
+            _fetch_public_short=gone_fetch,
+            auto_discover=discover, alert_once=alert,
+            youtube_add_links=bf_yt)
+        apply()
+        try:
+            rc2 = crosspost.run_backfill(gone_state)
+        finally:
+            restore()
+        check("GONE backfill exits 0", rc2 == 0)
+        g50 = gone_state["shorts"][0]["crosspost"]
+        check("GONE settles both platforms immediately",
+              g50["ig"]["status"] == "gave_up"
+              and g50["fb"]["status"] == "gave_up", str(g50))
+        check("GONE reason is the deleted source",
+              "deleted" in str(g50["ig"].get("reason")))
+
+        # IG second chance: a transcode failure re-encodes to yuv420p
+        # and retries within the same attempt
+        re_state = {
+            "shorts": [{"n": 51, "video_id": "y51", "slot": None,
+                        "clip_dur": 55.0, "crosspost": {}}],
+            "crosspost_ids": {"ig": "17841234567890123",
+                              "fb": "1234567890"},
+            "alerts_sent": {},
+        }
+        ig_first = {"calls": 0}
+
+        def picky_ig(video, caption, ig_id, token):
+            ig_first["calls"] += 1
+            if ig_first["calls"] == 1:
+                raise crosspost.CrosspostError(
+                    "rupload -> 500: Video Transcoding Error: both HD "
+                    "and SD progressive failed to transcode")
+            return "MR"
+
+        def fake_reencode(video, n):
+            return video
+
+        apply, restore = patched(
+            _conf=bf_conf, _graph=bf_graph, ig_publish_reel=picky_ig,
+            _fetch_public_short=bf_fetch, _ig_reencode=fake_reencode,
+            auto_discover=discover, alert_once=alert,
+            youtube_add_links=bf_yt)
+        apply()
+        try:
+            crosspost.run_backfill(re_state)
+        finally:
+            restore()
+        r51 = re_state["shorts"][0]["crosspost"]["ig"]
+        check("transcode failure -> yuv420p retry -> reel live",
+              r51["status"] == "done" and r51["media_id"] == "MR",
+              str(r51))
+        check("second chance fired exactly twice",
+              ig_first["calls"] == 2)
+    finally:
+        os.environ.pop("IG_ACCESS_TOKEN", None)
+        os.environ.pop("FB_ACCESS_TOKEN", None)
+
     # ── 12. youtube_add_links is non-fatal without YouTube creds ──
     os.environ.pop("YT_CLIENT_ID", None)
     os.environ.pop("YT_CLIENT_SECRET", None)

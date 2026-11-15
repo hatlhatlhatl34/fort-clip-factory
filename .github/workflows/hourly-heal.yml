@@ -152,9 +152,9 @@ jobs:
                                # run — never two state writers at once
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 35      # due reels + backfill burst (yt-dlp
-                              # downloads + uploads + yt description
-                              # updates can take ~30 min)
+    timeout-minutes: 45      # due reels + backfill burst (yt-dlp
+                              # downloads + uploads + possible yuv420p
+                              # re-encodes + yt description updates)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

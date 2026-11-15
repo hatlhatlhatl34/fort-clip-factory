@@ -389,7 +389,7 @@ attempt budget (8), then gives up + alerts once.
   profile.
 Links are configured in `channel.yaml` under `crosspost.links`.
 
-**Two live-diagnosed traps (2026-11-15, worth remembering):**
+**Four live-diagnosed traps (2026-11-15, worth remembering):**
 * GitHub artifact downloads 303 to a signed Azure blob URL; urllib
   auto-follows redirects AND forwards the Authorization header — the
   blob host answers 401. `src/crosspost.py` now follows redirects by
@@ -399,6 +399,16 @@ Links are configured in `channel.yaml` under `crosspost.links`.
   memory commit (the armed ids were silently reverted once, 13:20
   UTC). The crosspost commit step now rebases (--autostash) before
   pushing.
+* Instagram's transcoders REJECT 4:4:4 chroma — the render used to
+  emit yuv444p, which YouTube takes happily but Meta answers with
+  "Video Transcoding Error: both HD and SD progressive failed".
+  The render now pins `-pix_fmt yuv420p`, and any pre-fix file is
+  re-encoded to yuv420p and retried once inside the same attempt.
+* YouTube bot-gates anonymous datacenter IPs ("Sign in to confirm
+  you're not a bot") — the backfill downloads ride the SAME cookie
+  pool (COOKIES_TXT/2/3) as the factory. Shorts deleted from
+  YouTube are settled as GONE immediately instead of burning
+  retries.
 
 ## Phase 2 — DONE (owner rule 2026-11-15)
 
