@@ -49,6 +49,22 @@ state.crosspost_ids, filled by auto-discovery). Tokens are the GitHub
 secrets IG_ACCESS_TOKEN / FB_ACCESS_TOKEN. The Instagram token is a
 Business system-user token (never expires); the Facebook token must be
 a Page token — see RUNBOOK.md "Cross-posting".
+
+CROSS-LINKS (owner rule 2026-11-15): every description carries the
+other platforms. YouTube descriptions carry an IG + FB block; reel
+captions/descriptions carry the YouTube twin link
+(youtube.com/shorts/<id>) plus the other platform's profile; once
+reels are live the YouTube description also gains the per-video reel
+permalinks (videos.update, quota-aware).
+
+BACKFILL (owner rule 2026-11-15): the three feeds must look alike —
+the already-public YouTube catalogue is mirrored to Instagram +
+Facebook, oldest first, at crosspost.backfill.per_hour shorts per
+heal run. Live-probed 2026-11-15: Instagram reports NO
+content_publishing_limit (empty config) and Facebook documents no
+reel cap, so the whole catalogue gets mirrored. Legacy Shorts without
+a media pointer are downloaded back from their own public YouTube
+URL via yt-dlp (no cookies — our own public videos).
 """
 from __future__ import annotations
 
@@ -56,6 +72,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import time
 import urllib.error
@@ -74,6 +91,7 @@ RUPLOAD = "https://rupload.facebook.com"
 GH_API = "https://api.github.com"
 
 FB_REEL_MAX_S = 90.0        # Facebook Reels API hard cap (3-90 s)
+YT_API = "https://www.googleapis.com/youtube/v3"   # description edits
 STATUS_POLL_S = 20          # container status poll cadence
 STATUS_TIMEOUT_S = 300      # doc advice: poll <= 5 minutes
 CAPTION_MAX = 2200          # Instagram caption limit
@@ -112,6 +130,19 @@ def ig_user_id(state: dict) -> str:
 def fb_page_id(state: dict) -> str:
     ids = state.get("crosspost_ids") or {}
     return str(ids.get("fb") or _conf().get("fb_page_id") or "").strip()
+
+
+# ── cross-links (owner rule 2026-11-15) ──────────────────────────────
+
+def _links() -> dict:
+    return _conf().get("links") or {}
+
+
+def short_url(video_id: str) -> str:
+    """Per-video YouTube link (https://youtube.com/shorts/<id>)."""
+    tpl = str(_links().get("yt_short")
+              or "https://www.youtube.com/shorts/{video_id}")
+    return tpl.format(video_id=video_id)
 
 
 # ── HTTP plumbing (stdlib only, mirrors src/youtube.py style) ────────
@@ -188,9 +219,16 @@ def _rupload(url: str, token: str, video: Path,
 
 # ── caption ─────────────────────────────────────────────────────────
 
-def build_caption(title: str) -> str:
-    """Reel caption from the YouTube title: drop the #{n} bookkeeping
-    tag, enforce the Fortnite rule, carry the codes + hashtags."""
+def build_caption(title: str, video_id: str = "",
+                  for_platform: str = "") -> str:
+    """Reel caption/description from the YouTube title + cross-links.
+
+    OWNER RULE (2026-11-15): every reel description carries the OTHER
+    platforms' links — the Instagram reel points at its YouTube twin
+    + the Facebook page; the Facebook reel points at its YouTube twin
+    + the Instagram profile. for_platform ("ig" / "fb") skips the
+    platform's own link; "" includes both (back-compat).
+    """
     t = re.sub(r"\s*#\d+$", "", (title or "").strip())
     if "fortnite" not in t.lower():
         t = f"Fortnite {t}".strip()
@@ -201,6 +239,13 @@ def build_caption(title: str) -> str:
              f"CREATOR CODE: {codes['creator_code']} in the Fortnite "
              f"item shop",
              f"MAP CODE: {codes['map_code']}"]
+    ln = _links()
+    if video_id:
+        lines += ["", f"▶ WATCH ON YOUTUBE: {short_url(video_id)}"]
+    if for_platform != "ig" and ln.get("ig"):
+        lines.append(f"📸 INSTAGRAM: {ln['ig']}")
+    if for_platform != "fb" and ln.get("fb"):
+        lines.append(f"📱 FACEBOOK: {ln['fb']}")
     if tags:
         lines += ["", tags]
     return "\n".join(lines)[:CAPTION_MAX]
@@ -219,8 +264,13 @@ def ig_publish_reel(video: Path, caption: str, ig_id: str,
     if not container:
         raise CrosspostError("container creation returned no id")
 
-    _rupload(f"{RUPLOAD}/ig-api-upload/{_version()}/{container}",
-             token, video,
+    # Live probe 2026-11-15: the container response carries Meta's own
+    # rupload URL in `uri` (currently the v27.0 path — v23.0-shaped
+    # URLs get 400 there). Prefer Meta's URL; the versioned and
+    # unversioned shapes remain as fallbacks inside _rupload.
+    primary = str(c.get("uri")
+                  or f"{RUPLOAD}/ig-api-upload/{_version()}/{container}")
+    _rupload(primary, token, video,
              versioned_fallback=f"{RUPLOAD}/ig-api-upload/{container}")
 
     deadline = time.monotonic() + STATUS_TIMEOUT_S
@@ -308,6 +358,54 @@ def cache_video(state: dict, rec: dict, src: Path) -> dict | None:
 
 # ── media cache: heal side (GitHub artifact fetch) ───────────────────
 
+def _permalink(token: str, oid: str, *, ig: bool) -> str:
+    """Best-effort public permalink for a published reel (recorded in
+    the crosspost status; feeds the YouTube description links)."""
+    try:
+        if ig:
+            return str(_graph(token, oid, params={"fields": "permalink"})
+                       .get("permalink") or "")
+        p = str(_graph(token, oid, params={"fields": "permalink_url"})
+                    .get("permalink_url") or "")
+        if p.startswith("/"):
+            p = "https://www.facebook.com" + p
+        return p
+    except Exception:                          # noqa: BLE001
+        return ""
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None        # redirects are followed by hand
+
+
+def _download(url: str, headers: dict, out_path: Path,
+              timeout: int = 600) -> None:
+    """GET to a file, following redirects MANUALLY. GitHub artifact
+    downloads 302/303 to a signed blob URL; urllib's automatic
+    redirect forwards the Authorization header, which the blob host
+    rejects with 401 (live-diagnosed 2026-11-15 — it delayed #69's
+    reels by an hour). Leaving api.github.com drops the auth header."""
+    opener = urllib.request.build_opener(_NoRedirect)
+    for _ in range(5):
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with opener.open(req, timeout=timeout) as resp:
+                out_path.write_bytes(resp.read())
+                return
+        except urllib.error.HTTPError as e:
+            loc = (e.headers or {}).get("Location")
+            if e.code in (301, 302, 303, 307) and loc:
+                if urllib.parse.urlsplit(loc).netloc != "api.github.com":
+                    headers = {k: v for k, v in headers.items()
+                               if k.lower() != "authorization"}
+                url = loc
+                continue
+            raise CrosspostError(
+                f"download {e.code}: {url}") from e
+    raise CrosspostError(f"too many redirects: {url}")
+
+
 def _gh_json(path: str, token: str) -> dict:
     req = urllib.request.Request(
         f"{GH_API}{path}",
@@ -346,13 +444,10 @@ def fetch_media(media: dict, workdir: Path,
                     f"artifact {name} not found in run {run_id} "
                     "(expired after 30 days?)")
             zpath = workdir / f"{name}.zip"
-            req = urllib.request.Request(
-                art["archive_download_url"],
-                headers={"Authorization": f"Bearer {token}",
-                         "Accept": "application/vnd.github+json",
-                         "User-Agent": "fort-clip-factory"})
-            with urllib.request.urlopen(req, timeout=600) as resp:
-                zpath.write_bytes(resp.read())
+            _download(art["archive_download_url"],
+                      {"Authorization": f"Bearer {token}",
+                       "Accept": "application/vnd.github+json",
+                       "User-Agent": "fort-clip-factory"}, zpath)
             zips[name] = zpath
         with zipfile.ZipFile(zips[name]) as z:
             if fname not in z.namelist():
@@ -363,6 +458,73 @@ def fetch_media(media: dict, workdir: Path,
     except urllib.error.HTTPError as e:
         raise CrosspostError(
             f"media fetch failed ({e.code}): {fname}") from e
+
+
+# ── the YouTube twin carries the links too ──────────────────────────
+
+def youtube_add_links(state: dict, s: dict) -> None:
+    """OWNER RULE (2026-11-15): the YouTube description carries the
+    other platforms' links. Once a Short's reels are live, append a
+    'SEE THIS SHORT ON' block (IG + FB permalinks) via videos.update.
+    Idempotent, quota-aware (list 1 + update 50 units), non-fatal —
+    failures retry with the next hourly heal."""
+    vid = str(s.get("video_id") or "")
+    cp = s.get("crosspost") or {}
+    if not vid or cp.get("yt_links"):
+        return
+    ig, fb = cp.get("ig") or {}, cp.get("fb") or {}
+    if not (ig.get("status") == "done" or fb.get("status") == "done"):
+        return
+    from . import ledger as _led
+    from . import youtube as _yt
+    try:
+        if _led.quota_remaining(state) < 60:
+            print("[crosspost] yt link update deferred (quota budget) "
+                  "— retried next hour")
+            return
+        token = _yt.get_access_token()
+        req = urllib.request.Request(
+            f"{YT_API}/videos?part=snippet&id={vid}",
+            headers={"Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            items = json.loads(r.read()).get("items") or []
+        if not items:
+            print(f"[crosspost] yt link update: {vid} not visible — "
+                  "flagged done to stop retrying")
+            s.setdefault("crosspost", {})["yt_links"] = True
+            _led.save(state)
+            return
+        sn = items[0].get("snippet") or {}
+        desc = str(sn.get("description") or "")
+        if "SEE THIS SHORT ON" in desc:
+            s.setdefault("crosspost", {})["yt_links"] = True
+            _led.save(state)
+            return
+        ln = _links()
+        lines = ["SEE THIS SHORT ON:",
+                 "📸 Instagram: " + (str(ig.get("permalink") or "")
+                                    or str(ln.get("ig") or "")),
+                 "📱 Facebook: " + (str(fb.get("permalink") or "")
+                                   or str(ln.get("fb") or ""))]
+        new_desc = (desc.rstrip() + "\n\n" + "\n".join(lines))[:4900]
+        body = json.dumps({"id": vid, "snippet": {
+            "title": sn.get("title") or "",
+            "categoryId": sn.get("categoryId") or "20",
+            "description": new_desc}}).encode()
+        req = urllib.request.Request(
+            f"{YT_API}/videos?part=snippet", data=body, method="PUT",
+            headers={"Authorization": f"Bearer {token}",
+                     "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            r.read()
+        _led.spend_quota(state, 51)
+        s.setdefault("crosspost", {})["yt_links"] = True
+        _led.save(state)
+        print(f"[crosspost] #{s.get('n')} YouTube description now "
+              f"carries the reel links")
+    except Exception as e:                     # noqa: BLE001
+        print(f"[crosspost] yt link update failed for #{s.get('n')} "
+              f"({e}) — retried next hour")
 
 
 # ── alerts (deduped, best-effort) ───────────────────────────────────
@@ -596,7 +758,9 @@ def run_due(state: dict) -> int:
 
     for s in sorted(due, key=lambda x: str(x.get("slot"))):
         n = s.get("n")
-        caption = build_caption(str(s.get("title") or ""))
+        yt_vid = str(s.get("video_id") or "")
+        cap_ig = build_caption(str(s.get("title") or ""), yt_vid, "ig")
+        cap_fb = build_caption(str(s.get("title") or ""), yt_vid, "fb")
         dur = float(s.get("clip_dur") or 0)
 
         try:
@@ -625,77 +789,217 @@ def run_due(state: dict) -> int:
             continue
 
         if ig_on:
-            st = (s.setdefault("crosspost", {})
-                  .setdefault("ig", {"status": "pending"}))
-            if st.get("status") not in ("done", "gave_up", "skipped"):
-                attempts = int(st.get("attempts") or 0)
-                if attempts >= max_attempts:
-                    st["status"] = "gave_up"
-                    alert_once(state, f"ig-{n}",
-                               f"Instagram reel gave up for short #{n}",
-                               f"short #{n} failed {attempts} hourly "
-                               f"attempts: {st.get('error', '?')}")
-                    ledger.save(state)
-                else:
-                    try:
-                        media_id = ig_publish_reel(video, caption, ig_id,
-                                                   igt)
-                        st.update(status="done", media_id=media_id,
-                                  ts=int(time.time()), attempts=attempts + 1)
-                        published += 1
-                        print(f"[crosspost] #{n} -> Instagram reel "
-                              f"{media_id}")
-                    except Exception as e:             # noqa: BLE001
-                        st.update(status="failed",
-                                  attempts=attempts + 1,
-                                  error=str(e)[:220], ts=int(time.time()))
-                        print(f"[crosspost] #{n} Instagram FAILED "
-                              f"(attempt {attempts + 1}/{max_attempts}): "
-                              f"{e}")
-                    ledger.save(state)
-
+            if _attempt_reel(state, s, "ig", video, cap_ig, dur,
+                             igt=igt, ig_id=ig_id,
+                             max_attempts=max_attempts):
+                published += 1
         if fb_on:
-            st = (s.setdefault("crosspost", {})
-                  .setdefault("fb", {"status": "pending"}))
-            if st.get("status") not in ("done", "gave_up", "skipped"):
-                if dur > FB_REEL_MAX_S:
-                    st.update(status="skipped",
-                              reason=f"duration {dur:.0f}s > "
-                                     f"{FB_REEL_MAX_S:.0f}s FB cap")
-                    print(f"[crosspost] #{n} FB skipped: "
-                          f"{dur:.0f}s over the 90 s reel cap "
-                          "(Instagram still gets it)")
-                    ledger.save(state)
-                else:
-                    attempts = int(st.get("attempts") or 0)
-                    if attempts >= max_attempts:
-                        st["status"] = "gave_up"
-                        alert_once(state, f"fb-{n}",
-                                   f"Facebook reel gave up for short #{n}",
-                                   f"short #{n} failed {attempts} hourly "
-                                   f"attempts: {st.get('error', '?')}")
-                        ledger.save(state)
-                    else:
-                        try:
-                            vid = fb_publish_reel(video, caption, page_id,
-                                                  fbt)
-                            st.update(status="done", media_id=vid,
-                                      ts=int(time.time()),
-                                      attempts=attempts + 1)
-                            published += 1
-                            print(f"[crosspost] #{n} -> Facebook reel "
-                                  f"{vid}")
-                        except Exception as e:         # noqa: BLE001
-                            st.update(status="failed",
-                                      attempts=attempts + 1,
-                                      error=str(e)[:220],
-                                      ts=int(time.time()))
-                            print(f"[crosspost] #{n} Facebook FAILED "
-                                  f"(attempt {attempts + 1}/"
-                                  f"{max_attempts}): {e}")
-                        ledger.save(state)
+            if _attempt_reel(state, s, "fb", video, cap_fb, dur,
+                             fbt=fbt, page_id=page_id,
+                             max_attempts=max_attempts):
+                published += 1
+        youtube_add_links(state, s)
 
     print(f"\n[crosspost] DONE: {published} reel(s) live this run")
+    return 0
+
+
+def _attempt_reel(state: dict, s: dict, platform: str, video: Path,
+                  caption: str, dur: float, *, igt: str = "",
+                  ig_id: str = "", fbt: str = "", page_id: str = "",
+                  max_attempts: int = 8) -> bool:
+    """One platform attempt for one short. Returns True iff a reel
+    went live this call. Failures are recorded (attempts/error) and
+    swallowed — the YouTube pipeline is never affected."""
+    n = s.get("n")
+    st = (s.setdefault("crosspost", {})
+          .setdefault(platform, {"status": "pending"}))
+    if st.get("status") in ("done", "skipped", "gave_up"):
+        return False
+    if platform == "fb" and dur > FB_REEL_MAX_S:
+        st.update(status="skipped",
+                  reason=f"duration {dur:.0f}s > "
+                         f"{FB_REEL_MAX_S:.0f}s FB cap")
+        print(f"[crosspost] #{n} FB skipped: {dur:.0f}s over the "
+              f"{FB_REEL_MAX_S:.0f}s reel cap (Instagram still gets it)")
+        ledger.save(state)
+        return False
+    attempts = int(st.get("attempts") or 0)
+    if attempts >= max_attempts:
+        st["status"] = "gave_up"
+        alert_once(state, f"{platform}-{n}",
+                   f"{platform.upper()} reel gave up for short #{n}",
+                   f"short #{n} failed {attempts} hourly attempts: "
+                   f"{st.get('error', '?')}")
+        ledger.save(state)
+        return False
+    try:
+        if platform == "ig":
+            media_id = ig_publish_reel(video, caption, ig_id, igt)
+            st.update(status="done", media_id=media_id,
+                      ts=int(time.time()), attempts=attempts + 1)
+            st["permalink"] = _permalink(igt, media_id, ig=True)
+            print(f"[crosspost] #{n} -> Instagram reel {media_id} "
+                  f"{st['permalink']}")
+        else:
+            vid = fb_publish_reel(video, caption, page_id, fbt)
+            st.update(status="done", media_id=vid,
+                      ts=int(time.time()), attempts=attempts + 1)
+            st["permalink"] = _permalink(fbt, vid, ig=False)
+            print(f"[crosspost] #{n} -> Facebook reel {vid} "
+                  f"{st['permalink']}")
+        ledger.save(state)
+        return True
+    except Exception as e:                     # noqa: BLE001
+        st.update(status="failed", attempts=attempts + 1,
+                  error=str(e)[:220], ts=int(time.time()))
+        print(f"[crosspost] #{n} {platform.upper()} FAILED "
+              f"(attempt {attempts + 1}/{max_attempts}): {e}")
+        ledger.save(state)
+        return False
+
+
+# ── the backfill: the whole catalogue gets its reels ───────────────
+
+def _fetch_public_short(video_id: str, workdir: Path, n) -> Path | None:
+    """Backfill source: pull our own already-public YouTube Short back
+    down with yt-dlp (public video, no cookies needed)."""
+    out = workdir / f"short_{n}.mp4"
+    url = f"https://www.youtube.com/shorts/{video_id}"
+    cmd = [sys.executable, "-m", "yt_dlp", "-f", "bv*+ba/b",
+           "--merge-output-format", "mp4", "--no-playlist",
+           "--retries", "3", "--no-warnings", "-o", str(out), url]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True,
+                           timeout=600)
+    except Exception as e:                      # noqa: BLE001
+        print(f"[backfill] yt-dlp timeout for #{n}: {e}")
+        return None
+    if out.exists() and out.stat().st_size > 100_000:
+        return out
+    alt = workdir / f"{video_id}.mp4"
+    if alt.exists() and alt.stat().st_size > 100_000:
+        alt.replace(out)
+        return out
+    tail = (r.stderr or r.stdout or "").strip().splitlines()
+    print(f"[backfill] download failed for #{n}: "
+          + (tail[-1][:160] if tail else "no yt-dlp output"))
+    return None
+
+
+def _ffprobe_duration(path: Path) -> float:
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "error", "-show-entries",
+             "format=duration", "-of", "default=nw=1:nk=1", str(path)],
+            capture_output=True, text=True, timeout=60)
+        return float(r.stdout.strip() or 0.0)
+    except Exception:                            # noqa: BLE001
+        return 0.0
+
+
+def _backfill_settled(s: dict) -> bool:
+    cp = s.get("crosspost") or {}
+    return all((cp.get(p) or {}).get("status")
+               in ("done", "skipped", "gave_up")
+               for p in ("ig", "fb"))
+
+
+def run_backfill(state: dict) -> int:
+    """OWNER RULE (2026-11-15): make the three feeds look alike — the
+    already-public YouTube Shorts get their Instagram + Facebook
+    reels too. Quota reality (live-probed 2026-11-15): Instagram
+    reports NO content_publishing_limit for this account (empty
+    config) and Facebook documents no reel cap — the backfill runs at
+    crosspost.backfill.per_hour shorts per heal run, oldest first,
+    until the catalogue is mirrored. Legacy shorts are downloaded
+    back from their own public YouTube URL (yt-dlp); fresh ones reuse
+    the media-cache artifact."""
+    bf = dict(_conf().get("backfill") or {})
+    if not bf.get("enabled", True):
+        print("[backfill] disabled in channel.yaml — nothing to do")
+        return 0
+    auto_discover(state)
+    igt, fbt = ig_token(), fb_token()
+    ig_id, page_id = ig_user_id(state), fb_page_id(state)
+    ig_on, fb_on = bool(igt and ig_id), bool(fbt and page_id)
+    if not (ig_on or fb_on):
+        print("[backfill] no platform armed yet — nothing to backfill")
+        return 0
+
+    # recover media-fetch give-ups (the 401 artifact bug, fixed
+    # 2026-11-15): those were never upload failures
+    for s in state.get("shorts", []):
+        for p in ("ig", "fb"):
+            st = (s.get("crosspost") or {}).get(p) or {}
+            if st.get("status") == "gave_up" and "media" in str(
+                    st.get("reason") or "").lower():
+                st.update(status="pending", attempts=0)
+                st.pop("reason", None)
+                print(f"[backfill] recovering #{s.get('n')} {p} "
+                      "(media-fetch give-up — fetch bug fixed)")
+
+    now = datetime.now(ZoneInfo(cfg()["schedule"]["timezone"]))
+    cands = [s for s in state.get("shorts", [])
+             if s.get("video_id")
+             and (s.get("slot") is None or _slot_passed(s, now))
+             and not _backfill_settled(s)]
+    cands.sort(key=lambda x: int(x.get("n") or 0))
+    budget = int(bf.get("per_hour", 4))
+    cands = cands[:budget]
+    if not cands:
+        print("[backfill] the catalogue is fully cross-posted — idle")
+        return 0
+    print(f"[backfill] {len(cands)} Short(s) this run "
+          f"(budget {budget}/run, oldest first)")
+
+    max_attempts = int(_conf().get("max_attempts", 8))
+    workdir = ROOT / "work_backfill"
+    shutil.rmtree(workdir, ignore_errors=True)
+    workdir.mkdir(parents=True, exist_ok=True)
+    zips: dict = {}
+    published = 0
+    for s in cands:
+        n, yt_vid = s.get("n"), str(s.get("video_id") or "")
+        cap_ig = build_caption(str(s.get("title") or ""), yt_vid, "ig")
+        cap_fb = build_caption(str(s.get("title") or ""), yt_vid, "fb")
+        video = None
+        try:
+            if s.get("media"):
+                video = fetch_media(s["media"], workdir, zips)
+        except CrosspostError as e:
+            print(f"[backfill] #{n} cache fetch: {e}")
+        if video is None:
+            video = _fetch_public_short(yt_vid, workdir, n)
+        if video is None:
+            for p in ("ig", "fb"):
+                stx = (s.setdefault("crosspost", {})
+                       .setdefault(p, {"status": "pending"}))
+                if stx.get("status") not in ("done", "skipped",
+                                             "gave_up"):
+                    stx.update(
+                        attempts=int(stx.get("attempts") or 0) + 1,
+                        error="backfill download failed",
+                        ts=int(time.time()))
+                    if int(stx.get("attempts")) >= max_attempts:
+                        stx["status"] = "gave_up"
+            ledger.save(state)
+            continue
+        dur = float(s.get("clip_dur") or 0)
+        if not dur:
+            dur = _ffprobe_duration(video)
+            if dur:
+                s["clip_dur"] = dur
+        if ig_on and _attempt_reel(state, s, "ig", video, cap_ig, dur,
+                                   igt=igt, ig_id=ig_id,
+                                   max_attempts=max_attempts):
+            published += 1
+        if fb_on and _attempt_reel(state, s, "fb", video, cap_fb, dur,
+                                   fbt=fbt, page_id=page_id,
+                                   max_attempts=max_attempts):
+            published += 1
+        youtube_add_links(state, s)
+    print(f"\n[backfill] DONE: {published} reel(s) live this run")
     return 0
 
 
@@ -705,6 +1009,9 @@ def report(state: dict) -> None:
     igt, fbt = ig_token(), fb_token()
     ig_id, page_id = ig_user_id(state), fb_page_id(state)
     print("cross-posting status:")
+    bf = _conf().get("backfill") or {}
+    print(f"  backfill    : {'ON' if bf.get('enabled', True) else 'off'} "
+          f"({bf.get('per_hour', 4)}/run, oldest first)")
     print(f"  enabled     : {_conf().get('enabled', True)}")
     print(f"  Instagram   : "
           f"{'ARMED' if igt and ig_id else 'off'} "
@@ -733,6 +1040,9 @@ def main() -> int:
     ap.add_argument("--due", action="store_true",
                     help="publish reels for every Short whose grid slot "
                          "has passed (the hourly heal)")
+    ap.add_argument("--backfill", action="store_true",
+                    help="mirror the already-public YouTube catalogue "
+                         "to Instagram + Facebook (paced per_hour/run)")
     ap.add_argument("--check", action="store_true",
                     help="status report: tokens, ids, recent shorts")
     args = ap.parse_args()
@@ -744,6 +1054,8 @@ def main() -> int:
         return 0
     if args.due:
         return run_due(state)
+    if args.backfill:
+        return run_backfill(state)
     ap.print_help()
     return 0
 

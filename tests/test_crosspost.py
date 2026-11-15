@@ -13,6 +13,14 @@
      the @h15master hint (channel.yaml crosspost.ig_username) picking
      the owner's account; unqueryable ids are never armed
   9. clip ceiling drops to 90 s (FB reel cap)
+ 10. cross-links (owner rule 2026-11-15): every description carries
+     the OTHER platforms' links — IG captions get YT twin + FB page,
+     FB descriptions get YT twin + IG profile, YouTube descriptions
+     get the reel permalinks appended (quota-aware, non-fatal)
+ 11. backfill: the whole already-public catalogue gets its reels —
+     oldest first, per_hour budget, legacy shorts downloaded from
+     their own public YouTube URL, media-fetch give-ups recovered
+ 12. IG rupload uses Meta's own `uri` from the container response
 
 Run:  python3 tests/test_crosspost.py
 (no pytest dependency; plain asserts + prints)
@@ -519,6 +527,176 @@ def _run() -> int:
             ok = False
             print(f"      import src.{mod} failed: {e}")
     check("all touched modules import cleanly", ok)
+
+    # ── 10. cross-links (owner rule 2026-11-15) ────────────────────
+    ln = cfg()["crosspost"].get("links") or {}
+    check("links configured (ig/fb/yt_short)",
+          bool(ln.get("ig") and ln.get("fb") and ln.get("yt_short")),
+          str(ln))
+    ci = crosspost.build_caption(
+        "This Fortnite XP map = FREE Battle Pass 🤑 #24", "VID9", "ig")
+    check("IG caption carries the YouTube twin link",
+          "youtube.com/shorts/VID9" in ci, ci[:200])
+    check("IG caption carries the Facebook link",
+          "facebook.com" in ci)
+    check("IG caption does not link itself",
+          "instagram.com" not in ci)
+    cf = crosspost.build_caption(
+        "This Fortnite XP map = FREE Battle Pass 🤑 #24", "VID9", "fb")
+    check("FB description carries the YouTube twin link",
+          "youtube.com/shorts/VID9" in cf)
+    check("FB description carries the Instagram link",
+          "instagram.com" in cf)
+    check("FB description does not link itself",
+          "facebook.com" not in cf)
+    check("reel captions still obey the code rules",
+          "MAP CODE: 1789-8528-6429" in ci and "#fortnite" in ci)
+
+    # IG rupload prefers Meta's own uri (live probe 2026-11-15: the
+    # container response carries a v27.0 rupload URL)
+    with tempfile.TemporaryDirectory() as td:
+        vid = Path(td) / "short_2.mp4"
+        vid.write_bytes(b"FAKEVIDEOFORTEST" * 1000)
+        calls.clear()
+
+        def uri_graph(token, path, method="GET", params=None,
+                      timeout=60):
+            calls.append((method, path.lstrip("/"), dict(params or {})))
+            if path.rstrip("/").endswith("/media") and method == "POST":
+                return {"id": "C1",
+                        "uri": "https://rupload.facebook.com/"
+                               "ig-api-upload/v27.0/C1"}
+            if path.rstrip("/") == "C1":
+                return {"status_code": "FINISHED"}
+            if path.rstrip("/").endswith("/media_publish"):
+                return {"id": "M9"}
+            raise AssertionError(f"unexpected graph call {method} {path}")
+
+        apply, restore = patched(_graph=uri_graph,
+                                 _rupload=fake_rupload)
+        apply()
+        try:
+            crosspost.ig_publish_reel(vid, "cap", "17841234567890123",
+                                      "TOK")
+        finally:
+            restore()
+        rup = next(c for c in calls if c[0] == "RUPLOAD")
+        check("IG bytes use Meta's own uri first",
+              rup[1] == "https://rupload.facebook.com/ig-api-upload/"
+                        "v27.0/C1", rup[1])
+
+    # ── 11. backfill: the catalogue gets mirrored ──────────────────
+    legacy = {"n": 40, "video_id": "y40", "slot": None,
+              "clip_dur": 55.0, "crosspost": {}}
+    done2 = {"n": 42, "video_id": "y42", "slot": past, "clip_dur": 55.0,
+             "crosspost": {"ig": {"status": "done"},
+                           "fb": {"status": "skipped"}}}
+    gaveup_media = {"n": 43, "video_id": "y43", "slot": past,
+                    "clip_dur": 55.0,
+                    "crosspost": {"ig": {"status": "gave_up",
+                                         "reason": "media unreachable: x"},
+                                  "fb": {"status": "pending"}}}
+    check("legacy short (no slot) is backfill-eligible",
+          not crosspost._backfill_settled(legacy))
+    check("future slot is not backfill-eligible yet",
+          not crosspost._slot_passed(upcoming, now))
+    check("done+skipped counts as settled",
+          crosspost._backfill_settled(done2))
+    check("media give-up is recoverable (not settled)",
+          not crosspost._backfill_settled(gaveup_media))
+
+    os.environ["IG_ACCESS_TOKEN"] = "IGT"
+    os.environ["FB_ACCESS_TOKEN"] = "FBT"
+    try:
+        bf_state = {
+            "shorts": [dict(legacy), {"n": 44, "video_id": "y44",
+                                      "slot": None, "clip_dur": 55.0,
+                                      "crosspost": {}}],
+            "crosspost_ids": {"ig": "17841234567890123",
+                              "fb": "1234567890"},
+            "alerts_sent": {},
+        }
+        with tempfile.TemporaryDirectory() as td:
+            vid2 = Path(td) / "short_40.mp4"
+            vid2.write_bytes(b"B" * 3000)
+
+            orig_conf = crosspost._conf
+
+            def bf_conf():
+                c = dict(orig_conf())
+                c["backfill"] = {"enabled": True, "per_hour": 1}
+                return c
+
+            def bf_graph(token, path, method="GET", params=None,
+                         timeout=60):
+                p = path.rstrip("/")
+                if p == "me":
+                    return {"id": "1", "name": "n"}
+                if p == "M40":
+                    return {"permalink":
+                             "https://www.instagram.com/reel/X40/"}
+                if p == "V40":
+                    return {"permalink_url":
+                             "https://www.facebook.com/reel/V40/"}
+                raise AssertionError(f"unexpected {method} {path}")
+
+            def bf_ig(video, caption, ig_id, token):
+                assert "youtube.com/shorts/y40" in caption, caption
+                return "M40"
+
+            def bf_fb(video, desc, page_id, token):
+                assert "youtube.com/shorts/y40" in desc, desc
+                return "V40"
+
+            def bf_fetch(video_id, workdir, n=None):
+                return vid2
+
+            def bf_fetch_media(media, workdir, zips=None):
+                raise AssertionError("legacy short has no media pointer")
+
+            def bf_yt(state_, s_):
+                pass          # patched out — no YouTube creds in tests
+
+            apply, restore = patched(
+                _conf=bf_conf, _graph=bf_graph,
+                ig_publish_reel=bf_ig, fb_publish_reel=bf_fb,
+                _fetch_public_short=bf_fetch,
+                fetch_media=bf_fetch_media,
+                youtube_add_links=bf_yt,
+                auto_discover=discover, alert_once=alert)
+            apply()
+            try:
+                rc = crosspost.run_backfill(bf_state)
+            finally:
+                restore()
+            check("run_backfill exits 0", rc == 0)
+            s40 = bf_state["shorts"][0]
+            check("legacy #40 got both reels",
+                  s40["crosspost"]["ig"]["status"] == "done"
+                  and s40["crosspost"]["fb"]["status"] == "done",
+                  str(s40.get("crosspost")))
+            check("reel permalinks recorded",
+                  "instagram.com/reel/X40/" in str(
+                      s40["crosspost"]["ig"].get("permalink"))
+                  and "facebook.com/reel/V40/" in str(
+                      s40["crosspost"]["fb"].get("permalink")))
+            check("budget honored (second short untouched)",
+                  bf_state["shorts"][1].get("crosspost") == {},
+                  str(bf_state["shorts"][1].get("crosspost")))
+    finally:
+        os.environ.pop("IG_ACCESS_TOKEN", None)
+        os.environ.pop("FB_ACCESS_TOKEN", None)
+
+    # ── 12. youtube_add_links is non-fatal without YouTube creds ──
+    os.environ.pop("YT_CLIENT_ID", None)
+    os.environ.pop("YT_CLIENT_SECRET", None)
+    os.environ.pop("YT_REFRESH_TOKEN", None)
+    stl = {"quota": {"used": 0}}
+    shl = {"n": 45, "video_id": "y45", "crosspost": {
+        "ig": {"status": "done", "permalink": "https://x/"}}}
+    crosspost.youtube_add_links(stl, shl)
+    check("yt link update is non-fatal without creds",
+          "yt_links" not in (shl.get("crosspost") or {}))
 
     print()
     if FAILURES:

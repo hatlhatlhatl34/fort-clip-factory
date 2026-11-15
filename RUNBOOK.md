@@ -366,6 +366,40 @@ Limits & rules baked in:
 * Token health is checked every run; a dead token alerts once per
   day and pauses that platform instead of burning retries.
 
+**Backfill — the feeds must look alike (owner rule 2026-11-15).**
+Live quota probe (2026-11-15): Instagram `content_publishing_limit`
+returns an EMPTY config for this account and Facebook documents no
+Reels publishing cap — so the whole already-public YouTube catalogue
+is mirrored to both platforms, oldest first, at
+`crosspost.backfill.per_hour` shorts per hourly heal run (default 4 —
+~20 legacy Shorts spread over ~5 hours). Legacy Shorts that predate
+the media cache are downloaded back from their own public
+`youtube.com/shorts/<id>` URL with yt-dlp (no cookies — our own
+public videos). A download that keeps failing burns the normal
+attempt budget (8), then gives up + alerts once.
+
+**Cross-links everywhere (owner rule 2026-11-15).**
+* YouTube descriptions: a "WATCH EVERYWHERE" block (IG + FB profile
+  links) is baked into every new upload; once a Short's reels are
+  live the heal APPENDS "SEE THIS SHORT ON" with the two per-video
+  reel permalinks (videos.update, 51 quota units, idempotent,
+  retried hourly until it sticks).
+* Instagram reel captions: the YouTube twin link + the Facebook page.
+* Facebook reel descriptions: the YouTube twin link + the Instagram
+  profile.
+Links are configured in `channel.yaml` under `crosspost.links`.
+
+**Two live-diagnosed traps (2026-11-15, worth remembering):**
+* GitHub artifact downloads 303 to a signed Azure blob URL; urllib
+  auto-follows redirects AND forwards the Authorization header — the
+  blob host answers 401. `src/crosspost.py` now follows redirects by
+  hand and drops the auth header when leaving api.github.com.
+* The factory job and the crosspost job run on separate runners; a
+  plain `git push` from crosspost can lose the race to the factory's
+  memory commit (the armed ids were silently reverted once, 13:20
+  UTC). The crosspost commit step now rebases (--autostash) before
+  pushing.
+
 ## Phase 2 — DONE (owner rule 2026-11-15)
 
 Multi-platform distribution as originally parked (2026-11-13):

@@ -69,6 +69,16 @@ def build(source: dict, state: dict, seed: int) -> dict:
         "",
         "How to play: Fortnite → search → enter the map code above. 🎮",
     ]
+    # OWNER RULE (2026-11-15): cross-links — every YouTube description
+    # points at the other two platforms (the per-video reel links are
+    # appended by the cross-poster once the reels are live).
+    xlinks = (cfg().get("crosspost") or {}).get("links") or {}
+    if xlinks.get("ig") or xlinks.get("fb"):
+        desc += ["", "WATCH EVERYWHERE:"]
+        if xlinks.get("ig"):
+            desc.append(f"📸 Instagram: {xlinks['ig']}")
+        if xlinks.get("fb"):
+            desc.append(f"📱 Facebook: {xlinks['fb']}")
     # OWNER RULE (2026-11-10): no source credit of any kind — the
     # "clipped from ..." sentence is banned from descriptions.
     desc += [

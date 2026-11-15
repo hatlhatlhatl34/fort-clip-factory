@@ -152,20 +152,32 @@ jobs:
                                # run — never two state writers at once
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25      # catch-up bursts (several due reels + IG
-                              # container polling can take ~20 min)
+    timeout-minutes: 35      # due reels + backfill burst (yt-dlp
+                              # downloads + uploads + yt description
+                              # updates can take ~30 min)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install --quiet PyYAML
-      - name: Cross-post due Shorts to Instagram + Facebook
+      - name: Install ffmpeg + PyYAML + yt-dlp
+        # ffmpeg: yt-dlp merge + backfill duration probes; yt-dlp:
+        # the backfill pulls legacy Shorts back from their own public
+        # youtube.com/shorts/<id> URLs (owner rule 2026-11-15)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          pip install --quiet PyYAML yt-dlp
+      - name: Cross-post due Shorts + backfill the catalogue
         env:
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           FB_ACCESS_TOKEN: ${{ secrets.FB_ACCESS_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python -m src.crosspost --due 2>&1 | tee crosspost.log
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: |
+          python -m src.crosspost --due 2>&1 | tee crosspost.log
+          python -m src.crosspost --backfill 2>&1 | tee -a crosspost.log
       - name: File an issue on failure
         if: failure()
         uses: actions/github-script@v7
@@ -188,4 +200,11 @@ jobs:
           git config user.name "fort-clip-factory"
           git config user.email "actions@github.com"
           git add -A data 2>/dev/null || true
-          git diff --cached --quiet || (git commit -m "memory: crosspost run" && git push) || true
+          # the factory job in this run may have pushed memory first
+          # (separate runner) — rebase our staged state onto it so the
+          # crosspost discoveries are never lost to the race (the armed
+          # ids WERE silently reverted once, 2026-11-15 13:20)
+          git diff --cached --quiet || { \
+            git pull --rebase --autostash origin main || true; \
+            git commit -m "memory: crosspost run" || true; \
+            git push || true; }

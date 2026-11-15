@@ -168,6 +168,24 @@ crosspost:
   max_attempts: 8       # hourly retries per reel before alert+give up
   hashtags: ["#fortnite", "#fortnitexp", "#fortnitemap", "#freeskins",
              "#fortnitebattlepass", "#gaming"]
+  # CROSS-LINKS (owner rule 2026-11-15): every description carries the
+  # other platforms — YouTube descriptions point at IG + FB; IG reel
+  # captions at the YouTube twin + the FB page; FB reels at the
+  # YouTube twin + the IG profile. Per-video reel permalinks are
+  # appended to the YouTube description once the reels are live
+  # (src/crosspost.py youtube_add_links).
+  links:
+    yt_short: "https://www.youtube.com/shorts/{video_id}"
+    ig: "https://www.instagram.com/h15master/"
+    fb: "https://www.facebook.com/131825308398327"
+  # BACKFILL (owner rule 2026-11-15): mirror the already-public
+  # catalogue so the three feeds look alike. Live-probed 2026-11-15:
+  # Instagram reports NO content_publishing_limit (empty config) and
+  # Facebook documents no reel cap — so per_hour paces the heal
+  # (oldest first) purely for spam-safety, not quota.
+  backfill:
+    enabled: true
+    per_hour: 4
 
 youtube:
   category_id: "20"                   # Gaming
