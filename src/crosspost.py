@@ -378,6 +378,39 @@ def _permalink(token: str, oid: str, *, ig: bool) -> str:
         return ""
 
 
+def _existing_reel(platform: str, yt_vid: str, *, igt: str = "",
+                    ig_id: str = "", fbt: str = "",
+                    page_id: str = "") -> str:
+    """Dedupe gate (owner rule 2026-11-15: NO duplicate reels, ever).
+
+    A reel for this exact YouTube twin may already be live even when
+    the ledger disagrees — the 2026-11-15 races proved it (rupload
+    500s that still publish, heal runs racing on stale state, #69/#11/
+    #19 each went out twice on Instagram). Before ANY publish attempt
+    we scan the platform's newest reels for the shorts/<video_id>
+    link every caption carries; a hit means ADOPT, never re-publish.
+    Returns the existing media id ('' = no twin found)."""
+    if not yt_vid:
+        return ""
+    needle = f"shorts/{yt_vid}"
+    try:
+        if platform == "ig":
+            d = _graph(igt, f"{ig_id}/media", params={
+                "fields": "id,caption", "limit": "50"})
+            for m in d.get("data") or []:
+                if needle in str(m.get("caption") or ""):
+                    return str(m.get("id") or "")
+        else:
+            d = _graph(fbt, f"{page_id}/videos", params={
+                "fields": "id,description", "limit": "50"})
+            for m in d.get("data") or []:
+                if needle in str(m.get("description") or ""):
+                    return str(m.get("id") or "")
+    except Exception as e:                      # noqa: BLE001
+        print(f"[crosspost] dedupe scan skipped ({e})")
+    return ""
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None        # redirects are followed by hand
@@ -802,12 +835,14 @@ def run_due(state: dict) -> int:
         if ig_on:
             if _attempt_reel(state, s, "ig", video, cap_ig, dur,
                              igt=igt, ig_id=ig_id,
-                             max_attempts=max_attempts):
+                             max_attempts=max_attempts,
+                             yt_vid=yt_vid):
                 published += 1
         if fb_on:
             if _attempt_reel(state, s, "fb", video, cap_fb, dur,
                              fbt=fbt, page_id=page_id,
-                             max_attempts=max_attempts):
+                             max_attempts=max_attempts,
+                             yt_vid=yt_vid):
                 published += 1
         youtube_add_links(state, s)
 
@@ -818,7 +853,7 @@ def run_due(state: dict) -> int:
 def _attempt_reel(state: dict, s: dict, platform: str, video: Path,
                   caption: str, dur: float, *, igt: str = "",
                   ig_id: str = "", fbt: str = "", page_id: str = "",
-                  max_attempts: int = 8) -> bool:
+                  max_attempts: int = 8, yt_vid: str = "") -> bool:
     """One platform attempt for one short. Returns True iff a reel
     went live this call. Failures are recorded (attempts/error) and
     swallowed — the YouTube pipeline is never affected."""
@@ -827,6 +862,18 @@ def _attempt_reel(state: dict, s: dict, platform: str, video: Path,
           .setdefault(platform, {"status": "pending"}))
     if st.get("status") in ("done", "skipped", "gave_up"):
         return False
+    # dedupe gate: adopt an already-live twin instead of re-publishing
+    existing = _existing_reel(platform, yt_vid, igt=igt, ig_id=ig_id,
+                               fbt=fbt, page_id=page_id)
+    if existing:
+        st.update(status="done", media_id=existing,
+                  ts=int(time.time()), adopted=True)
+        st["permalink"] = _permalink(igt if platform == "ig" else fbt,
+                                      existing, ig=(platform == "ig"))
+        print(f"[crosspost] #{n} {platform.upper()} already live as "
+              f"{existing} — ADOPTED (no duplicate posted)")
+        ledger.save(state)
+        return True
     if platform == "fb" and dur > FB_REEL_MAX_S:
         st.update(status="skipped",
                   reason=f"duration {dur:.0f}s > "
@@ -1145,11 +1192,13 @@ def run_backfill(state: dict) -> int:
                 s["clip_dur"] = dur
         if ig_on and _attempt_reel(state, s, "ig", video, cap_ig, dur,
                                    igt=igt, ig_id=ig_id,
-                                   max_attempts=max_attempts):
+                                   max_attempts=max_attempts,
+                                   yt_vid=yt_vid):
             published += 1
         if fb_on and _attempt_reel(state, s, "fb", video, cap_fb, dur,
                                    fbt=fbt, page_id=page_id,
-                                   max_attempts=max_attempts):
+                                   max_attempts=max_attempts,
+                                   yt_vid=yt_vid):
             published += 1
         youtube_add_links(state, s)
     print(f"\n[backfill] DONE: {published} reel(s) live this run")

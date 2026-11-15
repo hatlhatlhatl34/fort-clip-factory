@@ -361,6 +361,66 @@ def _run() -> int:
         check("FB still processed", s6["crosspost"]["fb"]["status"]
               == "done")
 
+        # dedupe gate: an already-live twin is ADOPTED, never re-posted
+        adopt_state = {
+            "shorts": [{"n": 69, "video_id": "TWIN69", "slot": past,
+                        "clip_dur": 55.0,
+                        "media": {"file": "short_69.mp4"},
+                        "crosspost": {"ig": {"status": "pending"},
+                                      "fb": {"status": "pending"}}}],
+            "crosspost_ids": {"ig": "17841234567890123",
+                              "fb": "1234567890"},
+            "alerts_sent": {},
+        }
+        ig_calls.clear()
+        fb_calls.clear()
+
+        def adopt_graph(token, path, method="GET", params=None,
+                        timeout=60):
+            p = path.rstrip("/")
+            if p == "me":
+                return {"id": "1", "name": "n"}
+            if p.endswith("/content_publishing_limit"):
+                return {"data": [{"quota_total": 100}]}
+            if p == "17841234567890123/media":      # IG dedupe scan
+                return {"data": [
+                    {"id": "EXISTING_69",
+                     "caption": "… WATCH ON YOUTUBE: "
+                                "https://www.youtube.com/shorts/TWIN69"}]}
+            if p == "1234567890/videos":            # FB dedupe scan
+                return {"data": [
+                    {"id": "EXISTING_FB_69",
+                     "description": "… shorts/TWIN69 …"}]}
+            if p == "EXISTING_69":
+                return {"permalink":
+                        "https://www.instagram.com/reel/XX/"}
+            if p == "EXISTING_FB_69":
+                return {"permalink_url": "/reel/YY/"}
+            raise AssertionError(f"unexpected {method} {path}")
+
+        apply, restore = patched(
+            _graph=adopt_graph, ig_publish_reel=ig_pub2,
+            fb_publish_reel=fb_pub, fetch_media=fetch,
+            auto_discover=discover, alert_once=alert)
+        apply()
+        try:
+            crosspost.run_due(adopt_state)
+        finally:
+            restore()
+        s69 = adopt_state["shorts"][0]
+        check("IG twin ADOPTED not re-published",
+              s69["crosspost"]["ig"]["status"] == "done"
+              and s69["crosspost"]["ig"]["media_id"] == "EXISTING_69",
+              str(s69["crosspost"]["ig"]))
+        check("IG adoption flagged", s69["crosspost"]["ig"].get("adopted")
+              is True)
+        check("FB twin ADOPTED not re-published",
+              s69["crosspost"]["fb"]["status"] == "done"
+              and s69["crosspost"]["fb"]["media_id"] == "EXISTING_FB_69",
+              str(s69["crosspost"]["fb"]))
+        check("no publisher fired during adoption",
+              not ig_calls and not fb_calls)
+
         # unarmed machine: cleanly OFF, no error
         os.environ.pop("IG_ACCESS_TOKEN", None)
         os.environ.pop("FB_ACCESS_TOKEN", None)

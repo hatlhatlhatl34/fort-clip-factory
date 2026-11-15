@@ -426,6 +426,18 @@ Links are configured in `channel.yaml` under `crosspost.links`.
   The daily grid Shorts are unaffected: their reels use the session
   media cache, no YouTube download involved.
 
+**Dedupe gate (owner rule 2026-11-15, post-dupe):** before ANY publish
+attempt `_attempt_reel` scans the platform's newest reels for the
+`shorts/<video_id>` link every caption carries (`_existing_reel`). A
+hit means ADOPT — status flips to done with the live media id, no
+re-publish. This makes duplicate reels structurally impossible, even
+when state races, rupload 500s still publish, or ids get re-armed.
+Live cleanup note: 3 orphan duplicates from the 2026-11-15 races
+(#69/#11/#19 twins) stay visible on Instagram until the system-user
+token gains `instagram_manage_content` (neither the publish nor page
+token can DELETE IG media — graph answers `#10 Insufficient
+permissions`); deleting them by hand in the app takes ~10 s each.
+
 ## Phase 2 — DONE (owner rule 2026-11-15)
 
 Multi-platform distribution as originally parked (2026-11-13):
