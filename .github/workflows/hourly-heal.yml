@@ -147,7 +147,8 @@ jobs:
                                # run — never two state writers at once
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25      # catch-up bursts (several due reels + IG
+                              # container polling can take ~20 min)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
