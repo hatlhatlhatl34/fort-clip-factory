@@ -241,6 +241,7 @@ def publish(bank_dir: Path, clip: dict, state: dict,
 
     print(f"[bank] publishing banked short #{meta.get('n')} "
           f"(slot {clip.get('slot')})")
+    slots_before = len((state.get("slots") or {}).get("short") or [])
     try:
         video_id = youtube.upload_short(f, meta, state)
     except youtube.QuotaDefer:
@@ -258,6 +259,12 @@ def publish(bank_dir: Path, clip: dict, state: dict,
         reserved.remove(meta["n"])
 
     today = datetime.now(ZoneInfo(cfg()["schedule"]["timezone"]))
+    # the ACTUALLY booked slot, not the clip's planned one — they can
+    # drift after heal fills an older open slot, and the reels
+    # cross-poster times itself off short.slot
+    booked = (state.get("slots") or {}).get("short") or []
+    booked_slot = booked[-1] if len(booked) > slots_before else \
+        clip.get("slot", "")
     rec = {
         "n": meta.get("n"),
         "source_id": clip.get("source_id", ""),
@@ -268,7 +275,7 @@ def publish(bank_dir: Path, clip: dict, state: dict,
         "clip_start": clip.get("clip_start", 0),
         "clip_dur": clip.get("clip_dur", 0),
         "title": meta.get("title", ""),
-        "slot": clip.get("slot", ""),
+        "slot": booked_slot,
         "banked": True,
     }
     # cache the exact published bytes for the reels cross-poster
