@@ -565,7 +565,7 @@ def alert_once(state: dict, key: str, title: str, body: str) -> None:
 
 # ── auto-discovery: arms the machine the hour setup completes ───────
 
-def auto_discover(state: dict) -> None:
+def auto_discover(state: dict, force: bool = False) -> None:
     """The owner's Meta side may complete at any moment (page created,
     assets assigned to the system user, fresh token pasted). Each heal
     run re-probes what the tokens can see and records any page + IG
@@ -583,6 +583,13 @@ def auto_discover(state: dict) -> None:
     queryable with the SAME token before arming, so an id the machine
     could never publish to is never recorded.
     """
+    ids = state.get("crosspost_ids") or {}
+    if not force and ids.get("fb") and ids.get("ig"):
+        # both platforms armed — the probes below are wasted calls (and
+        # a Page-scoped FB token cannot even call /me/accounts; that
+        # 400 noise printed in every heal log 2026-11-15). Manual
+        # --check re-arms with force=True after a token rotation.
+        return
     hint = str(_conf().get("ig_username") or "").strip().lstrip("@").lower()
     pages: list[dict] = []
     ig_candidates: list[tuple[str, dict]] = []      # (token, account)
@@ -1144,7 +1151,7 @@ def main() -> int:
 
     state = ledger.load()
     if args.check:
-        auto_discover(state)
+        auto_discover(state, force=True)   # manual re-arm path
         report(state)
         return 0
     if args.due:

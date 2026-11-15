@@ -418,3 +418,21 @@ post the same Shorts to OTHER platforms once the machine is proven.
 reuses the cached session media (no re-downloads, no re-renders),
 keeps YouTube untouched, and self-arms the moment the Meta-side ids
 land.
+
+## Phase 3 — PARKED (owner assets pending, 2026-11-15)
+
+The owner named the next two upgrades; both wait on assets only the
+owner can supply. No code exists for them yet by design.
+
+1. **TikTok as a fourth platform** — needs a TikTok account (and its
+   Content Posting API credentials or an upload path the owner
+   prefers). When the owner says go, the crossposter gains a
+   `tiktok` platform branch beside `ig`/`fb`; the same Short would
+   ship there the same hour.
+2. **Multiple map codes** — the owner will hand over NEW map codes
+   to rotate through videos (not only 1789-8528-6429). Design when
+   they arrive: a `codes.pool` list in channel.yaml; each render
+   picks one (round-robin with no-repeat), the overlay burns it into
+   every frame, and the description/caption carries the same code as
+   the overlay. History per code is tracked in state so analytics
+   stay attributable.
