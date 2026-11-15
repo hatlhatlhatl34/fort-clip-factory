@@ -176,6 +176,8 @@ def run(*, dry_run: bool = False, offline: bool = False,
             continue
 
         # 6. upload with publishAt booking
+        slots_before = len((state.get("slots") or {})
+                            .get("short") or [])
         try:
             video_id = youtube.upload_short(final, meta, state)
         except youtube.QuotaDefer:
@@ -190,6 +192,11 @@ def run(*, dry_run: bool = False, offline: bool = False,
 
         # 7. remember everything
         ledger.mark_source_used(state, source["id"])
+        # the slot upload_short just booked (banked clips carry theirs
+        # in the clip record; the live ladder must read it back here —
+        # the reels cross-poster times itself off short.slot)
+        booked = (state.get("slots") or {}).get("short") or []
+        booked_slot = booked[-1] if len(booked) > slots_before else None
         rec = {
             "n": meta["n"],
             "source_id": source["id"],
@@ -200,6 +207,7 @@ def run(*, dry_run: bool = False, offline: bool = False,
             "clip_start": start,
             "clip_dur": dur,
             "title": meta["title"],
+            "slot": booked_slot,
         }
         # cache the exact published bytes for the reels cross-poster
         # (owner rule 2026-11-15 — same Short -> YT + IG + FB)
