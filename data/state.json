@@ -27,7 +27,100 @@
      "reason": "source video deleted from YouTube",
      "ts": 1794764746
     }
-   }
+   },
+   "media": null
+  },
+  {
+   "n": 10,
+   "source_id": "ao:youtube-a3rEa7PjyrU",
+   "source_title": "Fortnite - Official 'Welcome to Hot Bat Summer' Gameplay Trailer",
+   "source_channel": "archive.org mirror",
+   "date": "2026-11-13",
+   "video_id": "QgBCJf6iqm8",
+   "clip_start": 9.7,
+   "clip_dur": 53.0,
+   "title": "USE CODE H15 🛒 1789-8528-6429 | Fortnite Map Clips #10",
+   "verified": "2026-11-13T14:15:55+00:00",
+   "crosspost": {
+    "ig": {
+     "status": "done",
+     "media_id": "18393127897224367",
+     "ts": 1794759535,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/DfxMTgDjC0g/"
+    },
+    "fb": {
+     "status": "done",
+     "media_id": "2167053610563733",
+     "ts": 1794759545,
+     "attempts": 1,
+     "permalink": "https://www.facebook.com/reel/2167053610563733/"
+    },
+    "yt_links": true
+   },
+   "media": null
+  },
+  {
+   "n": 11,
+   "source_id": "qQHbhALizDk",
+   "source_title": "How To LEVEL UP FAST in Fortnite Chapter 7 Season 3! (NO TIMER XP MAP)",
+   "source_channel": "KavuN Fortnite",
+   "date": "2026-11-13",
+   "video_id": "c8soU8sCGvc",
+   "clip_start": 231.02,
+   "clip_dur": 45.0,
+   "title": "1789-8528-6429 🔥 XP MAP Gameplay — Fortnite Clips #11",
+   "verified": "2026-11-13T22:02:00+00:00",
+   "crosspost": {
+    "ig": {
+     "status": "done",
+     "media_id": "18108490733370645",
+     "ts": 1794764569,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/DfxVw1Gjhz4/"
+    },
+    "fb": {
+     "status": "done",
+     "media_id": "1497621865765490",
+     "ts": 1794764576,
+     "attempts": 1,
+     "permalink": "https://www.facebook.com/reel/1497621865765490/"
+    },
+    "yt_links": true,
+    "dupes_deleted": "2026-11-15 FB removed via API; IG dups DfxWWUXElK9 (#11) / DfxWcSeEsOp (#19) removed in-app by owner"
+   },
+   "media": null
+  },
+  {
+   "n": 19,
+   "source_id": "GFOhf9wFzQ8",
+   "source_title": "I Made a Battle Royale in Fortnite Creative - Part 2",
+   "source_channel": "BigBubbaFNC",
+   "date": "2026-11-13",
+   "video_id": "qHZpLJBIZNg",
+   "clip_start": 150.34,
+   "clip_dur": 48.0,
+   "title": "USE CODE H15 🛒 1789-8528-6429 | Fortnite Map Clips #19",
+   "verified": "2026-11-13T22:02:00+00:00",
+   "crosspost": {
+    "ig": {
+     "status": "done",
+     "media_id": "18061506212803290",
+     "ts": 1794764629,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/DfxV3OtiZZO/"
+    },
+    "fb": {
+     "status": "done",
+     "media_id": "1850971982587130",
+     "ts": 1794764635,
+     "attempts": 1,
+     "permalink": "https://www.facebook.com/reel/1850971982587130/"
+    },
+    "yt_links": true,
+    "dupes_deleted": "2026-11-15 FB removed via API; IG dups DfxWWUXElK9 (#11) / DfxWcSeEsOp (#19) removed in-app by owner"
+   },
+   "media": null
   },
   {
    "n": 2,
@@ -54,6 +147,157 @@
      "note": "re-armed 2026-11-15: download give-ups from the pre-ladder-fix era get one retry with the proven ladder; GONE-detection settles them permanently if the source was deleted",
      "reason": "source video deleted from YouTube",
      "ts": 1794764747
+    }
+   },
+   "media": null
+  },
+  {
+   "n": 20,
+   "source_id": "SJ5YgdLn1AE",
+   "source_title": "NEW INSANE NO TIMER *EASY* Fortnite *AFK* XP GLITCH! (950k a Min!) Not Patched! 🤩😱",
+   "source_channel": "BOLT",
+   "date": "2026-11-14",
+   "video_id": "CYi5AC3FHZI",
+   "clip_start": 217.47,
+   "clip_dur": 60.0,
+   "title": "FREE XP map, NO timer needed ⏱️ #20",
+   "verified": "2026-11-15T01:14:16+00:00",
+   "crosspost": {
+    "ig": {
+     "status": "pending",
+     "attempts": 1,
+     "error": "backfill download failed",
+     "ts": 1794765711
+    },
+    "fb": {
+     "status": "pending",
+     "attempts": 1,
+     "error": "backfill download failed",
+     "ts": 1794765711
+    }
+   },
+   "media": null
+  },
+  {
+   "n": 21,
+   "source_id": "GCVHapu7wEY",
+   "source_title": "How To LEVEL UP FAST in Fortnite Chapter 7 Season 4! (NO TIMER XP MAP)",
+   "source_channel": "KavuN Fortnite",
+   "date": "2026-11-14",
+   "video_id": "lRf2l5KnJaw",
+   "clip_start": 367.15,
+   "clip_dur": 48.0,
+   "title": "This XP map gives FREE skins 🎁 #21",
+   "verified": "2026-11-15T01:14:16+00:00",
+   "crosspost": {
+    "ig": {
+     "status": "pending",
+     "attempts": 1,
+     "error": "backfill download failed",
+     "ts": 1794765810
+    },
+    "fb": {
+     "status": "pending",
+     "attempts": 1,
+     "error": "backfill download failed",
+     "ts": 1794765810
+    }
+   },
+   "media": null
+  },
+  {
+   "n": 22,
+   "source_id": "1OWLF2fuGsA",
+   "source_title": "Testing FREE VBUCKS Maps Until They Work!",
+   "source_channel": "MACMACS",
+   "date": "2026-11-14",
+   "video_id": "G0mn1OALRy8",
+   "clip_start": 1266.89,
+   "clip_dur": 45.0,
+   "title": "This XP map gives FREE skins 🎁 #22",
+   "verified": "2026-11-15T01:14:16+00:00",
+   "crosspost": {
+    "ig": {
+     "status": "pending",
+     "attempts": 1,
+     "error": "backfill download failed",
+     "ts": 1794765904
+    },
+    "fb": {
+     "status": "pending",
+     "attempts": 1,
+     "error": "backfill download failed",
+     "ts": 1794765904
+    }
+   },
+   "media": null
+  },
+  {
+   "n": 23,
+   "source_id": "uOoRDUen3hk",
+   "source_title": "How I Make 1,000,000 XP/Day from this Fortnite Map",
+   "source_channel": "ShuffleGamer",
+   "date": "2026-11-14",
+   "video_id": "fghOipg7T4U",
+   "clip_start": 184.03,
+   "clip_dur": 45.0,
+   "title": "This XP map = FREE Battle Pass 🤑 #23",
+   "verified": "2026-11-15T09:09:50+00:00",
+   "crosspost": {
+    "ig": {
+     "status": "pending",
+     "attempts": 1,
+     "error": "backfill download failed",
+     "ts": 1794766011
+    },
+    "fb": {
+     "status": "pending",
+     "attempts": 1,
+     "error": "backfill download failed",
+     "ts": 1794766011
+    }
+   },
+   "media": null
+  },
+  {
+   "n": 24,
+   "source_id": "Ji1e7T5BaDc",
+   "source_title": "BEST Fortnite AFK XP MAP (NO TIMER!) Level Up FAST in Chapter 7 Season 5! 🔥 (155,000 XP!)",
+   "source_channel": "Whoods",
+   "date": "2026-11-15",
+   "video_id": "RAGDKVv-ztE",
+   "clip_start": 108.4,
+   "clip_dur": 45.0,
+   "title": "This Fortnite XP map = FREE Battle Pass 🤑 #24",
+   "slot": "2026-11-14T08:00:00+02:00",
+   "banked": true,
+   "verified": "2026-11-15T09:09:50+00:00",
+   "media": null
+  },
+  {
+   "n": 25,
+   "source_id": "gHNNoFUIAAg",
+   "source_title": "NEW INSANE NO TIMER *EASY* Fortnite *AFK* XP GLITCH! (850k a Min!) Not Patched! 🤩😱",
+   "source_channel": "BOLT",
+   "date": "2026-11-15",
+   "video_id": "aPqOZAJJSs8",
+   "clip_start": 223.8,
+   "clip_dur": 53.0,
+   "title": "Fortnite Level 100 in ONE DAY? 😱 #25",
+   "slot": "2026-11-16T06:00:00+02:00",
+   "banked": true,
+   "media": {
+    "file": "short_25.mp4",
+    "artifact": "media-cache-2026-11-15",
+    "run_id": "43718360853",
+    "size": 47917232
+   },
+   "crosspost": {
+    "ig": {
+     "status": "pending"
+    },
+    "fb": {
+     "status": "pending"
     }
    }
   },
@@ -86,7 +330,8 @@
      "permalink": "https://www.facebook.com/reel/1565925802005248/"
     },
     "yt_links": true
-   }
+   },
+   "media": null
   },
   {
    "n": 4,
@@ -117,7 +362,8 @@
      "permalink": "https://www.facebook.com/reel/1118684201046960/"
     },
     "yt_links": true
-   }
+   },
+   "media": null
   },
   {
    "n": 5,
@@ -148,7 +394,8 @@
      "permalink": "https://www.facebook.com/reel/1678552460677100/"
     },
     "yt_links": true
-   }
+   },
+   "media": null
   },
   {
    "n": 6,
@@ -179,245 +426,8 @@
      "permalink": "https://www.facebook.com/reel/1705277327878063/"
     },
     "yt_links": true
-   }
-  },
-  {
-   "n": 7,
-   "source_id": "ao:fortnite-ranked-solo-gameplay-ryzen-5-5600-x-intel-arc-b570-1080p-240-fps",
-   "source_title": "Fortnite Ranked Solo Gameplay | Ryzen 5 5600X + Intel Arc B570 | 1080p 240FPS",
-   "source_channel": "archive.org mirror",
-   "date": "2026-11-12",
-   "video_id": "VXnynwTtuJY",
-   "clip_start": 404.94,
-   "clip_dur": 45.0,
-   "title": "USE CODE H15 🛒 1789-8528-6429 | Fortnite Map Clips #7",
-   "verified": "2026-11-12T14:01:41+00:00",
-   "crosspost": {
-    "ig": {
-     "status": "done",
-     "media_id": "18115553213197456",
-     "ts": 1794759369,
-     "attempts": 1,
-     "permalink": "https://www.instagram.com/reel/DfxL_HvDVIM/"
-    },
-    "fb": {
-     "status": "done",
-     "media_id": "1141590011905563",
-     "ts": 1794759376,
-     "attempts": 1,
-     "permalink": "https://www.facebook.com/reel/1141590011905563/"
-    },
-    "yt_links": true
-   }
-  },
-  {
-   "n": 8,
-   "source_id": "ao:samsung-galaxy-s10e-unboxing-review-gameplay-fortnite-battle-royale",
-   "source_title": "Samsung Galaxy S10e Unboxing / Review / Gameplay - Fortnite Battle Royale",
-   "source_channel": "archive.org mirror",
-   "date": "2026-11-12",
-   "video_id": "6hp1_lK69bM",
-   "clip_start": 125.47,
-   "clip_dur": 46.0,
-   "title": "USE CODE H15 🛒 1789-8528-6429 | Fortnite Map Clips #8",
-   "verified": "2026-11-12T23:22:30+00:00",
-   "crosspost": {
-    "ig": {
-     "status": "done",
-     "media_id": "18477469114142953",
-     "ts": 1794759416,
-     "attempts": 1,
-     "permalink": "https://www.instagram.com/reel/DfxMGpbDUzP/"
-    },
-    "fb": {
-     "status": "done",
-     "media_id": "2147496972557028",
-     "ts": 1794759427,
-     "attempts": 1,
-     "permalink": "https://www.facebook.com/reel/2147496972557028/"
-    },
-    "yt_links": true
-   }
-  },
-  {
-   "n": 9,
-   "source_id": "ao:fortnite-first-gameplay-footage-from-comic-con-2012-gametrailers-g-e-943-vyd-15k",
-   "source_title": "Fortnite First Gameplay Footage From Comic Con 2012, Gametrailers [g E 943 VYD 1",
-   "source_channel": "archive.org mirror",
-   "date": "2026-11-13",
-   "video_id": "S5XPU1gmPsM",
-   "clip_start": 264.28,
-   "clip_dur": 45.0,
-   "title": "1789-8528-6429 🔥 CRAZY Fortnite Map Clips #9",
-   "verified": "2026-11-13T11:24:05+00:00",
-   "crosspost": {
-    "ig": {
-     "status": "done",
-     "media_id": "18118087612834450",
-     "ts": 1794759472,
-     "attempts": 1,
-     "permalink": "https://www.instagram.com/reel/DfxMM6HHV9A/"
-    },
-    "fb": {
-     "status": "done",
-     "media_id": "1841252850458379",
-     "ts": 1794759481,
-     "attempts": 1,
-     "permalink": "https://www.facebook.com/reel/1841252850458379/"
-    },
-    "yt_links": true
-   }
-  },
-  {
-   "n": 10,
-   "source_id": "ao:youtube-a3rEa7PjyrU",
-   "source_title": "Fortnite - Official 'Welcome to Hot Bat Summer' Gameplay Trailer",
-   "source_channel": "archive.org mirror",
-   "date": "2026-11-13",
-   "video_id": "QgBCJf6iqm8",
-   "clip_start": 9.7,
-   "clip_dur": 53.0,
-   "title": "USE CODE H15 🛒 1789-8528-6429 | Fortnite Map Clips #10",
-   "verified": "2026-11-13T14:15:55+00:00",
-   "crosspost": {
-    "ig": {
-     "status": "done",
-     "media_id": "18393127897224367",
-     "ts": 1794759535,
-     "attempts": 1,
-     "permalink": "https://www.instagram.com/reel/DfxMTgDjC0g/"
-    },
-    "fb": {
-     "status": "done",
-     "media_id": "2167053610563733",
-     "ts": 1794759545,
-     "attempts": 1,
-     "permalink": "https://www.facebook.com/reel/2167053610563733/"
-    },
-    "yt_links": true
-   }
-  },
-  {
-   "n": 11,
-   "source_id": "qQHbhALizDk",
-   "source_title": "How To LEVEL UP FAST in Fortnite Chapter 7 Season 3! (NO TIMER XP MAP)",
-   "source_channel": "KavuN Fortnite",
-   "date": "2026-11-13",
-   "video_id": "c8soU8sCGvc",
-   "clip_start": 231.02,
-   "clip_dur": 45.0,
-   "title": "1789-8528-6429 🔥 XP MAP Gameplay — Fortnite Clips #11",
-   "verified": "2026-11-13T22:02:00+00:00",
-   "crosspost": {
-    "yt_links": true,
-    "ig": {
-     "status": "done",
-     "media_id": "18108490733370645",
-     "ts": 1794764569,
-     "attempts": 1,
-     "permalink": "https://www.instagram.com/reel/DfxVw1Gjhz4/"
-    },
-    "fb": {
-     "status": "done",
-     "media_id": "1497621865765490",
-     "ts": 1794764576,
-     "attempts": 1,
-     "permalink": "https://www.facebook.com/reel/1497621865765490/"
-    },
-    "dupes_deleted": "2026-11-15 FB removed via API; IG dups DfxWWUXElK9 (#11) / DfxWcSeEsOp (#19) removed in-app by owner"
-   }
-  },
-  {
-   "n": 19,
-   "source_id": "GFOhf9wFzQ8",
-   "source_title": "I Made a Battle Royale in Fortnite Creative - Part 2",
-   "source_channel": "BigBubbaFNC",
-   "date": "2026-11-13",
-   "video_id": "qHZpLJBIZNg",
-   "clip_start": 150.34,
-   "clip_dur": 48.0,
-   "title": "USE CODE H15 🛒 1789-8528-6429 | Fortnite Map Clips #19",
-   "verified": "2026-11-13T22:02:00+00:00",
-   "crosspost": {
-    "yt_links": true,
-    "ig": {
-     "status": "done",
-     "media_id": "18061506212803290",
-     "ts": 1794764629,
-     "attempts": 1,
-     "permalink": "https://www.instagram.com/reel/DfxV3OtiZZO/"
-    },
-    "fb": {
-     "status": "done",
-     "media_id": "1850971982587130",
-     "ts": 1794764635,
-     "attempts": 1,
-     "permalink": "https://www.facebook.com/reel/1850971982587130/"
-    },
-    "dupes_deleted": "2026-11-15 FB removed via API; IG dups DfxWWUXElK9 (#11) / DfxWcSeEsOp (#19) removed in-app by owner"
-   }
-  },
-  {
-   "n": 20,
-   "source_id": "SJ5YgdLn1AE",
-   "source_title": "NEW INSANE NO TIMER *EASY* Fortnite *AFK* XP GLITCH! (950k a Min!) Not Patched! 🤩😱",
-   "source_channel": "BOLT",
-   "date": "2026-11-14",
-   "video_id": "CYi5AC3FHZI",
-   "clip_start": 217.47,
-   "clip_dur": 60.0,
-   "title": "FREE XP map, NO timer needed ⏱️ #20",
-   "verified": "2026-11-15T01:14:16+00:00"
-  },
-  {
-   "n": 21,
-   "source_id": "GCVHapu7wEY",
-   "source_title": "How To LEVEL UP FAST in Fortnite Chapter 7 Season 4! (NO TIMER XP MAP)",
-   "source_channel": "KavuN Fortnite",
-   "date": "2026-11-14",
-   "video_id": "lRf2l5KnJaw",
-   "clip_start": 367.15,
-   "clip_dur": 48.0,
-   "title": "This XP map gives FREE skins 🎁 #21",
-   "verified": "2026-11-15T01:14:16+00:00"
-  },
-  {
-   "n": 22,
-   "source_id": "1OWLF2fuGsA",
-   "source_title": "Testing FREE VBUCKS Maps Until They Work!",
-   "source_channel": "MACMACS",
-   "date": "2026-11-14",
-   "video_id": "G0mn1OALRy8",
-   "clip_start": 1266.89,
-   "clip_dur": 45.0,
-   "title": "This XP map gives FREE skins 🎁 #22",
-   "verified": "2026-11-15T01:14:16+00:00"
-  },
-  {
-   "n": 23,
-   "source_id": "uOoRDUen3hk",
-   "source_title": "How I Make 1,000,000 XP/Day from this Fortnite Map",
-   "source_channel": "ShuffleGamer",
-   "date": "2026-11-14",
-   "video_id": "fghOipg7T4U",
-   "clip_start": 184.03,
-   "clip_dur": 45.0,
-   "title": "This XP map = FREE Battle Pass 🤑 #23",
-   "verified": "2026-11-15T09:09:50+00:00"
-  },
-  {
-   "n": 24,
-   "source_id": "Ji1e7T5BaDc",
-   "source_title": "BEST Fortnite AFK XP MAP (NO TIMER!) Level Up FAST in Chapter 7 Season 5! 🔥 (155,000 XP!)",
-   "source_channel": "Whoods",
-   "date": "2026-11-15",
-   "video_id": "RAGDKVv-ztE",
-   "clip_start": 108.4,
-   "clip_dur": 45.0,
-   "title": "This Fortnite XP map = FREE Battle Pass 🤑 #24",
-   "slot": "2026-11-14T08:00:00+02:00",
-   "banked": true,
-   "verified": "2026-11-15T09:09:50+00:00"
+   },
+   "media": null
   },
   {
    "n": 69,
@@ -455,6 +465,36 @@
    },
    "slot": "2026-11-15T12:00:00+02:00",
    "verified": "2026-11-15T13:20:13+00:00"
+  },
+  {
+   "n": 7,
+   "source_id": "ao:fortnite-ranked-solo-gameplay-ryzen-5-5600-x-intel-arc-b570-1080p-240-fps",
+   "source_title": "Fortnite Ranked Solo Gameplay | Ryzen 5 5600X + Intel Arc B570 | 1080p 240FPS",
+   "source_channel": "archive.org mirror",
+   "date": "2026-11-12",
+   "video_id": "VXnynwTtuJY",
+   "clip_start": 404.94,
+   "clip_dur": 45.0,
+   "title": "USE CODE H15 🛒 1789-8528-6429 | Fortnite Map Clips #7",
+   "verified": "2026-11-12T14:01:41+00:00",
+   "crosspost": {
+    "ig": {
+     "status": "done",
+     "media_id": "18115553213197456",
+     "ts": 1794759369,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/DfxL_HvDVIM/"
+    },
+    "fb": {
+     "status": "done",
+     "media_id": "1141590011905563",
+     "ts": 1794759376,
+     "attempts": 1,
+     "permalink": "https://www.facebook.com/reel/1141590011905563/"
+    },
+    "yt_links": true
+   },
+   "media": null
   },
   {
    "n": 70,
@@ -519,31 +559,64 @@
    "slot": "2026-11-16T00:00:00+02:00"
   },
   {
-   "n": 25,
-   "source_id": "gHNNoFUIAAg",
-   "source_title": "NEW INSANE NO TIMER *EASY* Fortnite *AFK* XP GLITCH! (850k a Min!) Not Patched! 🤩😱",
-   "source_channel": "BOLT",
-   "date": "2026-11-15",
-   "video_id": "aPqOZAJJSs8",
-   "clip_start": 223.8,
-   "clip_dur": 53.0,
-   "title": "Fortnite Level 100 in ONE DAY? 😱 #25",
-   "slot": "2026-11-16T06:00:00+02:00",
-   "banked": true,
-   "media": {
-    "file": "short_25.mp4",
-    "artifact": "media-cache-2026-11-15",
-    "run_id": "43718360853",
-    "size": 47917232
-   },
+   "n": 8,
+   "source_id": "ao:samsung-galaxy-s10e-unboxing-review-gameplay-fortnite-battle-royale",
+   "source_title": "Samsung Galaxy S10e Unboxing / Review / Gameplay - Fortnite Battle Royale",
+   "source_channel": "archive.org mirror",
+   "date": "2026-11-12",
+   "video_id": "6hp1_lK69bM",
+   "clip_start": 125.47,
+   "clip_dur": 46.0,
+   "title": "USE CODE H15 🛒 1789-8528-6429 | Fortnite Map Clips #8",
+   "verified": "2026-11-12T23:22:30+00:00",
    "crosspost": {
     "ig": {
-     "status": "pending"
+     "status": "done",
+     "media_id": "18477469114142953",
+     "ts": 1794759416,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/DfxMGpbDUzP/"
     },
     "fb": {
-     "status": "pending"
-    }
-   }
+     "status": "done",
+     "media_id": "2147496972557028",
+     "ts": 1794759427,
+     "attempts": 1,
+     "permalink": "https://www.facebook.com/reel/2147496972557028/"
+    },
+    "yt_links": true
+   },
+   "media": null
+  },
+  {
+   "n": 9,
+   "source_id": "ao:fortnite-first-gameplay-footage-from-comic-con-2012-gametrailers-g-e-943-vyd-15k",
+   "source_title": "Fortnite First Gameplay Footage From Comic Con 2012, Gametrailers [g E 943 VYD 1",
+   "source_channel": "archive.org mirror",
+   "date": "2026-11-13",
+   "video_id": "S5XPU1gmPsM",
+   "clip_start": 264.28,
+   "clip_dur": 45.0,
+   "title": "1789-8528-6429 🔥 CRAZY Fortnite Map Clips #9",
+   "verified": "2026-11-13T11:24:05+00:00",
+   "crosspost": {
+    "ig": {
+     "status": "done",
+     "media_id": "18118087612834450",
+     "ts": 1794759472,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/DfxMM6HHV9A/"
+    },
+    "fb": {
+     "status": "done",
+     "media_id": "1841252850458379",
+     "ts": 1794759481,
+     "attempts": 1,
+     "permalink": "https://www.facebook.com/reel/1841252850458379/"
+    },
+    "yt_links": true
+   },
+   "media": null
   }
  ],
  "used_sources": [
@@ -2056,5 +2129,6 @@
  "crosspost_ids": {
   "fb": "131825308398327",
   "ig": "17841405759821353"
- }
+ },
+ "alerts_sent": {}
 }
