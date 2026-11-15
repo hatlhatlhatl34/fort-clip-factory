@@ -138,7 +138,26 @@ jobs:
           git config user.name "fort-clip-factory"
           git config user.email "actions@github.com"
           git add -A data ingest 2>/dev/null || true
-          git diff --cached --quiet || (git commit -m "memory: heal run" && git push) || true
+          if git diff --cached --quiet; then
+            echo "memory unchanged"
+          else
+            # git must never line-merge state.json: the crosspost job
+            # of this same run may have pushed fresher memory from its
+            # own runner. Union the writers field-by-field instead
+            # (tools/merge_state.py, post-mortem 2026-11-15 17:42).
+            cp data/state.json /tmp/ours.json
+            git fetch --quiet origin main
+            git checkout origin/main -- data/state.json 2>/dev/null || true
+            if [ -f data/state.json ]; then
+              python tools/merge_state.py /tmp/ours.json data/state.json --prefer core --inplace data/state.json
+              cp data/state.json data/state.json.bak
+            else
+              cp /tmp/ours.json data/state.json
+            fi
+            git add -A data ingest
+            git commit -m "memory: heal run" || true
+            git push || true
+          fi
 
   crosspost:
     # OWNER RULE (2026-11-15): every Short -> YouTube Short + Instagram
@@ -183,6 +202,12 @@ jobs:
           COOKIES_TXT2: ${{ secrets.COOKIES_TXT2 }}
           COOKIES_TXT3: ${{ secrets.COOKIES_TXT3 }}
         run: |
+          # freshness first: the factory job of THIS run pushed its
+          # memory seconds before this job's checkout fetched
+          # (live-diagnosed 2026-11-15 17:40 — a 2 s miss). Pull the
+          # newest state before reading it; clean by construction
+          # (no local changes yet).
+          git pull --ff-only origin main || true
           python -m src.crosspost --due 2>&1 | tee crosspost.log
           python -m src.crosspost --backfill 2>&1 | tee -a crosspost.log
       - name: File an issue on failure
@@ -201,17 +226,41 @@ jobs:
               body: `The reels cross-poster failed.\n\n\`\`\`\n${alerts || log.slice(-1500) || 'no log'}\n\`\`\``,
               labels: ['machine-failure']
             });
-      - name: Commit memory back
+      - name: Commit memory back (merge, never line-conflict)
         if: always()
         run: |
           git config user.name "fort-clip-factory"
           git config user.email "actions@github.com"
           git add -A data 2>/dev/null || true
-          # the factory job in this run may have pushed memory first
-          # (separate runner) — rebase our staged state onto it so the
-          # crosspost discoveries are never lost to the race (the armed
-          # ids WERE silently reverted once, 2026-11-15 13:20)
-          git diff --cached --quiet || { \
-            git pull --rebase --autostash origin main || true; \
-            git commit -m "memory: crosspost run" || true; \
-            git push || true; }
+          if git diff --cached --quiet; then
+            echo "memory unchanged"
+            exit 0
+          fi
+          # POST-MORTEM 2026-11-15 17:42: `git pull --rebase
+          # --autostash` popped into a state.json conflict, the commit
+          # died, `|| true` swallowed it — this job's reels vanished
+          # from state and the next run re-posted them as duplicates.
+          # Now: take origin's freshest state.json, union OUR crosspost
+          # fields onto it (tools/merge_state.py), push the merge.
+          cp data/state.json /tmp/ours.json
+          git fetch --quiet origin main
+          git checkout origin/main -- data/state.json 2>/dev/null || true
+          if [ -f data/state.json ]; then
+            python tools/merge_state.py /tmp/ours.json data/state.json --prefer crosspost --inplace data/state.json
+            cp data/state.json data/state.json.bak
+          else
+            cp /tmp/ours.json data/state.json
+          fi
+          git add -A data
+          git commit -m "memory: crosspost run" || true
+          if ! git push --quiet 2>/dev/null; then
+            # someone pushed between fetch and push — merge once more
+            cp data/state.json /tmp/ours2.json
+            git fetch --quiet origin main
+            git checkout origin/main -- data/state.json
+            python tools/merge_state.py /tmp/ours2.json data/state.json --prefer crosspost --inplace data/state.json
+            cp data/state.json data/state.json.bak
+            git add -A data
+            git commit -m "memory: crosspost run (re-merged)" || true
+            git push --quiet || echo "::warning::memory push lost the race twice — next run re-reads origin"
+          fi

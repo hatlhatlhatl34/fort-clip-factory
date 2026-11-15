@@ -397,8 +397,15 @@ Links are configured in `channel.yaml` under `crosspost.links`.
 * The factory job and the crosspost job run on separate runners; a
   plain `git push` from crosspost can lose the race to the factory's
   memory commit (the armed ids were silently reverted once, 13:20
-  UTC). The crosspost commit step now rebases (--autostash) before
-  pushing.
+  UTC). Worse (17:42 UTC): `git pull --rebase --autostash` popped
+  into a state.json conflict, `|| true` swallowed the dead commit,
+  and the run's reels vanished from state — the next run re-posted
+  two Shorts as DUPLICATE reels on both platforms. Memory commits now
+  NEVER line-merge state.json: they take origin's freshest state and
+  union this job's fields through `tools/merge_state.py`
+  (status-rank merge, direction-aware), and the crosspost job pulls
+  origin/main before reading state. Post-mortem tested in
+  tests/test_merge_state.py.
 * Instagram's transcoders REJECT 4:4:4 chroma — the render used to
   emit yuv444p, which YouTube takes happily but Meta answers with
   "Video Transcoding Error: both HD and SD progressive failed".
