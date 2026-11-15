@@ -7,7 +7,11 @@
   5. failure isolation: a reel failure NEVER touches the YouTube flow
   6. FB 90 s cap: long clips skip FB, still ship to Instagram
   7. retry budget: gave_up + one alert after max_attempts
-  8. auto-discovery arms ids the hour the owner finishes Meta setup
+  8. auto-discovery arms ids the hour the owner finishes Meta setup:
+     pages via /me/accounts, IG accounts via page links OR the
+     business walk (me/businesses -> owned_instagram_accounts), with
+     the @h15master hint (channel.yaml crosspost.ig_username) picking
+     the owner's account; unqueryable ids are never armed
   9. clip ceiling drops to 90 s (FB reel cap)
 
 Run:  python3 tests/test_crosspost.py
@@ -372,12 +376,18 @@ def _run() -> int:
         st = {"crosspost_ids": {}, "alerts_sent": {}}
 
         def disc_graph(token, path, method="GET", params=None, timeout=60):
-            if path.rstrip("/") == "me/accounts":
+            p = path.rstrip("/")
+            if p == "me/accounts":
                 return {"data": [{
                     "id": "9876543210", "name": "H15 Fortnite",
                     "instagram_business_account": {
                         "id": "17849998888777766",
                         "username": "h15.fortnite"}}]}
+            if p == "me/businesses":
+                return {"data": []}
+            if p == "17849998888777766":       # the arming verification
+                return {"id": "17849998888777766",
+                        "username": "h15.fortnite"}
             raise AssertionError(f"unexpected {path}")
 
         apply, restore = patched(_graph=disc_graph)
@@ -395,6 +405,74 @@ def _run() -> int:
         crosspost.auto_discover(st)
         check("discovery is idempotent",
               st["crosspost_ids"].get("ig") == "17849998888777766")
+
+        # 7b. BUSINESS route: no pages, the token sees the business's
+        # IG accounts — the @h15master hint picks the owner's account
+        # among several
+        st2 = {"crosspost_ids": {}, "alerts_sent": {}}
+
+        def biz_graph(token, path, method="GET", params=None, timeout=60):
+            p = path.rstrip("/")
+            if p == "me/accounts":
+                return {"data": []}
+            if p == "me/businesses":
+                return {"data": [{"id": "111222333", "name": "H15 Biz"}]}
+            if p == "111222333":
+                return {"owned_instagram_accounts": {"data": [
+                    {"id": "17850000000000001", "username": "otheracct"},
+                    {"id": "17851111111111111", "username": "h15master"}]}}
+            if p == "17851111111111111":     # hint-ranked candidate first
+                return {"id": "17851111111111111",
+                        "username": "h15master"}
+            raise AssertionError(f"unexpected {path}")
+
+        apply, restore = patched(_graph=biz_graph)
+        apply()
+        try:
+            crosspost.auto_discover(st2)
+        finally:
+            restore()
+        check("business route finds @h15master (hint)",
+              st2["crosspost_ids"].get("ig") == "17851111111111111",
+              str(st2.get("crosspost_ids")))
+        check("business route leaves FB unarmed (no page)",
+              not st2["crosspost_ids"].get("fb"))
+
+        # 7c. an id the token cannot query (asset not assigned) is
+        # NEVER armed — the machine records nothing it cannot publish to
+        st3 = {"crosspost_ids": {}, "alerts_sent": {}}
+
+        def locked_graph(token, path, method="GET", params=None,
+                         timeout=60):
+            p = path.rstrip("/")
+            if p == "me/accounts":
+                return {"data": []}
+            if p == "me/businesses":
+                return {"data": [{"id": "111222333", "name": "H15 Biz"}]}
+            if p == "111222333":
+                return {"owned_instagram_accounts": {"data": [
+                    {"id": "17850000000000001", "username": "h15master"}]}}
+            if p == "17850000000000001":
+                raise crosspost.CrosspostError(
+                    "(#10) asset not assigned to this token (test)")
+            raise AssertionError(f"unexpected {path}")
+
+        apply, restore = patched(_graph=locked_graph)
+        apply()
+        try:
+            crosspost.auto_discover(st3)
+        finally:
+            restore()
+        check("unqueryable IG id is never armed",
+              not st3.get("crosspost_ids", {}).get("ig"),
+              str(st3.get("crosspost_ids")))
+
+        # 7d. the hint itself is wired in channel.yaml (owner: the
+        # Instagram account IS @h15master)
+        check("ig_username hint configured",
+              str(cfg()["crosspost"].get("ig_username") or "").lower()
+              == "h15master",
+              str(cfg()["crosspost"].get("ig_username")))
     finally:
         os.environ.pop("IG_ACCESS_TOKEN", None)
 

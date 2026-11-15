@@ -296,40 +296,59 @@ No public hosting is ever needed — pure resumable uploads.
 
 Secrets (Settings → Secrets and variables → Actions):
 
-* `IG_ACCESS_TOKEN` — **set 2026-11-15** (Business system-user token,
-  never expires, `instagram_content_publish` granted).
-* `FB_ACCESS_TOKEN` — **not set yet** (see arming below).
+* `IG_ACCESS_TOKEN` — **set 2026-11-15** (Business system-user
+  "Fortnite System User"; live-checked 2026-11-15 ~13:40 Cairo:
+  ALIVE, `instagram_basic` + `instagram_content_publish` granted).
+* `FB_ACCESS_TOKEN` — **not set yet**: the Explorer token pasted on
+  2026-11-15 was live-checked DEAD (expired 09:00 UTC, as Explorer
+  tokens do after ~1 h). The replacement must be a system-user
+  token — see the checklist below.
 
 Arming each platform (channel.yaml `crosspost:`):
 
 * `ig_user_id` — the Instagram professional account id (1784...).
-  Empty today: the system-user token carries the right permissions
-  but no account id is visible via the API yet.
-* `fb_page_id` — a Facebook **Page** id. Empty today: the personal
-  profile "Hfifteen Master" has NO Page, and the token pasted on
-  2026-11-15 was a 1-hour Explorer token (expired 09:00 UTC) — reels
-  NEED a Page + a Page token.
+  Empty 2026-11-15: the system-user token carries the right
+  permissions but sees no pages and lacks `business_management`, so
+  no account id is visible to it yet (live-probed). The owner
+  confirmed the account is **@h15master** (2026-11-15) — recorded as
+  `crosspost.ig_username`, the hint discovery matches on; a numeric
+  id paste also arms it instantly.
+* `fb_page_id` — a Facebook **Page** id. Empty: the personal profile
+  "Hfifteen Master" has NO Page — reels NEED a Page + a Page-capable
+  token.
 
 **The 3-minute Meta-side checklist to finish arming** (one time):
 
-1. **Instagram**: in Meta Business Settings → (Business) → Instagram
-   accounts: confirm your IG professional account is there and
-   assigned to the "Fortnite System User" (full control). Then just
-   tell the bot your **@username** (or paste the account id shown in
-   Business Settings) — it goes into `crosspost.ig_user_id` and reels
-   start flowing the same hour.
-2. **Facebook**: create a Facebook **Page** (e.g. "H15 Fortnite") —
-   personal profiles cannot carry reels via API.
-3. **Permanent FB token**: Business Settings → System users →
-   "Fortnite System User" → Add assets → Pages → your new page (full
-   control) → Generate token with `pages_manage_posts` +
-   `pages_read_engagement` → paste it to the bot (system-user tokens
-   NEVER expire, unlike Explorer tokens which die in ~1 hour).
+1. **Facebook Page** — https://www.facebook.com/pages/create →
+   e.g. "H15 Fortnite", category "Gaming video creator" → Create.
+   If Facebook offers to **connect an Instagram account during
+   creation, connect @h15master** — that link is discovery gold.
+   (Personal profiles cannot carry reels via API.)
+2. **Assign assets** — https://business.facebook.com/settings →
+   Users → System users → "Fortnite System User" → Add assets →
+   * Pages: the new page, full control;
+   * Instagram accounts: @h15master, full control (if not already).
+3. **Generate the permanent token** — still on the system user →
+   Generate token, permissions: `instagram_basic`,
+   `instagram_content_publish`, `pages_show_list`,
+   `pages_manage_posts`, `pages_read_engagement`,
+   `business_management` → copy (starts with EAAG…) → **paste it to
+   the bot in chat** (or set secret `FB_ACCESS_TOKEN` yourself:
+   repo Settings → Secrets and variables → Actions). System-user
+   tokens NEVER expire.
 
-Auto-discovery: every hourly run re-probes `/me/accounts` with
+With `business_management` on the pasted token, ONE paste arms BOTH
+platforms: discovery walks the business's Instagram accounts,
+matches `@h15master`, verifies the id queryable, and records the
+page — reels start the same hour, no code changes, no numeric ids
+to hunt.
+
+Auto-discovery (upgraded 2026-11-15): every hourly run re-probes
+`/me/accounts` AND `me/businesses → owned_instagram_accounts` with
 whatever tokens exist — the moment a token can see a Page (+ its
-linked IG account), the ids are recorded in `state.crosspost_ids`
-and reels start, with zero code changes. Until then each unarmed
+linked IG account, or the business-owned @h15master), the ids are
+recorded in `state.crosspost_ids` and reels start. Candidates the
+token cannot query are never armed; until then each unarmed
 platform is cleanly OFF (YouTube keeps publishing alone — never an
 error).
 

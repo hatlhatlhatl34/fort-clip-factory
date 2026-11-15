@@ -160,6 +160,9 @@ schedule:
 crosspost:
   enabled: true
   ig_user_id: ""        # Instagram professional account id (1784...)
+  ig_username: "h15master"   # owner, 2026-11-15 — the discovery hint that
+                        # picks @h15master when several IG accounts are
+                        # visible to a token (business-owned or page-linked)
   fb_page_id: ""        # Facebook Page id — reels NEED a Page
   api_version: "v23.0"  # verified live 2026-11-15; ~2y runway
   max_attempts: 8       # hourly retries per reel before alert+give up

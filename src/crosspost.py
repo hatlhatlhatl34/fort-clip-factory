@@ -402,11 +402,24 @@ def alert_once(state: dict, key: str, title: str, body: str) -> None:
 def auto_discover(state: dict) -> None:
     """The owner's Meta side may complete at any moment (page created,
     assets assigned to the system user, fresh token pasted). Each heal
-    run re-probes /me/accounts with whatever tokens exist and records
-    any page + linked Instagram account it can see — zero code changes
-    needed to go live."""
-    found_page: dict | None = None
-    found_ig: dict | None = None
+    run re-probes what the tokens can see and records any page + IG
+    account — zero code changes needed to go live.
+
+    Two discovery routes per token:
+      /me/accounts -> pages, each with its linked IG business account
+      /me/businesses -> /{b}/owned_instagram_accounts   (needs
+      business_management on the token; live-probed 2026-11-15 — the
+      current IG token lacks it, a fresh wider token unlocks this)
+
+    The ig_username hint (channel.yaml crosspost.ig_username — owner
+    said "Instagram is @h15master" 2026-11-15) picks the owner's
+    account when several are visible. Every candidate is verified
+    queryable with the SAME token before arming, so an id the machine
+    could never publish to is never recorded.
+    """
+    hint = str(_conf().get("ig_username") or "").strip().lstrip("@").lower()
+    pages: list[dict] = []
+    ig_candidates: list[tuple[str, dict]] = []      # (token, account)
     for label, tok in (("IG", ig_token()), ("FB", fb_token())):
         if not tok:
             continue
@@ -416,27 +429,63 @@ def auto_discover(state: dict) -> None:
                           "{id,username}",
                 "limit": "25"})
             for p in d.get("data") or []:
-                if found_page is None:
-                    found_page = p
+                pages.append(p)
                 igba = p.get("instagram_business_account") or {}
-                if igba.get("id") and found_ig is None:
-                    found_ig = igba
-        except CrosspostError as e:
+                if igba.get("id"):
+                    ig_candidates.append((tok, igba))
+        except Exception as e:                      # noqa: BLE001
             print(f"[crosspost] {label} token /me/accounts probe: {e}")
+        try:
+            b = _graph(tok, "me/businesses", params={"fields": "id,name"})
+            for biz in b.get("data") or []:
+                bid = str(biz.get("id") or "")
+                if not bid:
+                    continue
+                try:
+                    ib = _graph(tok, bid, params={
+                        "fields": "owned_instagram_accounts"
+                                  "{id,username}"})
+                except Exception:                  # noqa: BLE001
+                    continue
+                for a in ((ib.get("owned_instagram_accounts") or {})
+                          .get("data") or []):
+                    if a.get("id"):
+                        ig_candidates.append((tok, a))
+        except Exception:                          # noqa: BLE001
+            pass    # most tokens lack business_management — expected
+
     ids = state.setdefault("crosspost_ids", {})
     changed = False
-    if found_page and not ids.get("fb"):
-        ids["fb"] = str(found_page["id"])
+    if pages and not ids.get("fb"):
+        p = pages[0]
+        ids["fb"] = str(p["id"])
         print(f"[crosspost] AUTO-DISCOVERED Facebook page "
-              f"{found_page.get('name')} ({found_page['id']}) — "
-              "FB reels ARMED")
+              f"{p.get('name')} ({p['id']}) — FB reels ARMED")
         changed = True
-    if found_ig and not ids.get("ig"):
-        ids["ig"] = str(found_ig["id"])
-        print(f"[crosspost] AUTO-DISCOVERED Instagram account "
-              f"@{found_ig.get('username')} ({found_ig['id']}) — "
-              "IG reels ARMED")
-        changed = True
+
+    if not ids.get("ig") and ig_candidates:
+        def _rank(pair: tuple[str, dict]) -> int:
+            u = str((pair[1].get("username") or "")).lower()
+            return 0 if (hint and u == hint) else 1
+        for tok, acct in sorted(ig_candidates, key=_rank):
+            aid = str(acct["id"])
+            try:
+                prof = _graph(tok, aid, params={"fields": "id,username"})
+                uname = str(prof.get("username") or "")
+                if uname and uname.lower() != str(
+                        acct.get("username") or "").lower():
+                    print(f"[crosspost] IG candidate {aid} username "
+                          f"mismatch ({uname}) — skipped")
+                    continue
+            except Exception as e:                  # noqa: BLE001
+                print(f"[crosspost] IG candidate {aid} not queryable by "
+                      f"this token ({e}) — skipped")
+                continue
+            ids["ig"] = aid
+            print(f"[crosspost] AUTO-DISCOVERED Instagram account "
+                  f"@{acct.get('username')} ({aid}) — IG reels ARMED")
+            changed = True
+            break
     if changed:
         ledger.save(state)
 
