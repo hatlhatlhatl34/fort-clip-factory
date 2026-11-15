@@ -1,11 +1,12 @@
-"""Architecture tests for the owner's 2026-11-13 redesign:
+"""Architecture tests for the owner's redesign:
 
   1. ONE daily session at 08:30 UTC fills ALL open grid slots
-  2. 4 Shorts/day grid (00:00/08:00/16:00/20:00 Cairo, every day)
-  3. hooking titles: NO map code in titles, {n} only, <= 95 chars,
-     and the word "Fortnite" in EVERY title (owner rule 2026-11-14)
+  2. 4 Shorts/day 6-hour grid (00:00/06:00/12:00/18:00 Cairo)
+  3. hooking titles: NO map code, {n} only, <= 95 chars, "Fortnite"
+     in EVERY title (owner rules 2026-11-13/14)
   4. cookie-jar pool: true round-robin rotation + multi-secret stitch
   5. bucketing: 5 jars -> 3 secrets under GitHub's 48 KB cap
+  6. month-provision guard + artifact parts (owner rule 2026-11-14)
 
 Run:  python3 tests/test_daily_session.py
 (no pytest dependency; plain asserts + prints)
@@ -178,6 +179,71 @@ def main() -> int:
             ok = False
             print(f"      import src.{mod} failed: {e}")
     check("all src modules import cleanly", ok)
+
+    # ── 7. month-provision guard + artifact parts (2026-11-14) ────
+    from datetime import timezone
+
+    def guard_rule(bankst, thr=8, target=124, ptr=True):
+        # replica of the guard verdict in monthly-harvest.yml
+        clips = len(bankst.get("clips") or [])
+        harvested = bankst.get("harvested_total") or 0
+        month = bankst.get("month") or ""
+        now_m = datetime.now(timezone.utc).strftime("%Y-%m")
+        provisioned = month == now_m and harvested >= target
+        return (not provisioned) or clips <= thr or not ptr
+
+    now_m = datetime.now(timezone.utc).strftime("%Y-%m")
+    check("guard RUNs a partially provisioned month",
+          guard_rule({"month": now_m, "clips": [1] * 25,
+                      "harvested_total": 25}))
+    check("guard SKIPs a provisioned month",
+          not guard_rule({"month": now_m, "clips": [1] * 40,
+                          "harvested_total": 124}))
+    check("guard RUNs a drained bank anyway",
+          guard_rule({"month": now_m, "clips": [],
+                      "harvested_total": 124}))
+    check("guard RUNs a stale month (rollover)",
+          guard_rule({"month": "2000-01", "clips": [1] * 40,
+                      "harvested_total": 124}))
+
+    st = {"bank": {"month": "2000-01", "clips": [], "reserved_n": [],
+                   "harvested_total": 3}}
+    bank.add(st, "2000-01-01T00:00:00+00:00", "f.mp4",
+             {"title": "t", "description": "d", "tags": [], "n": 9},
+             {"id": "x", "title": "s", "channel": "c"}, 0, 60)
+    check("bank.add bumps the provision meter",
+          st["bank"]["harvested_total"] == 4)
+    bank.reset(st)
+    check("bank.reset zeroes the provision meter",
+          st["bank"]["harvested_total"] == 0
+          and st["bank"]["clips"] == [])
+
+    with tempfile.TemporaryDirectory() as td:
+        bdir = Path(td)
+        for i in range(2):
+            (bdir / f"short_{i}.mp4").write_bytes(b"x" * 1000)
+        (bdir / "manifest.json").write_text("{}")
+        (bdir / "artifact_name.txt").write_text("bank-2000-01")
+        n_parts = bank.split_parts(bdir, cap_bytes=1500)
+        check("parts split under the cap", n_parts == 2, f"{n_parts}")
+        ok = all(p.stat().st_size <= 1500
+                 for d in bdir.glob("p*") for p in d.iterdir()
+                 if p.suffix == ".mp4")
+        check("every part stays under the cap", ok)
+        check("manifest rides in part 1",
+              (bdir / "p1" / "manifest.json").exists())
+        check("parts file written for the workflow",
+              (bdir / "artifact_parts.txt").read_text() == "2")
+        # fresh flat layout -> default cap keeps both files in one part
+        for d in bdir.glob("p*"):
+            for p in list(d.iterdir()):
+                p.rename(bdir / p.name)
+            d.rmdir()
+        (bdir / "artifact_parts.txt").unlink()
+        n_parts = bank.split_parts(bdir)   # default ~4.2 GB cap
+        check("small banks stay in one part", n_parts == 1, f"{n_parts}")
+        check("manifest back in part 1",
+              (bdir / "p1" / "manifest.json").exists())
 
     print()
     if FAILURES:

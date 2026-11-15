@@ -127,11 +127,34 @@ def main() -> int:
         if sid and sid not in used:
             used.append(sid)
 
+    # clips that already published from THIS bank never come back —
+    # match by source_id (unique per mined video; n's get renumbered)
+    pub_sids = {s.get("source_id") for s in (state.get("shorts") or [])
+                if s.get("video_id") and s.get("banked")}
+    live = [c for c in out if c.get("source_id") not in pub_sids]
+
+    if not live:
+        state["bank"] = {
+            "month": (manifest.get("artifact") or "").replace("bank-", ""),
+            "clips": [],
+            "reserved_n": [],
+            "harvested_total": len(clips),   # provision already consumed
+        }
+        if args.apply:
+            (ROOT / "data" / "state.json").write_text(
+                json.dumps(state, indent=1))
+        print("all manifest clips have already published — bank empty, "
+              f"provision {len(clips)} credited")
+        return 0
+
     state["bank"] = {
         "month": manifest.get("artifact", "").replace("bank-", "")
-                  or clips and out[0]["slot"][:7],
-        "clips": out,
-        "reserved_n": reserved,
+                  or clips and live[0]["slot"][:7],
+        "clips": live,
+        "reserved_n": [c["n"] for c in live],
+        # owner rule 2026-11-14: the provision meter — every clip the
+        # manifest ever banked counts toward the month's total
+        "harvested_total": len(clips),
     }
     pointer = {
         "run_id": args.run_id,
@@ -140,19 +163,21 @@ def main() -> int:
     }
 
     xp_n = xi
-    print(f"clips restored:   {len(out)}  (n {out[0]['n']}..{out[-1]['n']})")
+    print(f"clips restored:   {len(live)} live of {len(clips)} banked "
+          f"(n {live[0]['n']}..{live[-1]['n']})")
+    print(f"provision meter:   harvested_total = {len(clips)}")
     print(f"xp-family titles: {xp_n}, generic: {gi}")
     print(f"used_sources:     {before} -> {len(used)} "
           f"(+{len(used) - before} re-marked)")
     print(f"pointer:          run {args.run_id} / "
           f"{manifest.get('artifact')}")
-    fn = all("fortnite" in c["meta"]["title"].lower() for c in out)
+    fn = all("fortnite" in c["meta"]["title"].lower() for c in live)
     cd = all("1789-8528-6429" not in c["meta"]["title"]
-             and "H15" not in c["meta"]["title"] for c in out)
+             and "H15" not in c["meta"]["title"] for c in live)
     print(f"every title contains Fortnite: {fn}")
     print(f"no codes in any title:         {cd}")
     print()
-    for c in out[:6] + ["..."] + out[-2:]:
+    for c in live[:6] + ["..."] + live[-2:]:
         if c == "...":
             print("  ...")
             continue

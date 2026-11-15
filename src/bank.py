@@ -16,9 +16,19 @@ is identity-based, never IP-flagged).
   guard cron retries daily until it gets through, then the bank is
   simply rebuilt whole next month.
 
-  PUBLISH  (daily, unchanged grid):  fetch the month's artifact,
-  pop the next banked clip, upload with publishAt. No yt-dlp, no
-  cookies, no bot-check surface at all on daily IPs.
+  OWNER RULE (2026-11-14) — STACKING: the month's harvest must
+  total >= max_clips (124 = 4/day x 31 — "at least 120 per month",
+  exactly as the owner put it). One session can only render ~25
+  clips in its ~5h budget, so guard sessions now APPEND to the
+  same-month bank (the workflow fetches the existing artifact
+  first) until bank.harvested_total >= max_clips. A full month
+  (~7 GB) exceeds the 5 GB single-artifact cap, so the bank ships
+  as parts bank-<ym>-p1/p2/... (~4.2 GB each) and the daily fetch
+  pulls them all with one pattern download.
+
+  PUBLISH  (daily, unchanged grid):  fetch the month's artifact
+  parts, pop the next banked clip, upload with publishAt. No
+  yt-dlp, no cookies, no bot-check surface at all on daily IPs.
 
   NEVER STARVES:  bank empty / artifact expired -> the daily run
   falls back to the live ladder exactly as before. The bank is a
@@ -33,6 +43,8 @@ State (data/state.json):
   bank.reserved_n  Short numbers allocated at harvest time so the
                    live fallback can never collide with a banked
                    title
+  bank.harvested_total  clips ever banked this month (never drops
+                   when clips publish) — the guard's provision meter
 """
 from __future__ import annotations
 
@@ -115,10 +127,12 @@ def open_targets(state: dict) -> list[str]:
 # ── state helpers ───────────────────────────────────────────────────
 
 def reset(state: dict) -> None:
-    """Start a clean month bank (rebuild semantics — a resumed harvest
-    rebuilds whole rather than juggling multiple artifacts)."""
+    """Start a clean month bank (rebuild semantics — month rollover
+    or an unreachable artifact). harvested_total restarts at 0 and
+    climbs with every bank.add until the month is provisioned."""
     ym = datetime.now(ZoneInfo("UTC")).strftime("%Y-%m")
-    state["bank"] = {"month": ym, "clips": [], "reserved_n": []}
+    state["bank"] = {"month": ym, "clips": [], "reserved_n": [],
+                     "harvested_total": 0}
 
 
 def add(state: dict, slot: str, fname: str, meta: dict, source: dict,
@@ -136,6 +150,9 @@ def add(state: dict, slot: str, fname: str, meta: dict, source: dict,
         "clip_dur": round(float(clip_dur), 1),
     })
     bank.setdefault("reserved_n", []).append(meta["n"])
+    # the provision meter: every banked clip counts toward the
+    # month's total, even after it publishes (owner rule 2026-11-14)
+    bank["harvested_total"] = int(bank.get("harvested_total") or 0) + 1
 
 
 def take_next(state: dict) -> dict | None:
@@ -152,8 +169,40 @@ def remaining(state: dict) -> int:
 
 # ── artifact side ──────────────────────────────────────────────────
 
+PART_CAP = 4_200_000_000       # bytes; margin under the 5 GB cap
+
+
 def artifact_name() -> str:
     return "bank-" + datetime.now(ZoneInfo("UTC")).strftime("%Y-%m")
+
+
+def split_parts(bank_dir: Path, cap_bytes: int = PART_CAP) -> int:
+    """Split bank/*.mp4 into bank/p1, bank/p2, ... (~<= cap each) —
+    a full month (~7 GB) cannot ride in one 5 GB artifact. The
+    manifest + artifact name land in part 1; bank/artifact_parts.txt
+    carries the part count for the workflow. Returns the number of
+    parts (0 = no clips banked)."""
+    files = sorted(bank_dir.glob("*.mp4"))
+    if not files:
+        return 0
+    parts: list[Path] = []
+    cur_dir: Path | None = None
+    cur_bytes = 0
+    for f in files:
+        size = f.stat().st_size
+        if cur_dir is None or cur_bytes + size > cap_bytes:
+            cur_dir = bank_dir / f"p{len(parts) + 1}"
+            cur_dir.mkdir(parents=True, exist_ok=True)
+            parts.append(cur_dir)
+            cur_bytes = 0
+        f.rename(cur_dir / f.name)
+        cur_bytes += size
+    for meta_name in ("manifest.json", "artifact_name.txt"):
+        meta = bank_dir / meta_name
+        if meta.exists():
+            meta.rename(parts[0] / meta_name)
+    (bank_dir / "artifact_parts.txt").write_text(str(len(parts)))
+    return len(parts)
 
 
 def write_manifest(bank_dir: Path, state: dict) -> str:

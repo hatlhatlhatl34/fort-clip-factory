@@ -76,20 +76,31 @@ clip:
                                       # session schedules the day)
 
 # ── THE BANK (owner idea 2026-11-11): the monthly food run ──────────
-# One IP, one long session, once a month: download + clip a whole
-# month of Shorts at once (sliced downloads, human pacing, cookie-jar
-# rotation), bank them in a GitHub artifact, and let the daily runs
-# do ONLY the API upload (OAuth is never IP-flagged). Blocked by the
-# bot wall? The guard cron retries daily until it gets through, and
-# the live ladder keeps publishing meanwhile.
+# One IP, one long session: download + clip a month's worth of
+# Shorts (sliced downloads, human pacing, cookie-jar rotation),
+# bank them in GitHub artifacts, and let the daily runs do ONLY the
+# API upload (OAuth is never IP-flagged). Blocked by the bot wall?
+# The guard cron retries daily until it gets through, and the live
+# ladder keeps publishing meanwhile.
+#
+# OWNER RULE (2026-11-14) — STACKING: the month must be provisioned
+# with >= max_clips total ("at least 120 per month", exactly as the
+# owner put it). One session renders only ~25 in its budget, so
+# guard sessions APPEND to the same-month bank until
+# bank.harvested_total >= max_clips — then the guard goes quiet for
+# the rest of the month (refill_threshold is the drained-bank
+# emergency only). The full month (~7 GB) ships as artifact PARTS
+# (~4.2 GB each) — one artifact cannot exceed 5 GB.
 harvest:
-  max_clips: 124              # 4/day x 31 days (owner rule 2026-11-13)
+  max_clips: 124              # 4/day x 31 days — the month provision
   slice_s: 300               # seconds of source grabbed per video
   pacing_s: [10, 35]         # human-ish pause between downloads
   days_ahead: 31             # planning window
-  budget_minutes: 325        # fits the 350-min workflow cap; ~2-3
-                             # guard sessions fill a whole month
-  refill_threshold: 8        # guard refills when clips drop below this
+  budget_minutes: 305        # ~25 clips/session; leaves ~40 min of
+                             # the 350-min job cap for the parts
+                             # upload (~3 GB typ.)
+  refill_threshold: 8        # drained-bank emergency (see above)
+  topup_clips: 32             # emergency top-up size when it fires
 
 # ── TRANSFORMATION (this is what makes it OUR video) ────────────────
 transform:

@@ -84,7 +84,10 @@ jobs:
         if: steps.bank.outputs.ready == 'true'
         uses: actions/download-artifact@v4
         with:
-          name: ${{ steps.bank.outputs.name }}
+          # pattern, not name: the bank ships as parts (-p1/-p2/...)
+          # in one run; a legacy single artifact matches too.
+          pattern: ${{ steps.bank.outputs.name }}*
+          merge-multiple: true
           run-id: ${{ steps.bank.outputs.run-id }}
           path: bank_month
           github-token: ${{ secrets.GITHUB_TOKEN }}

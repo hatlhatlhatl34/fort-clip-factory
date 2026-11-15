@@ -157,19 +157,27 @@ downloads) happens **once a month** in ONE long session from ONE
 IP with the cookie jars; the daily runs do ONLY the API upload
 (OAuth is identity-based, never IP-flagged).
 
-* `monthly-bank-harvest.yml` fires on the 1st (06:00 UTC) and its
-  guard retries daily at 07:00 UTC until the bank is full — "try
-  again and again until the gate opens".
+* `monthly-bank-harvest.yml` fires on the 1st (12:00 UTC) and its
+  guard retries daily at 13:00 UTC (15:00 Cairo — after the day's
+  08:30 session has finished, before tomorrow's) until the month is
+  provisioned — "try again and again until the gate opens".
 * The harvest downloads only a ~5-minute **slice** of each source
-  (`--download-sections`), clips + renders ~124 Shorts (4/day x 31
-  days), and banks them into ONE GitHub **artifact** (a single
-  artifact may hold up to 5 GB — the month fits; free on public
-  repos, auto-expires after 45 days — no repo bloat). The 350-minute
-  job cap means ~60 clips per session; 2-3 guard sessions fill a
-  whole month.
-* The ONE daily session (08:30 UTC) fetches the month's artifact,
-  pops the next banked clips, and uploads all 4 day-Shorts with
-  publishAt — no yt-dlp, no cookies, no bot wall on daily IPs, ever.
+  (`--download-sections`), clips + renders Shorts, and banks them
+  into GitHub **artifact parts** `bank-<ym>-p1/p2/...` (~4.2 GB each;
+  free on public repos, auto-expire after 45 days — no repo bloat).
+* **Month provision (owner rule 2026-11-14):** the month's harvest
+  must total **>= 124 clips** ("at least 120 per month"). One session
+  renders only ~25 in its ~5h budget, so guard sessions **APPEND**:
+  the workflow fetches the existing artifact parts into `bank/`
+  first, the harvest adds fresh clips on top, and the whole bank is
+  re-uploaded as new parts. `bank.harvested_total` in state.json is
+  the meter — it never drops when clips publish. Once it reaches
+  124 the guard goes quiet for the rest of the month;
+  `refill_threshold` (clips <= 8) is the drained-bank emergency.
+* The ONE daily session (08:30 UTC) fetches the month's artifact
+  parts by pattern (`bank-<ym>*`, merged), pops the next banked
+  clips, and uploads all 4 day-Shorts with publishAt — no yt-dlp, no
+  cookies, no bot wall on daily IPs, ever.
 * **Never starves:** bank empty / artifact gone / download failed →
   the daily run falls back to the live ladder exactly as before.
   The bank is a cache, never a single point of failure.

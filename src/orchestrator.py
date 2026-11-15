@@ -225,22 +225,61 @@ def run(*, dry_run: bool = False, offline: bool = False,
 
 def harvest(count: int | None = None,
             budget_minutes: float | None = None) -> int:
-    """One IP, one session, once a month: search fresh sources,
-    download a ~5-min slice of each, clip + render ~124 Shorts, and
-    bank them into a single GitHub artifact. The daily machine then
-    publishes the whole day from the bank in ONE session (pure API
-    upload — never IP-flagged). Blocked by the bot wall? Exit clean
-    and let the guard cron retry tomorrow; daily publishing continues
-    via the live ladder meanwhile. A retry rebuilds the whole month
-    bank from scratch (rebuild semantics — see bank.py docstring)."""
+    """One IP, one long session: search fresh sources, download a
+    ~5-min slice of each, clip + render Shorts, and bank them into
+    GitHub artifact parts. The daily machine then publishes the whole
+    day from the bank in ONE session (pure API upload — never
+    IP-flagged). Blocked by the bot wall? Exit clean and let the
+    guard cron retry; daily publishing continues via the live
+    ladder meanwhile.
+
+    OWNER RULE (2026-11-14) — STACKING: the month must be provisioned
+    with >= max_clips total (at least 120). One session renders only
+    ~25, so a same-month bank with reachable files is APPENDED to
+    (the workflow fetched the existing artifact into bank/ first);
+    guard sessions stack until bank.harvested_total >= max_clips.
+    A rebuild (reset) happens only on a month rollover or when the
+    previous artifact is unreachable."""
     state = ledger.load()
     hconf = cfg().get("harvest") or {}
     days_ahead = int(hconf.get("days_ahead", 31))
-    plan_slots = bank.plan(state, days=days_ahead)
-    target = int(count or hconf.get("max_clips", 124))
-    target = min(target, len(plan_slots))
-    budget = float(budget_minutes or hconf.get("budget_minutes", 325))
+    budget = float(budget_minutes or hconf.get("budget_minutes", 305))
     deadline = time.monotonic() + budget * 60
+    max_clips = int(hconf.get("max_clips", 124))
+
+    work = ROOT / "work"
+    shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True, exist_ok=True)
+    bank_dir = ROOT / "bank"
+
+    # ── APPEND vs REBUILD (owner rule 2026-11-14) ────────────────
+    # same-month bank + fetched files -> keep the clips and STACK
+    # toward the month provision; anything else -> fresh month.
+    ym = datetime.now(ZoneInfo("UTC")).strftime("%Y-%m")
+    bankst = state.get("bank") or {}
+    existing = len(bankst.get("clips") or [])
+    harvested_total = int(bankst.get("harvested_total") or 0)
+    fetched = list(bank_dir.glob("*.mp4")) if bank_dir.exists() else []
+    if bankst.get("month") == ym and existing and fetched:
+        print(f"[harvest] APPEND mode: keeping {existing} banked clip(s) "
+              f"({len(fetched)} files fetched) — provision "
+              f"{harvested_total}/{max_clips}, stacking to the month")
+        provision_left = max(0, max_clips - harvested_total)
+    else:
+        bank.reset(state)
+        shutil.rmtree(bank_dir, ignore_errors=True)
+        bank_dir.mkdir(parents=True, exist_ok=True)
+        provision_left = max_clips
+
+    plan_slots = bank.plan(state, days=days_ahead)
+    if count is not None:
+        target = int(count)
+    elif provision_left > 0:
+        target = provision_left
+    else:
+        # month provisioned — emergency top-up for a drained bank
+        target = int(hconf.get("topup_clips", 32))
+    target = min(target, len(plan_slots))
 
     if target <= 0:
         print("[harvest] the bank already covers the window — nothing "
@@ -248,9 +287,6 @@ def harvest(count: int | None = None,
         return 0
     print(f"[harvest] banking {target} Shorts for the next {days_ahead} "
           f"days: ONE IP, ONE session, sliced downloads, human pacing")
-
-    # fresh month bank (rebuild semantics — reset, not append)
-    bank.reset(state)
 
     # candidates: oversample 2.5x (some will fail the wall)
     today = datetime.now(ZoneInfo(cfg()["schedule"]["timezone"]))
@@ -274,17 +310,11 @@ def harvest(count: int | None = None,
                 candidates.append(c)
     if not candidates:
         print("HARVEST-ALERT: no candidates found — guard retries "
-              "tomorrow 07:00 UTC; daily publishing continues live")
+              "tomorrow 13:00 UTC; daily publishing continues live")
         return 0
     print(f"[harvest] {len(candidates)} fresh candidates pooled")
 
     # the long session
-    work = ROOT / "work"
-    shutil.rmtree(work, ignore_errors=True)
-    work.mkdir(parents=True, exist_ok=True)
-    bank_dir = ROOT / "bank"
-    shutil.rmtree(bank_dir, ignore_errors=True)
-    bank_dir.mkdir(parents=True, exist_ok=True)
     top_p, foot_p = overlay.render_overlays(work)
 
     slice_len = int(hconf.get("slice_s", 300))
@@ -332,13 +362,17 @@ def harvest(count: int | None = None,
               f"{str(source.get('title', ''))[:60]!r}")
         time.sleep(rng.uniform(pace_lo, pace_hi))   # human-ish pacing
 
-    bank.write_manifest(bank_dir, state)
     if banked == 0:
         print("HARVEST-ALERT: 0 clips banked — the bot wall held today. "
-              "The guard retries tomorrow 07:00 UTC; daily publishing "
+              "The guard retries tomorrow 13:00 UTC; daily publishing "
               "continues from the live ladder meanwhile.")
         return 0
-    print(f"\n[harvest] DONE: {banked}/{target} Shorts banked — the "
-          "artifact upload follows; daily runs publish them one slot "
-          "at a time (no yt-dlp on daily IPs ever again)")
+    bank.write_manifest(bank_dir, state)
+    n_parts = bank.split_parts(bank_dir)
+    b = state.get("bank") or {}
+    print(f"\n[harvest] DONE: +{banked} this session — the bank holds "
+          f"{bank.remaining(state)} clip(s) across {n_parts} artifact "
+          f"part(s); month provision {b.get('harvested_total', 0)}/"
+          f"{max_clips}. The upload follows; daily runs publish them "
+          "one slot at a time (no yt-dlp on daily IPs ever again)")
     return 0

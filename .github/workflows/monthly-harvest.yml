@@ -1,24 +1,36 @@
 name: monthly-bank-harvest
 
 # THE BANK (owner idea 2026-11-11). The risky work — YouTube
-# downloads — happens ONCE a month in ONE long session from ONE
-# runner IP with the 5-account cookie-jar pool (true rotation —
-# each account leads ~1/5 of the downloads), banking ~124 rendered
-# Shorts into ONE artifact. The single daily session (08:30 UTC)
-# then does ONLY the API upload of all 4 day-Shorts (OAuth is
-# identity-based, never IP-flagged).
+# downloads — happens in long sessions from one runner IP with the
+# 5-account cookie-jar pool (true rotation — each account leads
+# ~1/5 of the downloads), banking rendered Shorts into GitHub
+# artifact parts. The single daily session (08:30 UTC) then does
+# ONLY the API upload of all 4 day-Shorts (OAuth is identity-based,
+# never IP-flagged).
+#
+# OWNER RULE (2026-11-14) — STACKING: the month must be provisioned
+# with >= 124 clips total ("at least 120 per month"). One session
+# renders only ~25, so the guard fires daily until
+# bank.harvested_total >= max_clips: each session APPENDS to the
+# same-month bank (this workflow fetches the existing artifact
+# parts into bank/ first) and re-uploads the whole bank as fresh
+# parts. When the month is provisioned the guard is a seconds-long
+# no-op; refill_threshold (clips <= 8) is the drained-bank
+# emergency only.
 #
 # Blocked by the bot wall? The harvest exits clean (the live ladder
-# keeps the grid fed) and the 07:00 UTC guard retries EVERY DAY
-# until it gets through — "try again and again until the gate
-# opens", exactly as the owner put it. Budget fits the 350-min job
-# cap (~60 clips/session); 2-3 guard sessions fill a whole month.
-# When the bank is full the guard is a seconds-long no-op.
+# keeps the grid fed) and the guard retries every day until it
+# gets through — "try again and again until the gate opens",
+# exactly as the owner put it.
+#
+# Guard fires at 13:00 UTC (15:00 Cairo) — AFTER the 08:30 UTC
+# daily session has finished (~2h) and well before tomorrow's, so
+# the 5-hour harvest never queues the day's uploads behind it.
 
 on:
   schedule:
-    - cron: "0 6 1 * *"    # the 1st: start the monthly food run
-    - cron: "0 7 * * *"    # daily guard: refill when the bank runs low
+    - cron: "0 12 1 * *"    # the 1st: start the month's food run
+    - cron: "0 13 * * *"    # daily guard: stack until provisioned
   workflow_dispatch: {}
 
 concurrency:
@@ -28,7 +40,7 @@ concurrency:
 permissions:
   contents: write
   issues: write
-  actions: write
+  actions: read            # fetch bank artifacts (ours + past runs)
 
 jobs:
   guard:
@@ -41,16 +53,27 @@ jobs:
         run: |
           python - <<'PY' | tee guard.txt
           import json, pathlib
+          from datetime import datetime, timezone
           from yaml import safe_load
           st = json.loads(pathlib.Path("data/state.json").read_text() or "{}")
-          clips = len((st.get("bank") or {}).get("clips") or [])
+          bank = st.get("bank") or {}
+          clips = len(bank.get("clips") or [])
+          harvested = bank.get("harvested_total") or 0
+          month = bank.get("month") or ""
           ptr = pathlib.Path("data/bank_pointer.json").exists()
           hconf = (safe_load(pathlib.Path("channel.yaml").read_text())
                    .get("harvest") or {})
           thr = int(hconf.get("refill_threshold", 8))
-          refill = clips <= thr or not ptr
+          target = int(hconf.get("max_clips", 124))
+          now_m = datetime.now(timezone.utc).strftime("%Y-%m")
+          # owner rule 2026-11-14: stack sessions until the MONTH is
+          # provisioned (harvested_total >= max_clips, i.e. >= 120+),
+          # not merely when the bank runs nearly empty.
+          provisioned = month == now_m and harvested >= target
+          refill = (not provisioned) or clips <= thr or not ptr
           print("RUN" if refill else "SKIP",
-                f"(clips={clips}, threshold={thr}, pointer={ptr})")
+                f"(month={month or '-'}, harvested={harvested}/{target}, "
+                f"clips={clips}, threshold={thr}, pointer={ptr})")
           PY
           echo "verdict=$(head -1 guard.txt | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
     outputs:
@@ -79,6 +102,45 @@ jobs:
             || echo "::warning::deno install failed — web client may lose formats"
           echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
 
+      - name: Bank append check (keep the same-month clips?)
+        id: append
+        run: |
+          python - <<'PY' | tee append_check.txt
+          import json, pathlib
+          ready, name, run_id = "false", "", ""
+          p = pathlib.Path("data/bank_pointer.json")
+          if p.exists():
+              try:
+                  ptr = json.loads(p.read_text())
+                  st = json.loads(
+                      pathlib.Path("data/state.json").read_text())
+                  clips = len((st.get("bank") or {}).get("clips") or [])
+                  month = (st.get("bank") or {}).get("month") or ""
+                  if (ptr.get("ready") and clips and month
+                          and ptr.get("artifact") and ptr.get("run_id")):
+                      ready = "true"
+                      name, run_id = ptr["artifact"], str(ptr["run_id"])
+                      print(f"APPEND MODE: {clips} banked clip(s) to keep "
+                          f"from {name} (run {run_id})")
+              except Exception as e:
+                  print("append check failed:", e)
+          print(ready, name, run_id)
+          PY
+          echo "ready=$(tail -1 append_check.txt | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "name=$(tail -1 append_check.txt | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+          echo "run-id=$(tail -1 append_check.txt | cut -d' ' -f3)" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch the current bank (its clips ride along)
+        if: steps.append.outputs.ready == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ steps.append.outputs.name }}*
+          merge-multiple: true
+          run-id: ${{ steps.append.outputs.run-id }}
+          path: bank
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true   # unreachable -> orchestrator rebuilds
+
       - name: Harvest the month (one IP, one session)
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -90,17 +152,35 @@ jobs:
           COOKIES_TXT3: ${{ secrets.COOKIES_TXT3 }}
         run: python main.py --harvest 2>&1 | tee harvest.log
 
-      - name: Read the artifact name python wrote
-        if: success() && hashFiles('bank/manifest.json') != ''
+      - name: Read the artifact plan python wrote
+        if: success() && hashFiles('bank/artifact_parts.txt') != ''
         id: month
-        run: echo "name=$(cat bank/artifact_name.txt)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "name=$(cat bank/p1/artifact_name.txt)" >> "$GITHUB_OUTPUT"
+          echo "parts=$(cat bank/artifact_parts.txt)" >> "$GITHUB_OUTPUT"
 
-      - name: Upload the bank artifact
+      - name: Upload bank part 1
         if: success() && steps.month.outputs.name != ''
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.month.outputs.name }}
-          path: bank
+          name: ${{ steps.month.outputs.name }}-p1
+          path: bank/p1
+          retention-days: 45
+
+      - name: Upload bank part 2
+        if: success() && steps.month.outputs.parts != '' && fromJSON(steps.month.outputs.parts) >= 2
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.month.outputs.name }}-p2
+          path: bank/p2
+          retention-days: 45
+
+      - name: Upload bank part 3
+        if: success() && steps.month.outputs.parts != '' && fromJSON(steps.month.outputs.parts) >= 3
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.month.outputs.name }}-p3
+          path: bank/p3
           retention-days: 45
 
       - name: Point the daily machine at the bank
