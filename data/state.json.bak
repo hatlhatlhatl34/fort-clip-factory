@@ -204,6 +204,81 @@
    "title": "This Fortnite XP map = FREE Battle Pass \ud83e\udd11 #24",
    "slot": "2026-11-14T08:00:00+02:00",
    "banked": true
+  },
+  {
+   "n": 69,
+   "source_id": "rSXBVe8NsZM",
+   "source_title": "Remaking My First Fortnite Map 5 Years Later",
+   "source_channel": "Chirpy",
+   "date": "2026-11-15",
+   "video_id": "oLpZzteMcYM",
+   "clip_start": 595.72,
+   "clip_dur": 49.0,
+   "title": "You won't believe this Fortnite map \ud83d\ude33 #69",
+   "media": {
+    "file": "short_69.mp4",
+    "artifact": "media-cache-2026-11-15",
+    "run_id": "43696785056",
+    "size": 42142695
+   },
+   "crosspost": {
+    "ig": {
+     "status": "pending"
+    },
+    "fb": {
+     "status": "pending"
+    }
+   }
+  },
+  {
+   "n": 70,
+   "source_id": "Gabor097oS0",
+   "source_title": "World Record \ud83e\udd47 6:57.767 Fortnite Only Up Chapter 1 Speedrun",
+   "source_channel": "LBMTheLegend",
+   "date": "2026-11-15",
+   "video_id": "XjAzbAquZPg",
+   "clip_start": 366.06,
+   "clip_dur": 46.0,
+   "title": "How to get FREE SKINS in Fortnite \ud83e\udd11 #70",
+   "media": {
+    "file": "short_70.mp4",
+    "artifact": "media-cache-2026-11-15",
+    "run_id": "43696785056",
+    "size": 61697715
+   },
+   "crosspost": {
+    "ig": {
+     "status": "pending"
+    },
+    "fb": {
+     "status": "pending"
+    }
+   }
+  },
+  {
+   "n": 71,
+   "source_id": "EQ7bmD493iM",
+   "source_title": "NEW *BEST* NO TIMER Fortnite XP Map to LEVEL UP FAST in Chapter 7 Season 3 (EARN XP)",
+   "source_channel": "ShuffleGamer",
+   "date": "2026-11-15",
+   "video_id": "IIjd2yyM8uQ",
+   "clip_start": 120.39,
+   "clip_dur": 45.0,
+   "title": "Fortnite AFK XP farm \u2014 levels while you sleep \ud83d\ude34 #71",
+   "media": {
+    "file": "short_71.mp4",
+    "artifact": "media-cache-2026-11-15",
+    "run_id": "43696785056",
+    "size": 43401253
+   },
+   "crosspost": {
+    "ig": {
+     "status": "pending"
+    },
+    "fb": {
+     "status": "pending"
+    }
+   }
   }
  ],
  "used_sources": [
@@ -286,17 +361,21 @@
   "eCINKbHXinw",
   "V0b1lEWpZcg",
   "aN8fhqnQUMo",
-  "ihH3aXCKbf8"
+  "ihH3aXCKbf8",
+  "kbRzCPSEr5E",
+  "rSXBVe8NsZM",
+  "Gabor097oS0",
+  "EQ7bmD493iM"
  ],
- "query_cursor": 14,
+ "query_cursor": 2,
  "quota": {
-  "date": "2026-11-14",
-  "units_used": 11600
+  "date": "2026-11-15",
+  "units_used": 6000
  },
  "last_run": "2026-11-15",
- "last_run_ts": 1794705256,
+ "last_run_ts": 1794733790,
  "stats": {
-  "shorts_published": 17,
+  "shorts_published": 20,
   "days_active": 0
  },
  "used_drops": [
@@ -318,7 +397,10 @@
    "2026-11-14T20:00:00+02:00",
    "2026-11-15T00:00:00+02:00",
    "2026-11-15T08:00:00+02:00",
-   "2026-11-15T06:00:00+02:00"
+   "2026-11-15T06:00:00+02:00",
+   "2026-11-15T12:00:00+02:00",
+   "2026-11-15T18:00:00+02:00",
+   "2026-11-16T00:00:00+02:00"
   ]
  },
  "bank": {
@@ -1656,6 +1738,37 @@
     "source_channel": "wolfiegonnadab",
     "clip_start": 388.0,
     "clip_dur": 45.0
+   },
+   {
+    "slot": "2026-12-08T06:00:00+02:00",
+    "file": "short_20261208_0600.mp4",
+    "n": 68,
+    "meta": {
+     "title": "Stop grinding \u2014 THIS Fortnite map does it for you \ud83d\udca1 #68",
+     "description": "\ud83d\uddfa\ufe0f MAP CODE: 1789-8528-6429\n\ud83d\uded2 CREATOR CODE: H15 \u2014 use it in the Fortnite item shop and support the channel!\n\nHow to play: Fortnite \u2192 search \u2192 enter the map code above. \ud83c\udfae\n\n#fortnite #fortnitemap #fortnitecreative #fortniteclips #uefn #mapcode #shorts",
+     "tags": [
+      "fortnite",
+      "fortnite creative",
+      "fortnite map",
+      "map code",
+      "fortnite clips",
+      "creative map",
+      "uefn",
+      "fortnite gameplay",
+      "fortnite shorts",
+      "map gameplay",
+      "fortnite xp map",
+      "free skins",
+      "level up fast",
+      "fortnite battle pass"
+     ],
+     "n": 68
+    },
+    "source_id": "kbRzCPSEr5E",
+    "source_title": "The Fortnite UEFN Experience",
+    "source_channel": "TheActualFlixy",
+    "clip_start": 322.0,
+    "clip_dur": 47.0
    }
   ],
   "reserved_n": [
@@ -1701,8 +1814,9 @@
    64,
    65,
    66,
-   67
+   67,
+   68
   ],
-  "harvested_total": 44
+  "harvested_total": 45
  }
 }
