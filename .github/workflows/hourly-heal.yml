@@ -160,13 +160,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install ffmpeg + PyYAML + yt-dlp
-        # ffmpeg: yt-dlp merge + backfill duration probes; yt-dlp:
-        # the backfill pulls legacy Shorts back from their own public
-        # youtube.com/shorts/<id> URLs (owner rule 2026-11-15)
+      - name: Install ffmpeg + deps + deno
+        # ffmpeg: yt-dlp merge + yuv420p re-encodes; yt-dlp[default]:
+        # the EJS challenge-solver + deno runtime — the backfill rides
+        # the SAME proven ladder as the factory job (cookies x client
+        # rotation); without them YouTube bot-gates the runner
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
-          pip install --quiet PyYAML yt-dlp
+          pip install --quiet PyYAML "yt-dlp[default]"
+          curl -fsSL https://deno.com/install.sh | sh \
+            || echo "::warning::deno install failed — web client may lose formats"
+          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
       - name: Cross-post due Shorts + backfill the catalogue
         env:
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}

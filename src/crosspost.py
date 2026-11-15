@@ -887,55 +887,61 @@ def _attempt_reel(state: dict, s: dict, platform: str, video: Path,
 
 def _fetch_public_short(video_id: str, workdir: Path, n) -> Path | str | None:
     """Backfill source: pull our own already-public YouTube Short back
-    down with yt-dlp. Uses the cookie pool (COOKIES_TXT/2/3 secrets)
-    — YouTube bot-gates anonymous datacenter IPs (live-diagnosed
-    2026-11-15), and these are the same jars the factory already
-    rotates. Returns the Path, None on a soft failure (retry next
-    run), or the string "GONE" when the source video was deleted/
-    made private — that is permanent, so the caller settles the
-    crosspost records instead of burning retries."""
+    down with yt-dlp, riding the SAME proven ladder as the factory —
+    cookie pool (COOKIES_TXT/2/3) x player-client rotation + the EJS
+    challenge-solver + deno runtime the job installs. YouTube
+    bot-gates anonymous datacenter IPs (live-diagnosed 2026-11-15,
+    twice). Returns the Path, None on a soft failure (retry next
+    run), or "GONE" when the source video was deleted/made private
+    — permanent, so the caller settles instead of burning retries."""
     url = f"https://www.youtube.com/shorts/{video_id}"
     out = workdir / f"short_{n}.mp4"
     try:
-        from .downloader import _cookie_jars
+        from .downloader import _cookie_jars, _rotate, FMT, JAR_CLIENTS
         jars = _cookie_jars(workdir)
     except Exception:                          # noqa: BLE001
+        FMT, JAR_CLIENTS = "bv*+ba/b", ["web", "web_embedded", "tv"]
         jars = []
+    if jars:
+        combos = [(c, j) for j in _rotate(jars)
+                   for c in JAR_CLIENTS][:12]
+    else:
+        combos = [(c, None) for c in JAR_CLIENTS]
     gone_markers = ("Video unavailable", "removed by the uploader",
                     "Private video", "account associated with",
                     "has been terminated")
-    cookie_args: list[str | None] = \
-        [f"--cookies={j}" for j in jars] + [None]
+    deadline = time.monotonic() + 480
     last = "no yt-dlp output"
-    for extra in cookie_args:
-        cmd = [sys.executable, "-m", "yt_dlp", "-f", "bv*+ba/b",
-               "--merge-output-format", "mp4", "--no-playlist",
-               "--retries", "2", "--no-warnings"]
-        if extra:
-            cmd.append(extra)
-        cmd += ["-o", str(out), url]
+    for client, jar in combos:
+        if time.monotonic() > deadline - 30:
+            print(f"[backfill] #{n}: ladder out of time budget")
+            break
+        cmd = ["yt-dlp", "-f", FMT, "--merge-output-format", "mp4",
+               "--no-playlist", "--no-part", "-o", str(out),
+               "--socket-timeout", "20", "--retries", "2",
+               "--fragment-retries", "2", "--no-warnings"]
+        if jar:
+            cmd += ["--cookies", str(jar)]
+        cmd += ["--extractor-args",
+                f"youtube:player_client={client}", url]
         try:
             r = subprocess.run(cmd, capture_output=True, text=True,
-                               timeout=600)
+                               timeout=150)
         except Exception as e:                  # noqa: BLE001
             last = f"timeout: {e}"
             continue
         if out.exists() and out.stat().st_size > 100_000:
             return out
-        alt = workdir / f"{video_id}.mp4"
-        if alt.exists() and alt.stat().st_size > 100_000:
-            alt.replace(out)
-            return out
         blob = (r.stderr or "") + (r.stdout or "")
-        errs = [l for l in blob.splitlines()
-                if l.startswith("ERROR") or "ERROR:" in l]
-        last = (errs[-1][:160] if errs
-                else (blob.strip().splitlines() or ["no yt-dlp output"])
-                [-1][:160])
+        errs = [l for l in blob.splitlines() if "ERROR" in l]
+        last = errs[-1][:160] if errs else "no error line"
         if any(m in blob for m in gone_markers):
             print(f"[backfill] #{n}: source video is GONE from "
                   "YouTube (deleted/private) — settling permanently")
             return "GONE"
+        if out.exists() and out.stat().st_size < 100_000:
+            out.unlink(missing_ok=True)       # error-page stub
+        time.sleep(2)
     print(f"[backfill] download failed for #{n}: {last}")
     return None
 
