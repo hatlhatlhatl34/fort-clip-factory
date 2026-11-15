@@ -1,0 +1,70 @@
+name: crosspost-now
+
+# One-shot mirror finisher (owner rule 2026-11-15): publishes any
+# reels that are due + the remaining backfill catalogue RIGHT NOW, on
+# a free runner, WITHOUT the clip-factory concurrency group (it runs
+# beside a long harvest) and WITHOUT a memory commit — no state push,
+# so it can never race the harvest's memory commit. The ephemeral
+# state dies with the runner; the next grouped heal reconciles the
+# ledger by ADOPTING the live reels (dedupe gate + backfill
+# fast-path), never re-posting them.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+  actions: read            # fetch media-cache artifacts
+
+jobs:
+  crosspost-now:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ffmpeg + deps + deno
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          pip install --quiet PyYAML "yt-dlp[default]"
+          curl -fsSL https://deno.com/install.sh | sh \
+            || echo "::warning::deno install failed — web client may lose formats"
+          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
+      - name: Publish due reels + finish the backfill (stateless)
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          FB_ACCESS_TOKEN: ${{ secrets.FB_ACCESS_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          COOKIES_TXT: ${{ secrets.COOKIES_TXT }}
+          COOKIES_TXT2: ${{ secrets.COOKIES_TXT2 }}
+          COOKIES_TXT3: ${{ secrets.COOKIES_TXT3 }}
+        run: |
+          # stateless by design: ledger.save() writes stay on THIS
+          # runner and vanish with it (no commit step below). The
+          # grouped heal adopts whatever went live, never re-posts.
+          python -m src.crosspost --due 2>&1 | tee crosspost.log
+          python -m src.crosspost --backfill 2>&1 | tee -a crosspost.log
+          python -m src.crosspost --backfill 2>&1 | tee -a crosspost.log
+      - name: File an issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let log = '';
+            try { log = fs.readFileSync('crosspost.log', 'utf8').slice(-3000); } catch (e) {}
+            const alerts = log.split('\n').filter(l =>
+              l.includes('ALERT') || l.includes('FAILED')).slice(0, 20).join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title: `Crosspost-now failure ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
+              body: `The stateless reels publisher failed.\n\n\`\`\`\n${alerts || log.slice(-1500) || 'no log'}\n\`\`\``,
+              labels: ['machine-failure']
+            });

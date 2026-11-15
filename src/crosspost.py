@@ -1132,6 +1132,29 @@ def run_backfill(state: dict) -> int:
         n, yt_vid = s.get("n"), str(s.get("video_id") or "")
         cap_ig = build_caption(str(s.get("title") or ""), yt_vid, "ig")
         cap_fb = build_caption(str(s.get("title") or ""), yt_vid, "fb")
+        # adoption fast-path: if BOTH reels are already live (state
+        # lagged reality — a stateless one-off published them, or a
+        # memory push lost the race), adopt + settle WITHOUT
+        # downloading a single byte from YouTube.
+        if ig_on and fb_on:
+            ex_ig = _existing_reel("ig", yt_vid, igt=igt, ig_id=ig_id)
+            if ex_ig:
+                ex_fb = _existing_reel("fb", yt_vid, fbt=fbt,
+                                       page_id=page_id)
+                if ex_fb:
+                    for platform, mid, tok in (("ig", ex_ig, igt),
+                                               ("fb", ex_fb, fbt)):
+                        st = (s.setdefault("crosspost", {})
+                              .setdefault(platform, {"status": "pending"}))
+                        st.update(status="done", media_id=mid,
+                                  ts=int(time.time()), adopted=True)
+                        st["permalink"] = _permalink(
+                            tok, mid, ig=(platform == "ig"))
+                    ledger.save(state)
+                    print(f"[backfill] #{n} both reels already live — "
+                          "ADOPTED, download skipped")
+                    youtube_add_links(state, s)
+                    continue
         video = None
         try:
             if s.get("media"):
