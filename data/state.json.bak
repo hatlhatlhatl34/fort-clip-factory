@@ -376,11 +376,20 @@
    },
    "crosspost": {
     "ig": {
-     "status": "pending"
+     "status": "done",
+     "media_id": "18111496088631345",
+     "ts": 1794859557,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/Df0LCggFSsu/"
     },
     "fb": {
-     "status": "pending"
-    }
+     "status": "done",
+     "media_id": "1627709539369338",
+     "ts": 1794859566,
+     "attempts": 1,
+     "permalink": ""
+    },
+    "yt_links": true
    }
   },
   {
@@ -403,11 +412,20 @@
    },
    "crosspost": {
     "ig": {
-     "status": "pending"
+     "status": "done",
+     "media_id": "18093918887302806",
+     "ts": 1794859613,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/Df0LMMICVIu/"
     },
     "fb": {
-     "status": "pending"
-    }
+     "status": "done",
+     "media_id": "2131191727501143",
+     "ts": 1794859623,
+     "attempts": 1,
+     "permalink": "https://www.facebook.com/reel/2131191727501143/"
+    },
+    "yt_links": true
    }
   },
   {
