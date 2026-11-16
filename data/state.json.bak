@@ -344,6 +344,115 @@
     "fb": {
      "status": "pending"
     }
+   },
+   "verified": "2026-11-16T09:10:43+00:00"
+  },
+  {
+   "n": 26,
+   "source_id": "VbK1NXl0U3M",
+   "source_title": "Crazy New *NO TIMER* AFK Fortnite XP GLITCH How to LEVEL UP FAST in Treasure Hunters! (New SEASON)",
+   "source_channel": "TheWorld",
+   "date": "2026-11-16",
+   "video_id": "Oj6YgLqrQLM",
+   "clip_start": 213.0,
+   "clip_dur": 45.0,
+   "title": "This Fortnite XP map gives FREE skins 🎁 #26",
+   "slot": "2026-11-16T12:00:00+02:00",
+   "banked": true,
+   "media": {
+    "file": "short_26.mp4",
+    "artifact": "media-cache-2026-11-16",
+    "run_id": "43837198831",
+    "size": 37403186
+   },
+   "crosspost": {
+    "ig": {
+     "status": "pending"
+    },
+    "fb": {
+     "status": "pending"
+    }
+   }
+  },
+  {
+   "n": 27,
+   "source_id": "RcVKbs52bak",
+   "source_title": "Crazy New *NO TIMER* AFK Fortnite XP GLITCH How to LEVEL UP FAST in Treasure Hunters! (New SEASON)",
+   "source_channel": "TheWorld",
+   "date": "2026-11-16",
+   "video_id": "U9yG-XflZx0",
+   "clip_start": 183.3,
+   "clip_dur": 46.0,
+   "title": "Fortnite AFK XP farm — levels while you sleep 😴 #27",
+   "slot": "2026-11-16T18:00:00+02:00",
+   "banked": true,
+   "media": {
+    "file": "short_27.mp4",
+    "artifact": "media-cache-2026-11-16",
+    "run_id": "43837198831",
+    "size": 45571258
+   },
+   "crosspost": {
+    "ig": {
+     "status": "pending"
+    },
+    "fb": {
+     "status": "pending"
+    }
+   }
+  },
+  {
+   "n": 28,
+   "source_id": "fT2CX3TOTws",
+   "source_title": "NEW INSANE AFK XP GLITCH in Fortnite CHAPTER 7 TREASURE HUNTERS SEASON (950k a Min!) Not Patched! 🤩😱",
+   "source_channel": "Rimon Adee",
+   "date": "2026-11-16",
+   "video_id": "zm79MZLT_Ls",
+   "clip_start": 240.0,
+   "clip_dur": 45.0,
+   "title": "FREE Fortnite XP map, NO timer needed ⏱️ #28",
+   "slot": "2026-11-17T00:00:00+02:00",
+   "banked": true,
+   "media": {
+    "file": "short_28.mp4",
+    "artifact": "media-cache-2026-11-16",
+    "run_id": "43837198831",
+    "size": 51155307
+   },
+   "crosspost": {
+    "ig": {
+     "status": "pending"
+    },
+    "fb": {
+     "status": "pending"
+    }
+   }
+  },
+  {
+   "n": 29,
+   "source_id": "bRMx-sseDcM",
+   "source_title": "how to get to level 100 in season 2 insanely fast",
+   "source_channel": "ShuffleGamer",
+   "date": "2026-11-16",
+   "video_id": "CcbWjB4egs4",
+   "clip_start": 110.8,
+   "clip_dur": 47.0,
+   "title": "The XP map that breaks Fortnite 🔥 #29",
+   "slot": "2026-11-17T06:00:00+02:00",
+   "banked": true,
+   "media": {
+    "file": "short_29.mp4",
+    "artifact": "media-cache-2026-11-16",
+    "run_id": "43837198831",
+    "size": 70308763
+   },
+   "crosspost": {
+    "ig": {
+     "status": "pending"
+    },
+    "fb": {
+     "status": "pending"
+    }
    }
   },
   {
@@ -610,7 +719,8 @@
     },
     "yt_links": true
    },
-   "slot": "2026-11-16T00:00:00+02:00"
+   "slot": "2026-11-16T00:00:00+02:00",
+   "verified": "2026-11-16T09:10:43+00:00"
   },
   {
    "n": 8,
@@ -761,13 +871,13 @@
  ],
  "query_cursor": 2,
  "quota": {
-  "date": "2026-11-15",
-  "units_used": 8110
+  "date": "2026-11-16",
+  "units_used": 6400
  },
- "last_run": "2026-11-15",
- "last_run_ts": 1794748813,
+ "last_run": "2026-11-16",
+ "last_run_ts": 1794820243,
  "stats": {
-  "shorts_published": 21,
+  "shorts_published": 25,
   "days_active": 0
  },
  "used_drops": [
@@ -793,136 +903,16 @@
    "2026-11-15T12:00:00+02:00",
    "2026-11-15T18:00:00+02:00",
    "2026-11-16T00:00:00+02:00",
-   "2026-11-16T06:00:00+02:00"
+   "2026-11-16T06:00:00+02:00",
+   "2026-11-16T12:00:00+02:00",
+   "2026-11-16T18:00:00+02:00",
+   "2026-11-17T00:00:00+02:00",
+   "2026-11-17T06:00:00+02:00"
   ]
  },
  "bank": {
   "month": "2026-11",
   "clips": [
-   {
-    "slot": "2026-11-15T08:00:00+02:00",
-    "file": "short_20261115_0800.mp4",
-    "n": 26,
-    "meta": {
-     "title": "This Fortnite XP map gives FREE skins 🎁 #26",
-     "description": "🗺️ MAP CODE: 1789-8528-6429\n🛒 CREATOR CODE: H15 — use it in the Fortnite item shop and support the channel!\n\nHow to play: Fortnite → search → enter the map code above. 🎮\n\n#fortnite #fortnitemap #fortnitecreative #fortniteclips #uefn #mapcode #shorts",
-     "tags": [
-      "fortnite",
-      "fortnite creative",
-      "fortnite map",
-      "map code",
-      "fortnite clips",
-      "creative map",
-      "uefn",
-      "fortnite gameplay",
-      "fortnite shorts",
-      "map gameplay",
-      "fortnite xp map",
-      "free skins",
-      "level up fast",
-      "fortnite battle pass"
-     ],
-     "n": 26
-    },
-    "source_id": "VbK1NXl0U3M",
-    "source_title": "Crazy New *NO TIMER* AFK Fortnite XP GLITCH How to LEVEL UP FAST in Treasure Hunters! (New SEASON)",
-    "source_channel": "TheWorld",
-    "clip_start": 213.0,
-    "clip_dur": 45.0
-   },
-   {
-    "slot": "2026-11-16T16:00:00+02:00",
-    "file": "short_20261116_1600.mp4",
-    "n": 27,
-    "meta": {
-     "title": "Fortnite AFK XP farm — levels while you sleep 😴 #27",
-     "description": "🗺️ MAP CODE: 1789-8528-6429\n🛒 CREATOR CODE: H15 — use it in the Fortnite item shop and support the channel!\n\nHow to play: Fortnite → search → enter the map code above. 🎮\n\n#fortnite #fortnitemap #fortnitecreative #fortniteclips #uefn #mapcode #shorts",
-     "tags": [
-      "fortnite",
-      "fortnite creative",
-      "fortnite map",
-      "map code",
-      "fortnite clips",
-      "creative map",
-      "uefn",
-      "fortnite gameplay",
-      "fortnite shorts",
-      "map gameplay",
-      "fortnite xp map",
-      "free skins",
-      "level up fast",
-      "fortnite battle pass"
-     ],
-     "n": 27
-    },
-    "source_id": "RcVKbs52bak",
-    "source_title": "Crazy New *NO TIMER* AFK Fortnite XP GLITCH How to LEVEL UP FAST in Treasure Hunters! (New SEASON)",
-    "source_channel": "TheWorld",
-    "clip_start": 183.3,
-    "clip_dur": 46.0
-   },
-   {
-    "slot": "2026-11-16T20:00:00+02:00",
-    "file": "short_20261116_2000.mp4",
-    "n": 28,
-    "meta": {
-     "title": "FREE Fortnite XP map, NO timer needed ⏱️ #28",
-     "description": "🗺️ MAP CODE: 1789-8528-6429\n🛒 CREATOR CODE: H15 — use it in the Fortnite item shop and support the channel!\n\nHow to play: Fortnite → search → enter the map code above. 🎮\n\n#fortnite #fortnitemap #fortnitecreative #fortniteclips #uefn #mapcode #shorts",
-     "tags": [
-      "fortnite",
-      "fortnite creative",
-      "fortnite map",
-      "map code",
-      "fortnite clips",
-      "creative map",
-      "uefn",
-      "fortnite gameplay",
-      "fortnite shorts",
-      "map gameplay",
-      "fortnite xp map",
-      "free skins",
-      "level up fast",
-      "fortnite battle pass"
-     ],
-     "n": 28
-    },
-    "source_id": "fT2CX3TOTws",
-    "source_title": "NEW INSANE AFK XP GLITCH in Fortnite CHAPTER 7 TREASURE HUNTERS SEASON (950k a Min!) Not Patched! 🤩😱",
-    "source_channel": "Rimon Adee",
-    "clip_start": 240.0,
-    "clip_dur": 45.0
-   },
-   {
-    "slot": "2026-11-17T16:00:00+02:00",
-    "file": "short_20261117_1600.mp4",
-    "n": 29,
-    "meta": {
-     "title": "The XP map that breaks Fortnite 🔥 #29",
-     "description": "🗺️ MAP CODE: 1789-8528-6429\n🛒 CREATOR CODE: H15 — use it in the Fortnite item shop and support the channel!\n\nHow to play: Fortnite → search → enter the map code above. 🎮\n\n#fortnite #fortnitemap #fortnitecreative #fortniteclips #uefn #mapcode #shorts",
-     "tags": [
-      "fortnite",
-      "fortnite creative",
-      "fortnite map",
-      "map code",
-      "fortnite clips",
-      "creative map",
-      "uefn",
-      "fortnite gameplay",
-      "fortnite shorts",
-      "map gameplay",
-      "fortnite xp map",
-      "free skins",
-      "level up fast",
-      "fortnite battle pass"
-     ],
-     "n": 29
-    },
-    "source_id": "bRMx-sseDcM",
-    "source_title": "how to get to level 100 in season 2 insanely fast",
-    "source_channel": "ShuffleGamer",
-    "clip_start": 110.8,
-    "clip_dur": 47.0
-   },
    {
     "slot": "2026-11-17T20:00:00+02:00",
     "file": "short_20261117_2000.mp4",
@@ -2134,10 +2124,6 @@
    }
   ],
   "reserved_n": [
-   26,
-   27,
-   28,
-   29,
    30,
    31,
    32,
