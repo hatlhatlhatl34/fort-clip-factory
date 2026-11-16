@@ -300,7 +300,24 @@
    "slot": "2026-11-14T08:00:00+02:00",
    "banked": true,
    "verified": "2026-11-15T09:09:50+00:00",
-   "media": null
+   "media": null,
+   "crosspost": {
+    "ig": {
+     "status": "done",
+     "media_id": "17913128916665730",
+     "ts": 1794793131,
+     "adopted": true,
+     "permalink": "https://www.instagram.com/reel/DfxoSFfnJJQ/"
+    },
+    "fb": {
+     "status": "done",
+     "media_id": "1737071074425646",
+     "ts": 1794793131,
+     "adopted": true,
+     "permalink": "https://www.facebook.com/reel/1737071074425646/"
+    },
+    "yt_links": true
+   }
   },
   {
    "n": 25,
