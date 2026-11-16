@@ -339,11 +339,20 @@
    },
    "crosspost": {
     "ig": {
-     "status": "pending"
+     "status": "done",
+     "media_id": "18148119118594193",
+     "ts": 1794820422,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/DfzAb8snWvp/"
     },
     "fb": {
-     "status": "pending"
-    }
+     "status": "done",
+     "media_id": "40332927746353507",
+     "ts": 1794820434,
+     "attempts": 1,
+     "permalink": "https://www.facebook.com/reel/40332927746353507/"
+    },
+    "yt_links": true
    },
    "verified": "2026-11-16T09:10:43+00:00"
   },
