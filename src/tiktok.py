@@ -152,6 +152,12 @@ def publish(video: Path, title: str, tok: str) -> str:
             "source": "FILE_UPLOAD",
             "video_size": size,
             "chunk_size": chunk,
+            # live-diagnosed 2026-11-18: without this field the API
+            # answers 400 invalid_params "The video info is empty"
+            # even though the docs mark it optional — a controlled
+            # init-matrix proved it (adding ONLY this field flips the
+            # call to 200 ok)
+            "total_chunk_count": (size + chunk - 1) // chunk,
         },
     })
     publish_id = str(init.get("publish_id") or "")
