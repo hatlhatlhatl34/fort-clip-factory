@@ -55,7 +55,8 @@ from pathlib import Path
 from .config import cfg
 
 TT_API = "https://open.tiktokapis.com"
-CHUNK_SIZE = 32 * 1024 * 1024     # declared at init; one PUT per chunk
+UPLOAD_MAX = 64 * 1024 * 1024     # FILE_UPLOAD ceiling, live-probed
+                                  # 2026-11-18 (see _fit_upload)
 STATUS_POLL_S = 20                # publish API rate limit: 6 req/min
 STATUS_TIMEOUT_S = 360             # 18 polls — a poll timeout is NOT a
                                   # definite failure; the retry path
@@ -133,12 +134,60 @@ def _api(method: str, path: str, *, token: str, payload: dict | None = None,
 
 # ── the publish flow ──────────────────────────────────────────────────
 
+def _fit_upload(video: Path) -> tuple[Path, int]:
+    """TikTok FILE_UPLOAD reality, live-probed 2026-11-18 with a
+    controlled chunk-matrix against /v2/post/publish/video/init/:
+      * total_chunk_count > 1  -> 400 "The total chunk count is
+        invalid" (multi-chunk is rejected outright, matching the
+        community reports "not working with more than 1 chunk")
+      * one chunk > 64 MB     -> 400 "The chunk size is invalid"
+      * one chunk <= 64 MB    -> 200 ok
+    So every upload is EXACTLY ONE chunk of the whole file; a file
+    above the ceiling gets re-encoded down (rare: 720p Shorts run
+    8-40 MB, only 120 s clips at high bitrate can cross 64 MB)."""
+    import subprocess
+
+    size = video.stat().st_size
+    if size <= UPLOAD_MAX:
+        return video, size
+    print(f"[tiktok] {video.name} is {size // (1024 * 1024)} MB — "
+          "re-encoding to fit the 64 MB single-chunk ceiling")
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=nw=1:nk=1", str(video)],
+            capture_output=True, text=True, timeout=60)
+        dur = max(float(r.stdout.strip() or 0.0), 30.0)
+    except Exception:                              # noqa: BLE001
+        dur = 90.0
+    # target ~60 MB (margin), split A/V, sane bounds
+    bv = min(max(int(60 * 1024 * 1024 * 8 / dur) - 128_000, 800_000),
+             5_000_000)
+    out = video.with_name(video.stem + "_ttfit.mp4")
+    for scale, rate in (("1280:720", bv), ("960:540", max(bv // 2, 600_000))):
+        cmd = ["ffmpeg", "-y", "-v", "error", "-i", str(video),
+               "-vf", f"scale={scale}:force_original_aspect_ratio=decrease",
+               "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30",
+               "-b:v", str(rate), "-maxrate", str(rate),
+               "-bufsize", str(2 * rate),
+               "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart",
+               str(out)]
+        subprocess.run(cmd, check=True, capture_output=True, timeout=900)
+        if out.exists() and out.stat().st_size <= UPLOAD_MAX:
+            return out, out.stat().st_size
+    raise RuntimeError(f"could not fit {video.name} under the 64 MB "
+                       "single-chunk ceiling after two re-encodes")
+
+
 def publish(video: Path, title: str, tok: str) -> str:
-    """One TikTok post: init -> chunked PUT -> status poll.
+    """One TikTok post: init -> single-chunk PUT -> status poll.
     Returns the publish_id. Raises on any hard failure."""
     privacy = str(_conf().get("privacy", "SELF_ONLY"))
-    size = video.stat().st_size
-    chunk = min(CHUNK_SIZE, max(size, 1))
+    video, size = _fit_upload(video)
+    # ALWAYS one chunk: chunk == video_size, total_chunk_count == 1
+    # (the API rejects both multi-chunk counts and oversized single
+    # chunks — live matrix 2026-11-18)
+    chunk = size
 
     init = _api("POST", "/v2/post/publish/video/init/", token=tok, payload={
         "post_info": {
@@ -157,7 +206,7 @@ def publish(video: Path, title: str, tok: str) -> str:
             # even though the docs mark it optional — a controlled
             # init-matrix proved it (adding ONLY this field flips the
             # call to 200 ok)
-            "total_chunk_count": (size + chunk - 1) // chunk,
+            "total_chunk_count": 1,
         },
     })
     publish_id = str(init.get("publish_id") or "")
