@@ -532,7 +532,7 @@
      "status": "done",
      "attempts": 4,
      "error": "backfill download failed",
-     "ts": 1794937660,
+     "ts": 1794938575,
      "media_id": "18114086467884977",
      "permalink": "https://www.instagram.com/reel/Dfw9smZANYN/",
      "adopted": true
@@ -541,7 +541,7 @@
      "status": "done",
      "attempts": 4,
      "error": "backfill download failed",
-     "ts": 1794937660,
+     "ts": 1794938575,
      "media_id": "1565925802005248",
      "permalink": "https://www.facebook.com/reel/1565925802005248/",
      "adopted": true
@@ -593,7 +593,7 @@
      "status": "done",
      "attempts": 4,
      "error": "backfill download failed",
-     "ts": 1794937661,
+     "ts": 1794938576,
      "media_id": "18146372239714044",
      "permalink": "https://www.instagram.com/reel/Dfw9zC0gL1a/",
      "adopted": true
@@ -602,7 +602,7 @@
      "status": "done",
      "attempts": 4,
      "error": "backfill download failed",
-     "ts": 1794937661,
+     "ts": 1794938576,
      "media_id": "1118684201046960",
      "permalink": "https://www.facebook.com/reel/1118684201046960/",
      "adopted": true
@@ -645,13 +645,15 @@
      "attempts": 1,
      "permalink": "https://www.facebook.com/reel/1020698746947621/"
     },
-    "yt_links": true,
     "tiktok": {
-     "status": "failed",
-     "attempts": 1,
+     "status": "done",
+     "attempts": 3,
      "error": "/v2/post/publish/video/init/ -> HTTP 400: invalid_params The video info is empty",
-     "ts": 1794936720
-    }
+     "ts": 1794937802,
+     "media_id": "v_pub_file~v2-1.7709198065835640852",
+     "repaired": true
+    },
+    "yt_links": true
    },
    "verified": "2026-11-17T17:28:30+00:00"
   },
@@ -671,7 +673,7 @@
      "status": "done",
      "attempts": 2,
      "error": "backfill download failed",
-     "ts": 1794937662,
+     "ts": 1794938577,
      "media_id": "18096010106671226",
      "permalink": "https://www.instagram.com/reel/Dfw96iZgNkV/",
      "adopted": true
@@ -680,7 +682,7 @@
      "status": "done",
      "attempts": 2,
      "error": "backfill download failed",
-     "ts": 1794937662,
+     "ts": 1794938577,
      "media_id": "1678552460677100",
      "permalink": "https://www.facebook.com/reel/1678552460677100/",
      "adopted": true
@@ -732,7 +734,7 @@
      "status": "done",
      "attempts": 2,
      "error": "backfill download failed",
-     "ts": 1794937663,
+     "ts": 1794938579,
      "media_id": "18079952420571714",
      "permalink": "https://www.instagram.com/reel/Dfw-CWzAGtj/",
      "adopted": true
@@ -741,7 +743,7 @@
      "status": "done",
      "attempts": 2,
      "error": "backfill download failed",
-     "ts": 1794937663,
+     "ts": 1794938579,
      "media_id": "1705277327878063",
      "permalink": "https://www.facebook.com/reel/1705277327878063/",
      "adopted": true
@@ -782,13 +784,15 @@
      "attempts": 1,
      "permalink": "https://www.facebook.com/reel/1125772793410132/"
     },
-    "yt_links": true,
     "tiktok": {
-     "status": "failed",
-     "attempts": 1,
+     "status": "done",
+     "attempts": 3,
      "error": "/v2/post/publish/video/init/ -> HTTP 400: invalid_params The video info is empty",
-     "ts": 1794936595
-    }
+     "ts": 1794937802,
+     "media_id": "v_pub_file~v2-1.7709196615761774612",
+     "repaired": true
+    },
+    "yt_links": true
    },
    "slot": "2026-11-15T12:00:00+02:00",
    "verified": "2026-11-15T13:20:13+00:00"
@@ -854,13 +858,15 @@
      "attempts": 1,
      "permalink": "https://www.facebook.com/reel/3696840133811836/"
     },
-    "yt_links": true,
     "tiktok": {
-     "status": "failed",
-     "attempts": 1,
+     "status": "done",
+     "attempts": 3,
      "error": "/v2/post/publish/video/init/ -> HTTP 400: invalid_params The video info is empty",
-     "ts": 1794936595
-    }
+     "ts": 1794937802,
+     "media_id": "v_pub_file~v2-1.7709197990024431637",
+     "repaired": true
+    },
+    "yt_links": true
    },
    "slot": "2026-11-15T18:00:00+02:00",
    "verified": "2026-11-15T17:40:06+00:00"
@@ -896,13 +902,15 @@
      "attempts": 1,
      "permalink": "https://www.facebook.com/reel/1903458907489388/"
     },
-    "yt_links": true,
     "tiktok": {
-     "status": "failed",
-     "attempts": 1,
+     "status": "done",
+     "attempts": 3,
      "error": "/v2/post/publish/video/init/ -> HTTP 400: invalid_params The video info is empty",
-     "ts": 1794936596
-    }
+     "ts": 1794937802,
+     "media_id": "v_pub_file~v2-1.7709197995442898964",
+     "repaired": true
+    },
+    "yt_links": true
    },
    "slot": "2026-11-16T00:00:00+02:00",
    "verified": "2026-11-16T09:10:43+00:00"
