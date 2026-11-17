@@ -532,7 +532,7 @@
      "status": "done",
      "attempts": 4,
      "error": "backfill download failed",
-     "ts": 1794936727,
+     "ts": 1794937200,
      "media_id": "18114086467884977",
      "permalink": "https://www.instagram.com/reel/Dfw9smZANYN/",
      "adopted": true
@@ -541,7 +541,7 @@
      "status": "done",
      "attempts": 4,
      "error": "backfill download failed",
-     "ts": 1794936727,
+     "ts": 1794937200,
      "media_id": "1565925802005248",
      "permalink": "https://www.facebook.com/reel/1565925802005248/",
      "adopted": true
@@ -593,7 +593,7 @@
      "status": "done",
      "attempts": 4,
      "error": "backfill download failed",
-     "ts": 1794936728,
+     "ts": 1794937201,
      "media_id": "18146372239714044",
      "permalink": "https://www.instagram.com/reel/Dfw9zC0gL1a/",
      "adopted": true
@@ -602,7 +602,7 @@
      "status": "done",
      "attempts": 4,
      "error": "backfill download failed",
-     "ts": 1794936728,
+     "ts": 1794937201,
      "media_id": "1118684201046960",
      "permalink": "https://www.facebook.com/reel/1118684201046960/",
      "adopted": true
@@ -631,10 +631,12 @@
    },
    "crosspost": {
     "ig": {
-     "status": "failed",
-     "attempts": 1,
+     "status": "done",
+     "attempts": 2,
      "error": "rupload -> 400: {\"debug_info\":{\"retriable\":false,\"type\":\"ProcessingFailedError\",\"message\":\"{\\\"success\\\":false,\\\"error\\\":{\\\"message\\\":\\\"The ig container is not in the status to upload a video\\\"}}\"}}",
-     "ts": 1794936709
+     "ts": 1794937198,
+     "media_id": "18497116699128728",
+     "permalink": "https://www.instagram.com/reel/Df2fMP3kQw-/"
     },
     "fb": {
      "status": "done",
@@ -669,17 +671,19 @@
      "status": "done",
      "attempts": 2,
      "error": "backfill download failed",
-     "ts": 1794751991,
+     "ts": 1794937201,
      "media_id": "18096010106671226",
-     "permalink": "https://www.instagram.com/reel/Dfw96iZgNkV/"
+     "permalink": "https://www.instagram.com/reel/Dfw96iZgNkV/",
+     "adopted": true
     },
     "fb": {
      "status": "done",
      "attempts": 2,
      "error": "backfill download failed",
-     "ts": 1794752001,
+     "ts": 1794937201,
      "media_id": "1678552460677100",
-     "permalink": "https://www.facebook.com/reel/1678552460677100/"
+     "permalink": "https://www.facebook.com/reel/1678552460677100/",
+     "adopted": true
     },
     "yt_links": true
    },
@@ -728,17 +732,19 @@
      "status": "done",
      "attempts": 2,
      "error": "backfill download failed",
-     "ts": 1794752055,
+     "ts": 1794937202,
      "media_id": "18079952420571714",
-     "permalink": "https://www.instagram.com/reel/Dfw-CWzAGtj/"
+     "permalink": "https://www.instagram.com/reel/Dfw-CWzAGtj/",
+     "adopted": true
     },
     "fb": {
      "status": "done",
      "attempts": 2,
      "error": "backfill download failed",
-     "ts": 1794752063,
+     "ts": 1794937202,
      "media_id": "1705277327878063",
-     "permalink": "https://www.facebook.com/reel/1705277327878063/"
+     "permalink": "https://www.facebook.com/reel/1705277327878063/",
+     "adopted": true
     },
     "yt_links": true
    },
