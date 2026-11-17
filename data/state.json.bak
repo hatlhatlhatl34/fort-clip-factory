@@ -62,6 +62,12 @@
      "attempts": 1,
      "permalink": "https://www.facebook.com/reel/2167053610563733/"
     },
+    "tiktok": {
+     "status": "failed",
+     "attempts": 1,
+     "error": "/v2/post/publish/video/init/ -> HTTP 403: unaudited_client_can_only_post_to_private_accounts Please review our integration guidelines at https://developers.tiktok.com/doc/content-sharing-guidelines/",
+     "ts": 1794951307
+    },
     "yt_links": true
    },
    "media": null
@@ -847,6 +853,12 @@
      "attempts": 1,
      "permalink": "https://www.facebook.com/reel/1141590011905563/"
     },
+    "tiktok": {
+     "status": "failed",
+     "attempts": 1,
+     "error": "/v2/post/publish/video/init/ -> HTTP 403: unaudited_client_can_only_post_to_private_accounts Please review our integration guidelines at https://developers.tiktok.com/doc/content-sharing-guidelines/",
+     "ts": 1794951286
+    },
     "yt_links": true
    },
    "media": null
@@ -965,6 +977,12 @@
      "attempts": 1,
      "permalink": "https://www.facebook.com/reel/2147496972557028/"
     },
+    "tiktok": {
+     "status": "failed",
+     "attempts": 1,
+     "error": "/v2/post/publish/video/init/ -> HTTP 403: unaudited_client_can_only_post_to_private_accounts Please review our integration guidelines at https://developers.tiktok.com/doc/content-sharing-guidelines/",
+     "ts": 1794951293
+    },
     "yt_links": true
    },
    "media": null
@@ -994,6 +1012,12 @@
      "ts": 1794759481,
      "attempts": 1,
      "permalink": "https://www.facebook.com/reel/1841252850458379/"
+    },
+    "tiktok": {
+     "status": "failed",
+     "attempts": 1,
+     "error": "/v2/post/publish/video/init/ -> HTTP 403: unaudited_client_can_only_post_to_private_accounts Please review our integration guidelines at https://developers.tiktok.com/doc/content-sharing-guidelines/",
+     "ts": 1794951300
     },
     "yt_links": true
    },
