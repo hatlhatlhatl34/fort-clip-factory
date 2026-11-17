@@ -138,6 +138,9 @@ url, rng, ctype, nbytes = calls["put"][0]
 check("PUT went to the init's upload_url", url.endswith("tok=1"))
 check(f"Content-Range covers the whole file ({rng})", rng == f"bytes 0-{SZ - 1}/{SZ}")
 check("PUT shipped exactly video_size bytes", nbytes == SZ)
+check("init declares exactly ONE chunk (live matrix 2026-11-18)",
+      calls["init"]["source_info"]["total_chunk_count"] == 1
+      and calls["init"]["source_info"]["chunk_size"] == SZ)
 
 # 6. poll timeout keeps the publish_id for the re-check path
 class _Never:
