@@ -1185,7 +1185,17 @@ def run_backfill(state: dict) -> int:
         # lagged reality — a stateless one-off published them, or a
         # memory push lost the race), adopt + settle WITHOUT
         # downloading a single byte from YouTube.
-        if ig_on and fb_on:
+        # 2026-11-18 guard: only when NO TikTok work remains — the
+        # fast-path `continue` used to skip the TikTok mirror
+        # entirely, so ig/fb-complete shorts spun un-settled forever
+        # (backfill picked them, adopted, skipped, repeat; the TikTok
+        # backlog never drained). With TikTok pending we fall
+        # through: the ig/fb attempts no-op on their done marks, the
+        # video comes from the cache ladder, and the mirror runs.
+        tt_pending = tt_on and (s.get("crosspost") or {}) \
+            .get("tiktok", {}).get("status") \
+            not in ("done", "skipped", "gave_up")
+        if ig_on and fb_on and not tt_pending:
             ex_ig = _existing_reel("ig", yt_vid, igt=igt, ig_id=ig_id)
             if ex_ig:
                 ex_fb = _existing_reel("fb", yt_vid, fbt=fbt,
