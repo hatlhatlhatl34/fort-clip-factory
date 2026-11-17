@@ -487,11 +487,20 @@
    },
    "crosspost": {
     "ig": {
-     "status": "pending"
+     "status": "done",
+     "media_id": "18644701174026497",
+     "ts": 1794920094,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/Df1-hhqigml/"
     },
     "fb": {
-     "status": "pending"
-    }
+     "status": "done",
+     "media_id": "2769066776883562",
+     "ts": 1794920115,
+     "attempts": 1,
+     "permalink": "https://www.facebook.com/reel/2769066776883562/"
+    },
+    "yt_links": true
    },
    "verified": "2026-11-17T12:53:00+00:00"
   },
