@@ -60,7 +60,7 @@ def main() -> int:
     check("20 hooking title templates", len(templates) == 20)
     ok = all("{map" not in t and "{creator" not in t for t in templates)
     check("no {map}/{creator} in any template", ok)
-    ok = all("1789-8528-6429" not in t for t in templates)
+    ok = all("7992-0068-2838" not in t for t in templates)
     check("no map code in any template", ok)
     ok = all(len(t.format(n=999)) <= 95 for t in templates)
     check("all titles <= 95 chars", ok)
@@ -102,7 +102,7 @@ def main() -> int:
     check("40 seeds -> >= 10 distinct titles", len(titles) >= 10,
           f"{len(titles)} distinct")
     m = metadata.build({"query": "fortnite xp map gameplay"}, state, 1)
-    check("description has MAP CODE", "1789-8528-6429" in m["description"])
+    check("description has MAP CODE", "7992-0068-2838" in m["description"])
     check("description has CREATOR CODE", "H15" in m["description"])
     check("numbering skips reserved", m["n"] == 14,
           f"n={m['n']} (12 published, 13 reserved)")

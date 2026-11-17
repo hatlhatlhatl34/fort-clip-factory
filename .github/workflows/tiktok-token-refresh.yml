@@ -1,0 +1,59 @@
+# Daily TikTok token refresh — swaps the 24 h access token secret.
+#
+# Access tokens live 24 h; the refresh token rolls on a 365-day
+# window. Runs at 03:00 UTC (hours before the 08:30 factory session),
+# verifies the new token, then rewrites TIKTOK_ACCESS_TOKEN (and
+# TIKTOK_REFRESH_TOKEN when TikTok rotates it) via tools/set_secret.py.
+# The runner's own GITHUB_TOKEN cannot write secrets — PAT_SET_SECRETS
+# (a classic PAT with repo scope) exists ONLY for this job.
+#
+# Safe to run beside a crosspost job (env snapshots are pinned at job
+# start); NEVER safe to run beside ITSELF — hence the concurrency pin.
+
+name: tiktok-token-refresh
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: tiktok-token-refresh
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PyYAML + PyNaCl (sealed-box secret updates)
+        run: pip install --quiet PyYAML pynacl
+      - name: Refresh the TikTok access token
+        env:
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
+          PAT_SET_SECRETS: ${{ secrets.PAT_SET_SECRETS }}
+        run: python tools/tiktok_refresh.py 2>&1 | tee refresh.log
+      - name: File an issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let log = '';
+            try { log = fs.readFileSync('refresh.log', 'utf8').slice(-2000); } catch (e) {}
+            await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title: `TikTok token refresh failed ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
+              body: `The daily access-token swap failed — the mirror keeps running on the previous token for up to 24 h, then pauses itself.\n\n\`\`\`\n${log || 'no log'}\n\`\`\``,
+              labels: ['machine-failure']
+            });

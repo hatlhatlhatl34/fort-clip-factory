@@ -448,6 +448,81 @@ fast-path) into the ledger without re-posting. This finished the
 full 17-video mirror the same evening the throttled-IP sandbox could
 not.
 
+## 9. TIKTOK MIRROR — the fourth platform (owner rule 2026-11-18)
+
+The exact MP4 YouTube publishes now also becomes a TikTok video on
+**@h15master** — same file, same title (cross-links per the owner
+rule; the TikTok title carries the YouTube twin + IG + FB links,
+never its own). The mirror rides the SAME machinery as the reels:
+armed by secrets, attempted by the hourly heal + backfill, retried
+up to `crosspost.max_attempts`, failures isolated from YouTube
+forever.
+
+### The one-time setup (DONE 2026-11-18 — keep for re-auth)
+
+The TikTok developer app is **sandboxed + unaudited**. Two hard
+rules came out of the live authorization battle:
+
+1. **The authorize page only accepts the SANDBOX client key**
+   (the `sb...` one — the production key gets rejected with a
+   misleading "client_key" error until the app passes review).
+2. **Authorization works only for the sandbox target user** —
+   @h15master (added under Sandbox -> Target users).
+
+The login chain: **https://hatlhatlhatl34.github.io/go-sb.html**
+(GitHub Pages, the app's verified domain) while logged into TikTok
+as @h15master -> approve -> paste the full callback URL to the setup
+assistant -> the code is exchanged server-side (codes expire in
+~5 minutes — exchange immediately, never stockpile).
+
+### Secrets on this repo
+
+| secret | what |
+|---|---|
+| `TIKTOK_CLIENT_KEY` | sandbox client key (`sb...`) |
+| `TIKTOK_CLIENT_SECRET` | sandbox client secret |
+| `TIKTOK_REFRESH_TOKEN` | the rolling 365-day refresh token |
+| `TIKTOK_ACCESS_TOKEN` | the 24 h access token (auto-swapped daily) |
+| `PAT_SET_SECRETS` | classic PAT with repo scope — used ONLY by the refresh workflow to write the token secrets (the runner GITHUB_TOKEN cannot) |
+
+`tiktok-token-refresh.yml` runs daily 03:00 UTC: refresh -> verify
+against /v2/user/info/ -> swap both secrets (a rotated refresh token
+is written back the same run). A refresh failure files an issue; the
+mirror keeps running on the previous token for up to 24 h, then
+pauses itself cleanly (never breaks IG/FB/YouTube).
+
+### Unaudited reality (until the Content Posting API audit passes)
+
+- every post is **SELF_ONLY (private)** — TikTok enforces it; the
+  flip to `PUBLIC_TO_EVERYONE` is one line in channel.yaml
+  (`crosspost.tiktok.privacy`) AFTER approval, nothing else changes;
+- **@h15master must stay a private account** in the app (TikTok
+  couples unaudited direct-post to private accounts);
+- the re-review description (prepared, 1000-char, full-scope
+  explanation) goes in with the sandbox's Products: Login Kit +
+  Content Posting API — remove **Share Kit** and **Data Portability
+  API** before submitting (unused products slow reviews);
+- when review passes, import the sandbox config into a Production
+  draft, THEN rotate the secrets to the production key/secret +
+  re-authorize once (the production key starts working at that
+  point, and only then).
+
+### Operational cautions
+
+- **No adoption**: the app does not hold the `video.list` scope, so
+  an already-live TikTok twin cannot be discovered from TikTok's
+  side. State marks are the ONLY dedupe gate — never run the
+  stateless `crosspost-now` twice in a row for TikTok without a
+  grouped heal committing state in between (IG/FB adopt; TikTok
+  cannot). Poll-timeouts are SAFE: the publish_id is stored and
+  re-checked before any re-post (no duplicates by construction).
+- **6 publish-API requests/min per token** — posts are paced and
+  status polls run at 20 s cadence; a 4-Short slot mirrors in ~2-3
+  minutes.
+- Egypt is not a TikTok Creator Rewards region — TikTok stays a
+  pure traffic funnel to the YouTube/FB/IG feeds; the money engine
+  is unchanged.
+
 ## Phase 2 — DONE (owner rule 2026-11-15)
 
 Multi-platform distribution as originally parked (2026-11-13):
@@ -462,11 +537,9 @@ land.
 The owner named the next two upgrades; both wait on assets only the
 owner can supply. No code exists for them yet by design.
 
-1. **TikTok as a fourth platform** — needs a TikTok account (and its
-   Content Posting API credentials or an upload path the owner
-   prefers). When the owner says go, the crossposter gains a
-   `tiktok` platform branch beside `ig`/`fb`; the same Short would
-   ship there the same hour.
+1. **TikTok as a fourth platform** — **SHIPPED 2026-11-18**, see
+   section 9 above: the same MP4 mirrors to @h15master through the
+   sandbox (SELF_ONLY until the audit), tokens auto-refresh daily.
 2. **Multiple map codes** — the owner will hand over NEW map codes
    to rotate through videos (not only 7992-0068-2838). Design when
    they arrive: a `codes.pool` list in channel.yaml; each render

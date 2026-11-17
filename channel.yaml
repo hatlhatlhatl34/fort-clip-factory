@@ -178,6 +178,19 @@ crosspost:
     yt_short: "https://www.youtube.com/shorts/{video_id}"
     ig: "https://www.instagram.com/h15master/"
     fb: "https://www.facebook.com/131825308398327"
+    tiktok: "https://www.tiktok.com/@h15master"
+  # TIKTOK MIRROR (owner rule 2026-11-18): the fourth platform — same
+  # MP4, same title. Unaudited app reality: every post is forced
+  # SELF_ONLY (private) and @h15master must stay a private account
+  # until the Content Posting API audit passes; THEN flip privacy to
+  # PUBLIC_TO_EVERYONE here (TikTok rejects public privacy for
+  # unaudited apps outright). Tokens: TIKTOK_ACCESS_TOKEN (24 h,
+  # renewed daily by tiktok-token-refresh) + TIKTOK_CLIENT_KEY/SECRET
+  # + TIKTOK_REFRESH_TOKEN (the rolling 365-day root).
+  tiktok:
+    enabled: true
+    username: h15master
+    privacy: SELF_ONLY
   # BACKFILL (owner rule 2026-11-15): mirror the already-public
   # catalogue so the three feeds look alike. Live-probed 2026-11-15:
   # Instagram reports NO content_publishing_limit (empty config) and

@@ -98,7 +98,7 @@ def _run() -> int:
     check("caption keeps the hook",
           "FREE Battle Pass" in first, first)
     check("caption carries CREATOR CODE", "CREATOR CODE: H15" in c)
-    check("caption carries MAP CODE", "MAP CODE: 1789-8528-6429" in c)
+    check("caption carries MAP CODE", "MAP CODE: 7992-0068-2838" in c)
     check("caption carries hashtags", "#fortnite" in c)
     check("caption <= 2200", len(c) <= 2200, str(len(c)))
     c2 = crosspost.build_caption("Free skins drop tomorrow")
@@ -611,7 +611,7 @@ def _run() -> int:
     check("FB description does not link itself",
           "facebook.com" not in cf)
     check("reel captions still obey the code rules",
-          "MAP CODE: 1789-8528-6429" in ci and "#fortnite" in ci)
+          "MAP CODE: 7992-0068-2838" in ci and "#fortnite" in ci)
 
     # IG rupload prefers Meta's own uri (live probe 2026-11-15: the
     # container response carries a v27.0 rupload URL)

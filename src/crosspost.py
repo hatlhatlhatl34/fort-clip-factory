@@ -1,8 +1,10 @@
-"""Cross-platform publishing — Instagram Reels + Facebook Reels.
+"""Cross-platform publishing — Instagram Reels + Facebook Reels,
+plus the TikTok mirror (src/tiktok.py).
 
-OWNER RULE (2026-11-15): every Short goes to ALL platforms. The exact
-MP4 that YouTube publishes as a Short becomes an Instagram Reel and a
-Facebook Reel — same content, same rhythm.
+OWNER RULE (2026-11-15, extended 2026-11-18): every Short goes to
+ALL platforms. The exact MP4 that YouTube publishes as a Short
+becomes an Instagram Reel, a Facebook Reel AND a TikTok video — same
+content, same rhythm.
 
 WHY SLOT-TIME, NOT SESSION-TIME: the 08:30 UTC session uploads all 4
 Shorts with publishAt hours ahead; the reels drop when their YouTube
@@ -102,6 +104,17 @@ CAPTION_MAX = 2200          # Instagram caption limit
 SCAN_WINDOW = 12            # recent shorts examined per heal run
 
 CACHE_DIR = ROOT / "media_cache"
+
+
+def _tt():
+    """TikTok module access, lazily + defensively: a broken or
+    unarmed TikTok integration must never break the IG/FB reels."""
+    try:
+        from . import tiktok
+        return tiktok
+    except Exception as e:                     # noqa: BLE001
+        print(f"[crosspost] tiktok module unavailable: {e}")
+        return None
 
 
 class CrosspostError(RuntimeError):
@@ -230,8 +243,9 @@ def build_caption(title: str, video_id: str = "",
     OWNER RULE (2026-11-15): every reel description carries the OTHER
     platforms' links — the Instagram reel points at its YouTube twin
     + the Facebook page; the Facebook reel points at its YouTube twin
-    + the Instagram profile. for_platform ("ig" / "fb") skips the
-    platform's own link; "" includes both (back-compat).
+    + the Instagram profile; the TikTok title points at its YouTube
+    twin + IG + FB. for_platform ("ig" / "fb" / "tiktok") skips the
+    platform's own link; "" includes all (back-compat).
     """
     t = re.sub(r"\s*#\d+$", "", (title or "").strip())
     if "fortnite" not in t.lower():
@@ -250,6 +264,8 @@ def build_caption(title: str, video_id: str = "",
         lines.append(f"📸 INSTAGRAM: {ln['ig']}")
     if for_platform != "fb" and ln.get("fb"):
         lines.append(f"📱 FACEBOOK: {ln['fb']}")
+    if for_platform != "tiktok" and ln.get("tiktok"):
+        lines.append(f"🎵 TIKTOK: {ln['tiktok']}")
     if tags:
         lines += ["", tags]
     return "\n".join(lines)[:CAPTION_MAX]
@@ -719,9 +735,13 @@ def _slot_passed(short: dict, now: datetime) -> bool:
 
 def _incomplete(short: dict) -> bool:
     cp = short.get("crosspost") or {}
+    plats = ("ig", "fb")
+    _t = _tt()
+    if _t and _t.armed():
+        plats = plats + ("tiktok",)
     return any((cp.get(p) or {}).get("status")
                not in ("done", "gave_up", "skipped")
-               for p in ("ig", "fb"))
+               for p in plats)
 
 
 def run_due(state: dict) -> int:
@@ -736,8 +756,10 @@ def run_due(state: dict) -> int:
     ig_id, page_id = ig_user_id(state), fb_page_id(state)
     ig_on = bool(igt and ig_id)
     fb_on = bool(fbt and page_id)
+    _t = _tt()
+    tt_on = bool(_t and _t.armed())
 
-    if not ig_on and not fb_on:
+    if not ig_on and not fb_on and not tt_on:
         why = []
         if not igt:
             why.append("IG_ACCESS_TOKEN secret missing")
@@ -750,9 +772,14 @@ def run_due(state: dict) -> int:
         elif not page_id:
             why.append("Facebook page id not known yet (no page "
                        "visible — create one, see RUNBOOK)")
+        if not tt_on:
+            why.append("TikTok unarmed (TIKTOK_ACCESS_TOKEN secret "
+                       "missing or crosspost.tiktok disabled — "
+                       "RUNBOOK section 9)")
         print("[crosspost] no platform armed yet (" + "; ".join(why) +
               ") — YouTube keeps publishing alone; RUNBOOK.md has the "
-              "3-minute Meta-side checklist")
+              "3-minute Meta-side checklist (section 8) and the "
+              "TikTok one (section 9)")
         return 0
 
     # token health — a dead token must not burn the retry budget
@@ -770,8 +797,17 @@ def run_due(state: dict) -> int:
                    "(RUNBOOK.md, cross-posting section) and update the "
                    "GitHub secret.")
         fb_on = False
-    if not (ig_on or fb_on):
-        print("[crosspost] both tokens unhealthy — nothing to do this hour")
+    if tt_on and not _t.token_alive(_t.token()):
+        alert_once(state, "tiktok-token",
+                   "TikTok token invalid — mirror paused",
+                   "The TIKTOK_ACCESS_TOKEN was rejected by user/info. "
+                   "The daily tiktok-token-refresh workflow renews it "
+                   "(24 h lifetime); if it failed twice in a row, "
+                   "re-authorize once via go-sb.html and update the "
+                   "secrets (RUNBOOK section 9).")
+        tt_on = False
+    if not (ig_on or fb_on or tt_on):
+        print("[crosspost] all tokens unhealthy — nothing to do this hour")
         return 0
 
     now = datetime.now(ZoneInfo(cfg()["schedule"]["timezone"]))
@@ -844,9 +880,15 @@ def run_due(state: dict) -> int:
                              max_attempts=max_attempts,
                              yt_vid=yt_vid):
                 published += 1
+        if tt_on:
+            cap_tt = build_caption(str(s.get("title") or ""), yt_vid,
+                                   "tiktok")
+            if _t.attempt(state, s, video, cap_tt,
+                          max_attempts=max_attempts):
+                published += 1
         youtube_add_links(state, s)
 
-    print(f"\n[crosspost] DONE: {published} reel(s) live this run")
+    print(f"\n[crosspost] DONE: {published} post(s) live this run")
     return 0
 
 
@@ -1059,9 +1101,13 @@ def _ffprobe_duration(path: Path) -> float:
 
 def _backfill_settled(s: dict) -> bool:
     cp = s.get("crosspost") or {}
+    plats = ("ig", "fb")
+    _t = _tt()
+    if _t and _t.armed():
+        plats = plats + ("tiktok",)
     return all((cp.get(p) or {}).get("status")
                in ("done", "skipped", "gave_up")
-               for p in ("ig", "fb"))
+               for p in plats)
 
 
 def run_backfill(state: dict) -> int:
@@ -1092,14 +1138,17 @@ def run_backfill(state: dict) -> int:
     igt, fbt = ig_token(), fb_token()
     ig_id, page_id = ig_user_id(state), fb_page_id(state)
     ig_on, fb_on = bool(igt and ig_id), bool(fbt and page_id)
-    if not (ig_on or fb_on):
+    _t = _tt()
+    tt_on = bool(_t and _t.armed())
+    if not (ig_on or fb_on or tt_on):
         print("[backfill] no platform armed yet — nothing to backfill")
         return 0
 
     # recover media-fetch give-ups (the 401 artifact bug, fixed
     # 2026-11-15): those were never upload failures
+    plats = ("ig", "fb") + (("tiktok",) if tt_on else ())
     for s in state.get("shorts", []):
-        for p in ("ig", "fb"):
+        for p in plats:
             st = (s.get("crosspost") or {}).get(p) or {}
             if st.get("status") == "gave_up" and "media" in str(
                     st.get("reason") or "").lower():
@@ -1186,7 +1235,7 @@ def run_backfill(state: dict) -> int:
         if video == "GONE":
             # the source Short no longer exists on YouTube — settle
             # permanently instead of burning 8 retries
-            for p in ("ig", "fb"):
+            for p in plats:
                 stx = (s.setdefault("crosspost", {})
                        .setdefault(p, {"status": "pending"}))
                 stx.update(status="gave_up", attempts=max_attempts,
@@ -1195,7 +1244,7 @@ def run_backfill(state: dict) -> int:
             ledger.save(state)
             continue
         if video is None:
-            for p in ("ig", "fb"):
+            for p in plats:
                 stx = (s.setdefault("crosspost", {})
                        .setdefault(p, {"status": "pending"}))
                 if stx.get("status") not in ("done", "skipped",
@@ -1223,8 +1272,14 @@ def run_backfill(state: dict) -> int:
                                    max_attempts=max_attempts,
                                    yt_vid=yt_vid):
             published += 1
+        if tt_on:
+            cap_tt = build_caption(str(s.get("title") or ""), yt_vid,
+                                   "tiktok")
+            if _t.attempt(state, s, video, cap_tt,
+                          max_attempts=max_attempts):
+                published += 1
         youtube_add_links(state, s)
-    print(f"\n[backfill] DONE: {published} reel(s) live this run")
+    print(f"\n[backfill] DONE: {published} post(s) live this run")
     return 0
 
 
@@ -1250,24 +1305,36 @@ def report(state: dict) -> None:
           f"fb_page_id={page_id or '?'})")
     if fbt:
         print(f"    token: {'alive' if _token_alive(fbt) else 'INVALID'}")
+    _t = _tt()
+    ttok = _t.token() if _t else ""
+    print(f"  TikTok      : "
+          f"{'ARMED' if ttok else 'off'} "
+          f"(token={'set' if ttok else 'MISSING'}, "
+          f"privacy={(_t._conf().get('privacy', 'SELF_ONLY') if _t else 'SELF_ONLY')})")
+    if ttok and _t:
+        print(f"    token: {'alive' if _t.token_alive(ttok) else 'INVALID'} "
+              "(refreshed daily by tiktok-token-refresh)")
     recent = state.get("shorts", [])[-SCAN_WINDOW:]
     for s in recent:
         cp = s.get("crosspost") or {}
         print(f"  #{s.get('n'):>3} slot={s.get('slot')} "
               f"ig={(cp.get('ig') or {}).get('status', '-'):>7} "
-              f"fb={(cp.get('fb') or {}).get('status', '-') or '-':>7}")
+              f"fb={(cp.get('fb') or {}).get('status', '-') or '-':>7} "
+              f"tt={(cp.get('tiktok') or {}).get('status', '-'):>7}")
 
 
 def main() -> int:
     import argparse
     ap = argparse.ArgumentParser(
-        description="Cross-post Shorts as Instagram + Facebook reels")
+        description="Cross-post Shorts as Instagram + Facebook reels "
+                    "+ TikTok videos")
     ap.add_argument("--due", action="store_true",
-                    help="publish reels for every Short whose grid slot "
+                    help="publish posts for every Short whose grid slot "
                          "has passed (the hourly heal)")
     ap.add_argument("--backfill", action="store_true",
                     help="mirror the already-public YouTube catalogue "
-                         "to Instagram + Facebook (paced per_hour/run)")
+                         "to Instagram + Facebook + TikTok "
+                         "(paced per_hour/run)")
     ap.add_argument("--check", action="store_true",
                     help="status report: tokens, ids, recent shorts")
     args = ap.parse_args()

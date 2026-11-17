@@ -1,0 +1,272 @@
+"""TikTok mirror — the fourth platform (owner rule 2026-11-18).
+
+OWNER RULE: every Short goes to ALL platforms. The exact MP4 YouTube
+publishes as a Short becomes an Instagram Reel, a Facebook Reel AND a
+TikTok video — same file, same title (cross-links per
+crosspost.build_caption, platform-aware).
+
+UNAUDITED APP REALITY (live-diagnosed 2026-11-18): the developer app
+is sandboxed + unaudited, so (a) authorization only works through the
+SANDBOX client key (sb...), and (b) every post is forced SELF_ONLY
+(private) while the connected account @h15master stays private. Flip
+crosspost.tiktok.privacy to PUBLIC_TO_EVERYONE in channel.yaml only
+AFTER the Content Posting API audit passes — TikTok rejects public
+privacy for unaudited apps outright.
+
+TOKEN MODEL: access_token 24 h, refresh_token 365 days (rolling).
+.github/workflows/tiktok-token-refresh.yml refreshes daily and swaps
+the secrets in place (tools/set_secret.py). This module NEVER
+refreshes on its own — a mid-session refresh would fork the token
+between runners (the running job keeps its env snapshot, which is
+exactly why that is safe).
+
+FLOW (Content Posting API, Direct Post, FILE_UPLOAD):
+  1. POST /v2/post/publish/video/init/ {post_info, source_info}
+         -> publish_id + upload_url
+  2. PUT  upload_url   Content-Range: bytes a-b/total (binary chunk)
+  3. POST /v2/post/publish/status/fetch/ {publish_id}
+         -> PUBLISH_COMPLETE
+
+RATE LIMIT: 6 publish-API requests per minute per access_token —
+posts are paced and the status polls run on a 20 s cadence.
+
+NO ADOPTION: the app does not hold the video.list scope, so an
+already-live TikTok twin cannot be discovered from TikTok's side.
+State marks (crosspost.tiktok.status) are the ONLY dedupe gate —
+never run the stateless crosspost-now twice for TikTok without a
+heal committing state in between (RUNBOOK section 9).
+
+FAILURE SEMANTICS: identical to the reels — a TikTok failure NEVER
+touches the YouTube pipeline; it is recorded per short in
+state.shorts[].crosspost.tiktok, retried by the next hourly heal up
+to crosspost.max_attempts, then alerts once and gives up quietly.
+Unarmed (missing TIKTOK_ACCESS_TOKEN) is cleanly OFF.
+"""
+from __future__ import annotations
+
+import json
+import os
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+from .config import cfg
+
+TT_API = "https://open.tiktokapis.com"
+CHUNK_SIZE = 32 * 1024 * 1024     # declared at init; one PUT per chunk
+STATUS_POLL_S = 20                # publish API rate limit: 6 req/min
+STATUS_TIMEOUT_S = 360             # 18 polls — a poll timeout is NOT a
+                                  # definite failure; the retry path
+                                  # re-checks the stored publish_id first
+TITLE_MAX = 2200                   # TikTok caption limit (UTF-16 runes)
+
+
+def _conf() -> dict:
+    return dict((cfg().get("crosspost") or {}).get("tiktok") or {})
+
+
+def token() -> str:
+    """The runner-snapshot access token (GitHub secret)."""
+    return os.environ.get("TIKTOK_ACCESS_TOKEN", "").strip()
+
+
+def armed() -> bool:
+    """Cheap arm check: enabled in channel.yaml + token secret set."""
+    return bool(_conf().get("enabled", True) and token())
+
+
+def token_alive(tok: str) -> bool:
+    """Health check against the user-info endpoint (user.info.basic)."""
+    try:
+        _api("GET", "/v2/user/info/",
+             params={"fields": "open_id,display_name"}, token=tok)
+        return True
+    except Exception as e:                      # noqa: BLE001
+        print(f"[tiktok] token health check FAILED: {e}")
+        return False
+
+
+def settled(short: dict) -> bool:
+    cp = short.get("crosspost") or {}
+    return (cp.get("tiktok") or {}).get("status") in (
+        "done", "skipped", "gave_up")
+
+
+# ── HTTP plumbing (stdlib only, like the rest of the factory) ─────────
+
+def _api(method: str, path: str, *, token: str, payload: dict | None = None,
+         params: dict | None = None) -> dict:
+    url = TT_API + path
+    if params:
+        url += "?" + urllib.parse.urlencode(params)
+    data = None
+    headers = {"Authorization": f"Bearer {token}"}
+    if payload is not None:
+        data = json.dumps(payload).encode()
+        headers["Content-Type"] = "application/json; charset=UTF-8"
+    req = urllib.request.Request(url, data=data, headers=headers,
+                                 method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            body = r.read()
+    except urllib.error.HTTPError as e:
+        try:
+            err = json.loads(e.read().decode() or "{}")
+        except Exception:                        # noqa: BLE001
+            err = {}
+        raise RuntimeError(
+            f"{path} -> HTTP {e.code}: "
+            f"{err.get('error', {}).get('code', '?')} "
+            f"{err.get('error', {}).get('message', '')}"
+        ) from None
+    if not body:
+        return {}
+    d = json.loads(body)
+    e = d.get("error") or {}
+    if e.get("code") and e.get("code") != "ok":
+        raise RuntimeError(f"{path} -> {e.get('code')}: "
+                           f"{e.get('message', '')}")
+    return d.get("data") or {}
+
+
+# ── the publish flow ──────────────────────────────────────────────────
+
+def publish(video: Path, title: str, tok: str) -> str:
+    """One TikTok post: init -> chunked PUT -> status poll.
+    Returns the publish_id. Raises on any hard failure."""
+    privacy = str(_conf().get("privacy", "SELF_ONLY"))
+    size = video.stat().st_size
+    chunk = min(CHUNK_SIZE, max(size, 1))
+
+    init = _api("POST", "/v2/post/publish/video/init/", token=tok, payload={
+        "post_info": {
+            "title": title[:TITLE_MAX],
+            "privacy_level": privacy,
+            "disable_duet": False,
+            "disable_comment": False,
+            "disable_stitch": False,
+        },
+        "source_info": {
+            "source": "FILE_UPLOAD",
+            "video_size": size,
+            "chunk_size": chunk,
+        },
+    })
+    publish_id = str(init.get("publish_id") or "")
+    upload_url = str(init.get("upload_url") or "")
+    if not publish_id or not upload_url:
+        raise RuntimeError(f"init returned no publish_id/upload_url "
+                           f"({sorted(init)})")
+
+    with open(video, "rb") as fh:
+        offset = 0
+        while offset < size:
+            n = min(chunk, size - offset)
+            body = fh.read(n)
+            if len(body) != n:
+                raise RuntimeError(f"short read on {video.name}")
+            req = urllib.request.Request(
+                upload_url, data=body, method="PUT",
+                headers={
+                    "Content-Type": "video/mp4",
+                    "Content-Length": str(n),
+                    "Content-Range": f"bytes {offset}-{offset + n - 1}/{size}",
+                })
+            with urllib.request.urlopen(req, timeout=600) as r:
+                r.read()
+            offset += n
+            # keep the publish API inside its 6 req/min budget
+            time.sleep(1)
+
+    deadline = time.monotonic() + STATUS_TIMEOUT_S
+    last = ""
+    while time.monotonic() < deadline:
+        time.sleep(STATUS_POLL_S)
+        st = _api("POST", "/v2/post/publish/status/fetch/", token=tok,
+                  payload={"publish_id": publish_id})
+        last = str(st.get("status") or "")
+        if last == "PUBLISH_COMPLETE":
+            return publish_id
+        if "FAILED" in last:
+            raise RuntimeError(f"TikTok processing FAILED: {st}")
+    # NOT a definite failure — async processing may still complete.
+    # attempt() stores the id so the next hourly pass re-checks before
+    # ever re-posting (no duplicates by construction).
+    raise _PollTimeout(publish_id, last or "unknown")
+
+
+class _PollTimeout(RuntimeError):
+    def __init__(self, publish_id: str, status: str):
+        super().__init__(f"status poll timeout after 360 s "
+                         f"(last={status}) — may still complete")
+        self.publish_id = publish_id
+
+
+# ── crosspost integration (mirrors _attempt_reel semantics) ───────────
+
+def attempt(state: dict, s: dict, video: Path, title: str,
+            max_attempts: int = 8) -> bool:
+    """One TikTok attempt for one short. True iff it went live (or was
+    re-checked into doneness) this call. Failures recorded + swallowed."""
+    from . import ledger
+    from .crosspost import alert_once
+
+    n = s.get("n")
+    tok = token()
+    st = (s.setdefault("crosspost", {})
+          .setdefault("tiktok", {"status": "pending"}))
+    if st.get("status") in ("done", "skipped", "gave_up"):
+        return False
+
+    # poll-timeout adoption: a previous run's post may have completed
+    # after we stopped watching — verify BEFORE posting anything.
+    prior = str(st.get("publish_id") or "")
+    if prior and st.get("status") == "failed" and st.get("timeout"):
+        try:
+            cur = _api("POST", "/v2/post/publish/status/fetch/",
+                       token=tok, payload={"publish_id": prior})
+            if str(cur.get("status") or "") == "PUBLISH_COMPLETE":
+                st.update(status="done", media_id=prior,
+                          ts=int(time.time()), adopted=True)
+                print(f"[tiktok] #{n} earlier post {prior} completed "
+                      "— ADOPTED (no duplicate posted)")
+                ledger.save(state)
+                return True
+        except Exception:                        # noqa: BLE001
+            pass                                  # fall through: re-post
+
+    attempts = int(st.get("attempts") or 0)
+    if attempts >= max_attempts:
+        st["status"] = "gave_up"
+        alert_once(state, f"tiktok-{n}",
+                   f"TikTok video gave up for short #{n}",
+                   f"short #{n} failed {attempts} hourly attempts: "
+                   f"{st.get('error', '?')}")
+        ledger.save(state)
+        return False
+    try:
+        pid = publish(video, title, tok)
+        st.update(status="done", media_id=pid, ts=int(time.time()),
+                  attempts=attempts + 1)
+        st.pop("timeout", None)
+        print(f"[tiktok] #{n} -> posted ({pid}) "
+              f"privacy={_conf().get('privacy', 'SELF_ONLY')}")
+        ledger.save(state)
+        return True
+    except _PollTimeout as e:
+        st.update(status="failed", attempts=attempts + 1,
+                  error=str(e)[:220], ts=int(time.time()),
+                  publish_id=e.publish_id, timeout=True)
+        print(f"[tiktok] #{n} poll timeout (kept for re-check): {e}")
+        ledger.save(state)
+        return False
+    except Exception as e:                       # noqa: BLE001
+        st.update(status="failed", attempts=attempts + 1,
+                  error=str(e)[:220], ts=int(time.time()))
+        st.pop("timeout", None)
+        print(f"[tiktok] #{n} FAILED "
+              f"(attempt {attempts + 1}/{max_attempts}): {e}")
+        ledger.save(state)
+        return False

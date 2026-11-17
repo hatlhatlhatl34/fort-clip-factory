@@ -3,7 +3,8 @@
 An autonomous YouTube Shorts machine that clips **real Fortnite
 creative-map gameplay videos** (found via the YouTube Data API) into
 vertical Shorts carrying your map code and creator code — publishing
-3 per day on weekdays and 4 on Fri/Sat/Sun, forever, for $0/month on
+4 Shorts every day, mirrored the same hour to **Instagram Reels,
+Facebook Reels and TikTok (@h15master)**, forever, for $0/month on
 GitHub Actions.
 
 **Map code `7992-0068-2838`** — big top bar, first frame to last.
@@ -28,6 +29,9 @@ Both also live in every title and description.
 5. **PUBLISH** — resumable upload with `publishAt` on the 6-hour grid
    (00:00 / 06:00 / 12:00 / 18:00 Cairo — 4 Shorts every day, one
    every 6 hours); description credits the source.
+6. **MIRROR** — the same MP4 becomes an IG Reel + FB Reel + TikTok
+   video the moment its YouTube twin goes live (private on TikTok
+   until the app audit passes).
 
 ## Layout
 
@@ -43,6 +47,8 @@ src/overlay.py          PIL overlay bars (map code + H15)
 src/music.py            numpy synth soundtrack (energetic bed)
 src/metadata.py         titles/descriptions with codes + credit
 src/youtube.py          OAuth + resumable upload + publishAt grid
+src/crosspost.py       IG Reel + FB Reel mirror (+ TikTok via src/tiktok)
+src/tiktok.py          TikTok mirror: init -> chunked upload -> status
 src/ledger.py           state.json memory (bak ladder, quota ledger)
 src/verify.py           zero-quota oEmbed verification
 tools/gate.py           RUN/SKIP gate (runs before pip install)
