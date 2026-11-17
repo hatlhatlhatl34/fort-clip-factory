@@ -519,6 +519,23 @@ pauses itself cleanly (never breaks IG/FB/YouTube).
 - **6 publish-API requests/min per token** — posts are paced and
   status polls run at 20 s cadence; a 4-Short slot mirrors in ~2-3
   minutes.
+- **FILE_UPLOAD is single-chunk only** (live init-matrix 2026-11-18):
+  the API rejects `total_chunk_count > 1` ("The total chunk count is
+  invalid") AND single chunks over 64 MB ("The chunk size is
+  invalid"); it also REQUIRES `total_chunk_count` even though the
+  docs mark it optional (omitting it -> "The video info is empty").
+  `src/tiktok.py` therefore always declares exactly one chunk and
+  re-encodes a >64 MB file down to fit (rare — 720p Shorts run
+  8-40 MB).
+- **merge_state must know every platform** (post-mortem 2026-11-18
+  17:47): `tools/merge_state.py`'s PLATFORMS lacked tiktok, so every
+  crosspost commit silently dropped the freshly-written tiktok marks
+  (the extra-keys branch lets BASE win) — 4 videos went live while
+  state kept saying 'failed', and the next hourly heal would have
+  re-posted them as duplicates. PLATFORMS now covers tiktok with the
+  same status-rank merge; regression lives in
+  `tests/test_merge_state.py`; the state itself was repaired by
+  hand the same hour (publish_ids restored from the run log).
 - Egypt is not a TikTok Creator Rewards region — TikTok stays a
   pure traffic funnel to the YouTube/FB/IG feeds; the money engine
   is unchanged.
