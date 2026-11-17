@@ -40,7 +40,13 @@ import sys
 
 STATUS_RANK = {"done": 4, "gave_up": 3, "skipped": 3, "failed": 2,
                "pending": 1}
-PLATFORMS = ("ig", "fb")
+# 2026-11-18 live-diagnosed: tiktok was missing here, so every
+# crosspost commit's freshly-written tiktok marks fell into the
+# "extra bookkeeping keys" branch — where BASE (origin) wins — and
+# were silently discarded. State kept saying 'failed' while the
+# videos were actually live -> the next heal would have RE-POSTED
+# them (duplicates; TikTok has no adoption scope to catch it).
+PLATFORMS = ("ig", "fb", "tiktok")
 
 
 def _nonempty(v) -> bool:
