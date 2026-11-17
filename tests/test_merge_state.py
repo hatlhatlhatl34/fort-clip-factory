@@ -145,6 +145,22 @@ s9 = m["shorts"][0]
 check("media+clip_dur both survive across writers",
       s9.get("media", {}).get("file") == "f9" and s9.get("clip_dur") == 77.5)
 
+# ── 6.5. the 2026-11-18 tiktok incident ───────────────────────────
+# tiktok was missing from PLATFORMS: the crosspost job posted the
+# videos (status done) but BASE's stale 'failed' record won the merge,
+# state kept saying failed, and the next heal would have re-posted
+# them (duplicates — TikTok has no adoption scope). Regression: a
+# fresh tiktok done must beat a stale tiktok failed.
+ours = {"shorts": [short(31, crosspost={"tiktok": {
+    "status": "done", "media_id": "v_pub_file~v2-1.X", "ts": 200}})]}
+base = {"shorts": [short(31, crosspost={"tiktok": {
+    "status": "failed", "attempts": 1, "ts": 100}})]}
+m = run_tool(ours, base, prefer="crosspost")
+_tt = (m["shorts"][0].get("crosspost") or {}).get("tiktok") or {}
+check("tiktok incident: fresh done beats stale failed",
+      _tt.get("status") == "done"
+      and _tt.get("media_id") == "v_pub_file~v2-1.X")
+
 # ── 7. --inplace write + CLI exit codes ────────────────────────────
 with tempfile.TemporaryDirectory() as td:
     po, pb, out = (Path(td) / "o.json", Path(td) / "b.json",
