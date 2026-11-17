@@ -1,7 +1,7 @@
 # RUNBOOK — fort-clip-factory setup (30 minutes, one time)
 
 The machine clips REAL Fortnite map gameplay videos from YouTube into
-vertical Shorts that carry **map code 1789-8528-6429** (top bar, every
+vertical Shorts that carry **map code 7992-0068-2838** (top bar, every
 frame) and **creator code H15** (footer, every frame), publishing
 **4 Shorts every day, ONE every 6 hours** (owner rule 2026-11-14:
 6+6+6+6 = 24h of even coverage) at 00:00 / 06:00 / 12:00 / 18:00
@@ -247,7 +247,7 @@ Quota math: one session = 4 x upload 1600 + search/verify crumbs
   approved sample-1 niche): "fortnite xp map gameplay", "fortnite xp
   farm map", "fortnite afk xp map gameplay", ... plus deathruns, edit
   courses, horror maps...
-* codes: `1789-8528-6429` top bar + `H15` footer, first frame to
+* codes: `7992-0068-2838` top bar + `H15` footer, first frame to
   last. Codes live in the DESCRIPTION only — **NEVER in titles**
   (owner rule 2026-11-13: titles are pure XP/free-skins hooks like
   "How to get FREE SKINS in Fortnite 🤑 #N"; the map code still
@@ -468,7 +468,7 @@ owner can supply. No code exists for them yet by design.
    `tiktok` platform branch beside `ig`/`fb`; the same Short would
    ship there the same hour.
 2. **Multiple map codes** — the owner will hand over NEW map codes
-   to rotate through videos (not only 1789-8528-6429). Design when
+   to rotate through videos (not only 7992-0068-2838). Design when
    they arrive: a `codes.pool` list in channel.yaml; each render
    picks one (round-robin with no-repeat), the overlay burns it into
    every frame, and the description/caption carries the same code as
