@@ -546,6 +546,12 @@
      "permalink": "https://www.facebook.com/reel/1565925802005248/",
      "adopted": true
     },
+    "tiktok": {
+     "status": "done",
+     "media_id": "v_pub_file~v2-1.7709203523598256149",
+     "ts": 1794938868,
+     "attempts": 1
+    },
     "yt_links": true
    },
    "media": null
@@ -606,6 +612,12 @@
      "media_id": "1118684201046960",
      "permalink": "https://www.facebook.com/reel/1118684201046960/",
      "adopted": true
+    },
+    "tiktok": {
+     "status": "done",
+     "media_id": "v_pub_file~v2-1.7709203694361151509",
+     "ts": 1794938903,
+     "attempts": 1
     },
     "yt_links": true
    },
@@ -687,6 +699,12 @@
      "permalink": "https://www.facebook.com/reel/1678552460677100/",
      "adopted": true
     },
+    "tiktok": {
+     "status": "done",
+     "media_id": "v_pub_file~v2-1.7709203782383519764",
+     "ts": 1794938935,
+     "attempts": 1
+    },
     "yt_links": true
    },
    "media": null
@@ -747,6 +765,12 @@
      "media_id": "1705277327878063",
      "permalink": "https://www.facebook.com/reel/1705277327878063/",
      "adopted": true
+    },
+    "tiktok": {
+     "status": "done",
+     "media_id": "v_pub_file~v2-1.7709203900276066324",
+     "ts": 1794938968,
+     "attempts": 1
     },
     "yt_links": true
    },
