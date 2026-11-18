@@ -320,7 +320,8 @@ def attempt(state: dict, s: dict, video: Path, title: str,
         ledger.save(state)
         return False
     except Exception as e:                       # noqa: BLE001
-        if "unaudited_client" in str(e):
+        err = str(e)
+        if "unaudited_client" in err:
             # LIVE-DIAGNOSED 2026-11-18 (shorts #7-#10): the TikTok
             # account was switched PUBLIC mid-flight and every init
             # flipped to HTTP 403
@@ -347,8 +348,24 @@ def attempt(state: dict, s: dict, video: Path, title: str,
                   "again (RUNBOOK section 9)")
             ledger.save(state)
             return False
+        if "rate_limit" in err.lower() or "HTTP 429" in err:
+            # LIVE-DIAGNOSED 2026-11-18 00:29: a burst of 403-probes
+            # tripped the publish API's 6-req/min budget -> HTTP 429
+            # rate_limit_exceeded "Please try again later". Also a
+            # WAIT state, never a real failure: burning 8 hourly
+            # attempts on 429s could give_up healthy shorts while
+            # the account is merely public+busy. No burn, no alert —
+            # the next hourly pass retries on its own cadence.
+            st.update(status="pending",
+                      error="[wait] TikTok API rate limit (6 req/min) "
+                            "— auto-retried next hour", ts=int(time.time()))
+            st.pop("timeout", None)
+            print(f"[tiktok] #{n} rate-limited (6 req/min) — attempt "
+                  "NOT burned; retried next hour")
+            ledger.save(state)
+            return False
         st.update(status="failed", attempts=attempts + 1,
-                  error=str(e)[:220], ts=int(time.time()))
+                  error=err[:220], ts=int(time.time()))
         st.pop("timeout", None)
         st.pop("tt_paused", None)
         print(f"[tiktok] #{n} FAILED "

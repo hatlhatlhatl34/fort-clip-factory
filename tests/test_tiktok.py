@@ -270,5 +270,29 @@ check("pause error names the fix (account private)",
 check("paused short is still due (auto-resume path)",
       not tiktok.settled(s3))
 
+# 10. LIVE-DIAGNOSED 2026-11-18 00:29: a burst of 403-probes tripped
+# the publish API's 6-req/min budget -> HTTP 429 rate_limit_exceeded.
+# Also a WAIT state: no attempt burn, no alert, stays pending.
+short4_state = {"shorts": [{"n": 102}]}
+s4 = short4_state["shorts"][0]
+s4["crosspost"] = {"tiktok": {"status": "pending", "attempts": 2}}
+
+
+def ratelimited_publish(video, title, tok):
+    raise RuntimeError("/v2/post/publish/video/init/ -> HTTP 429: "
+                      "rate_limit_exceeded The API rate limit exceeded. "
+                      "Please try again later.")
+
+
+tiktok.publish = ratelimited_publish
+ok = tiktok.attempt(short4_state, s4, tmp, "t", max_attempts=8)
+check("429 rate limit returns False (not live)", ok is False)
+check("429 is a WAIT state, not a failure",
+      s4["crosspost"]["tiktok"]["status"] == "pending"
+      and "rate limit" in s4["crosspost"]["tiktok"]["error"].lower())
+check("attempts NOT burned by the 429",
+      s4["crosspost"]["tiktok"]["attempts"] == 2)
+check("no alert fired for the 429", len(saved_alerts) == 1)
+
 print(f"\n{len(PASS)}/{len(PASS)} checks passed")
 sys.exit(0 if all(PASS) else 1)
