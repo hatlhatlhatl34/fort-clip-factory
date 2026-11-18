@@ -209,3 +209,134 @@ def pick_source(state: dict, seed: int) -> dict:
           f"({choice['channel']}, {choice.get('duration_s', 0):.0f}s, "
           f"published {choice.get('published_at', '?')[:10]})")
     return choice
+
+
+# ── THE MONTHLY SWEEP (owner rule 2026-11-18) ────────────────────────
+#
+# "harvest ALL the clips in the beginning of the month" — the month's
+# candidate pool is built by ONE full sweep over EVERY query phrasing
+# (not the one-per-run rotation the daily act uses), 50 results each,
+# then cached in state.bank.pool: the month's stacking sessions reuse
+# the SAME pool without re-spending search quota. The pool is wiped
+# with the bank at month rollover, so every month starts from a fully
+# fresh "all videos" sweep — exactly the owner's algorithm-freshness
+# rule (no old bank clips, no old pool).
+
+def harvest_pool(state: dict, seed: int) -> list[dict]:
+    """The month's unmined candidate pool (bank.pool), swept or cached.
+
+    Returns candidates [{id, title, channel, published_at,
+    duration_s, query}] sorted freshest-first. Raises SourceError
+    only when no credential is available at all; a partially failed
+    sweep returns whatever did come through."""
+    conf = cfg()["sources"]
+    hconf = cfg().get("harvest") or {}
+    pool_min = int(hconf.get("pool_min", 40))
+    sweep_results = int(hconf.get("sweep_results", 50))
+    pool_cap = int(hconf.get("pool_cap", 300))
+
+    used = ledger.used_sources(state)
+    bankst = state.setdefault("bank", {})
+    cached = [c for c in (bankst.get("pool") or [])
+              if c.get("id") not in used]
+    if len(cached) >= pool_min:
+        print(f"[harvest] reusing the cached month pool: "
+              f"{len(cached)} unmined candidate(s) — no quota spent")
+        return cached
+    if cached:
+        print(f"[harvest] cached pool low ({len(cached)} < {pool_min}) "
+              "— re-sweeping every query for fresh videos")
+
+    # a full sweep costs 16 x 100 + duration calls. Margin note: the
+    # sweep runs on the CURRENT Pacific quota day, and the only other
+    # big spender on a day is the 08:33 upload session (6,400) — a
+    # sweep next to it totals ~8,000 of 10,000, so a small margin
+    # suffices; the 00:29 first-of-month run often still has most of
+    # the previous Pacific day's budget left.
+    n_queries = len(conf["queries"])
+    need_units = n_queries * SEARCH_UNITS + 40
+    if ledger.quota_remaining(state) < need_units + 400:
+        if cached:
+            print(f"[harvest] quota too low for a full sweep "
+                  f"({ledger.quota_remaining(state)} left) — running "
+                  f"on the cached pool ({len(cached)})")
+            return cached
+        raise SourceError(
+            f"quota too low for the monthly sweep "
+            f"({ledger.quota_remaining(state)} units left, need "
+            f"{need_units}) — guard retries on the next quota day")
+
+    auth_params, auth_headers = _search_auth()
+    rng = random.Random(seed)
+    published_after = (datetime.now(timezone.utc)
+                       - timedelta(days=int(conf["max_age_days"]))
+                       ).strftime("%Y-%m-%dT%H:%M:%SZ")
+    orders = list(conf.get("orders") or ["relevance"])
+
+    seen: dict[str, dict] = {}
+    failures = 0
+    for qi, query in enumerate(conf["queries"]):
+        order = orders[(qi + rng.randrange(len(orders))) % len(orders)]
+        params = {
+            "part": "snippet",
+            "q": query,
+            "type": "video",
+            "maxResults": str(sweep_results),
+            "order": order,
+            "publishedAfter": published_after,
+            "videoEmbeddable": "true",
+            "relevanceLanguage": "en",
+        }
+        params.update(auth_params)
+        url = f"{API_BASE}/search?{urllib.parse.urlencode(params)}"
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "fort-clip-factory/1.0",
+                          **auth_headers})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            failures += 1
+            print(f"[harvest] sweep query {query!r} failed "
+                  f"({e.code}) — continuing with the rest")
+            continue
+        ledger.spend_quota(state, SEARCH_UNITS)
+        for it in data.get("items", []):
+            vid = (it.get("id") or {}).get("videoId")
+            if not vid or vid in seen:
+                continue
+            sn = it.get("snippet", {})
+            seen[vid] = {
+                "id": vid,
+                "title": sn.get("title", ""),
+                "channel": (sn.get("channelTitle") or "").strip(),
+                "published_at": sn.get("publishedAt", ""),
+                "query": query,
+            }
+    if not seen:
+        raise SourceError(
+            "the monthly sweep returned no videos at all "
+            f"({failures}/{n_queries} queries failed)")
+
+    # duration window filter (same law as the daily act)
+    durations = _fetch_durations(list(seen.keys()))
+    min_s = float(conf.get("min_duration_s", 120))
+    max_s = float(conf.get("max_duration_s", 5400))
+    fresh = []
+    for c in seen.values():
+        dur = durations.get(c["id"])
+        if dur is None or not (min_s <= dur <= max_s):
+            continue
+        if conf.get("no_repeat_sources", True) and c["id"] in used:
+            continue
+        c["duration_s"] = dur
+        fresh.append(c)
+
+    fresh.sort(key=lambda c: c.get("published_at") or "", reverse=True)
+    rng.shuffle(fresh[:max(1, len(fresh) // 2)])   # lively, not robotic
+    pool = fresh[:pool_cap]
+    bankst["pool"] = pool            # cached for the stacking sessions
+    print(f"[harvest] full sweep: {n_queries} queries x "
+          f"{sweep_results} results -> {len(seen)} unique, "
+          f"{len(fresh)} fresh after filters, pool capped at {len(pool)}")
+    return pool
