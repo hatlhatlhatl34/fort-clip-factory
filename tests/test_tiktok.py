@@ -188,7 +188,7 @@ cp_mod.alert_once = lambda *a, **k: saved_alerts.append(a[2])
 captured = {}
 
 
-def attempt_publish(video, title, tok):
+def attempt_publish(video, title, tok, on_init=None):
     raise tiktok._PollTimeout("v_pub_file~v2-3.KEEP", "PROCESSING")
 
 
@@ -249,7 +249,7 @@ s3["crosspost"] = {"tiktok": {"status": "pending", "attempts": 3,
                               "error": "old"}}
 
 
-def unaudited_publish(video, title, tok):
+def unaudited_publish(video, title, tok, on_init=None):
     raise RuntimeError("/v2/post/publish/video/init/ -> HTTP 403: "
                       "unaudited_client_can_only_post_to_private_accounts "
                       "Please review our integration guidelines")
@@ -278,7 +278,7 @@ s4 = short4_state["shorts"][0]
 s4["crosspost"] = {"tiktok": {"status": "pending", "attempts": 2}}
 
 
-def ratelimited_publish(video, title, tok):
+def ratelimited_publish(video, title, tok, on_init=None):
     raise RuntimeError("/v2/post/publish/video/init/ -> HTTP 429: "
                       "rate_limit_exceeded The API rate limit exceeded. "
                       "Please try again later.")
@@ -293,6 +293,27 @@ check("429 is a WAIT state, not a failure",
 check("attempts NOT burned by the 429",
       s4["crosspost"]["tiktok"]["attempts"] == 2)
 check("no alert fired for the 429", len(saved_alerts) == 1)
+
+# 11. audit 2026-11-18 (A14): mid-run 24 h access-token expiry is a
+# WAIT state — the 03:00 UTC refresh re-arms it, no attempt burned
+short5_state = {"shorts": [{"n": 103}]}
+s5 = short5_state["shorts"][0]
+s5["crosspost"] = {"tiktok": {"status": "pending", "attempts": 5}}
+
+
+def expired_publish(video, title, tok, on_init=None):
+    raise RuntimeError("/v2/post/publish/video/init/ -> HTTP 401: "
+                      "access_token_invalid token expired")
+
+
+tiktok.publish = expired_publish
+ok = tiktok.attempt(short5_state, s5, tmp, "t", max_attempts=8)
+check("token expiry returns False (not live)", ok is False)
+check("token expiry is a WAIT state, not a failure",
+      s5["crosspost"]["tiktok"]["status"] == "pending")
+check("attempts NOT burned by the token expiry",
+      s5["crosspost"]["tiktok"]["attempts"] == 5)
+check("no alert fired for the token expiry", len(saved_alerts) == 1)
 
 print(f"\n{len(PASS)}/{len(PASS)} checks passed")
 sys.exit(0 if all(PASS) else 1)
