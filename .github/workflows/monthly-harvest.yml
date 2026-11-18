@@ -35,6 +35,17 @@ name: monthly-bank-harvest
 # well clear of the 08:33 daily upload session (same concurrency
 # group queues, never overlaps).
 #
+# OWNER RULE (2026-11-18 #2) — SURPLUS = EMERGENCY BUFFER: stacking
+# beyond the month's open slots (124 vs ~120) is the owner-approved
+# emergency buffer — consumed when a session fails, NEVER carried
+# across months (rollover retires it).
+#
+# OWNER RULE (2026-11-18 #3) — THE FIRST OLD BANK IS DEAD: the
+# pre-overhaul bank (random Fortnite footage, cross-month slots) was
+# completely purged 2026-11-18 — artifacts + pointer + state. The
+# harvest sweeps unreferenced bank/ files before re-uploading parts,
+# so purged/published dead weight can never ride again.
+#
 # Guard minutes are OFF the :00/:30 marks — GitHub cron congestion
 # delayed the old 13:00 guard to 21:38 UTC on 2026-11-17; it then held
 # the clip-factory group past the 22:00 grid slot and starved the
@@ -235,22 +246,33 @@ jobs:
             echo "memory unchanged"
             exit 0
           fi
-          # 2026-11-18: the crosspost workflow now runs in its OWN
-          # concurrency group and CAN push state.json while this
-          # 5-hour session renders. The old simple commit would hit a
-          # non-fast-forward push, fail, and `|| true` would swallow
-          # the loss — the whole harvest's bank memory silently gone.
-          # Union through tools/merge_state.py exactly like every
-          # other writer (post-mortem 2026-11-15 17:42).
-          cp data/state.json /tmp/ours.json
-          git fetch --quiet origin main
-          git checkout origin/main -- data/state.json 2>/dev/null || true
-          if [ -f data/state.json ]; then
-            python tools/merge_state.py /tmp/ours.json data/state.json --prefer core --inplace data/state.json
-            cp data/state.json data/state.json.bak
-          else
-            cp /tmp/ours.json data/state.json
-          fi
-          git add -A data ingest
-          git commit -m "memory: harvest run $(date -u +%Y-%m-%d)" || true
-          git push || true
+          # D1/M1 (audit 2026-11-18): the old dance committed on the
+          # session-start HEAD and `git push || true` swallowed the
+          # loss — the pointer was OBSERVED stranded on a stale run
+          # (run 43973705005) while state moved on: the daily machine
+          # then fetched clips that no longer existed. The pointer
+          # rides in `git add -A data` (reset --soft preserves our
+          # working tree), state goes through the union merge, the
+          # commit is rebuilt on fresh origin/main and the push
+          # retries — never silent again.
+          for i in 1 2 3; do
+            cp data/state.json /tmp/ours.json 2>/dev/null || true
+            git fetch --quiet origin main
+            git reset --soft origin/main
+            git checkout origin/main -- data/state.json 2>/dev/null || true
+            if [ -f data/state.json ]; then
+              python tools/merge_state.py /tmp/ours.json data/state.json --prefer core --inplace data/state.json
+              cp data/state.json data/state.json.bak
+            else
+              cp /tmp/ours.json data/state.json
+            fi
+            git add -A data ingest
+            git commit -m "memory: harvest run $(date -u +%Y-%m-%d)" || true
+            if git push --quiet origin HEAD:main; then
+              echo "memory + pointer pushed (attempt $i)"
+              exit 0
+            fi
+            echo "::warning::memory push lost the race (attempt $i) — rebuilding on fresh origin"
+          done
+          echo "::error::memory push failed 3x — the next guard reconciles; watch data/bank_pointer.json"
+          exit 1
