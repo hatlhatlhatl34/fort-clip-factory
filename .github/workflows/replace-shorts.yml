@@ -127,6 +127,9 @@ jobs:
           COOKIES_TXT2: ${{ secrets.COOKIES_TXT2 }}
           COOKIES_TXT3: ${{ secrets.COOKIES_TXT3 }}
           BANK_ARTIFACT_DIR: bank_month
+          # the one-time carry release (sandbox-rendered replacement,
+          # uploaded 2026-11-18 while the runners were bot-walled)
+          REPLACE_RELEASE_TAG: replacement-2026-11-19
         run: |
           if [ -z "$YT_REFRESH_TOKEN" ]; then
             echo "::error::YT_REFRESH_TOKEN not set — cannot run the fix"
