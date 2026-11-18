@@ -35,9 +35,14 @@ permissions:
 jobs:
   gate:
     runs-on: ubuntu-latest
+    timeout-minutes: 5      # D7 (audit 2026-11-18): a hung gate must
+                            # never hold the clip-factory group 6h
     steps:
       - uses: actions/checkout@v4
-      - run: python tools/gate.py --event "${{ github.event_name }}" --actor "${{ github.actor }}" | tee gate.txt
+      - run: |
+          set -o pipefail    # A2 (audit 2026-11-18): gate crash = red
+                            # step, never hidden behind tee
+          python tools/gate.py --event "${{ github.event_name }}" --actor "${{ github.actor }}" | tee gate.txt
       - id: verdict
         run: echo "verdict=$(head -1 gate.txt | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
     outputs:
@@ -108,6 +113,13 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true   # any failure -> live ladder, never starve
 
+      - name: Stamp the media-cache artifact name
+        # A5 (audit 2026-11-18): stamped at session START (see
+        # daily-factory.yml) — the after-factory stamp mismatched a
+        # midnight-crossing session's pre-midnight shorts
+        id: mcache
+        run: echo "name=media-cache-$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
       - name: Run the factory
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -123,12 +135,9 @@ jobs:
             echo "::warning::YT_REFRESH_TOKEN not set yet - waiting for the one-time Google authorization. Skipping."
             exit 0
           fi
+          set -o pipefail    # A2 (audit 2026-11-18): python crash must
+                            # fail the step so the alert issue fires
           python main.py 2>&1 | tee factory.log
-
-      - name: Stamp the media-cache artifact name
-        if: ${{ !cancelled() }}
-        id: mcache
-        run: echo "name=media-cache-$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
 
       - name: Cache published media for the reels cross-poster
         # heal-published Shorts get reels too (owner rule 2026-11-15)
@@ -161,13 +170,18 @@ jobs:
           git add -A data ingest 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "memory unchanged"
-          else
-            # git must never line-merge state.json: the crosspost job
-            # of this same run may have pushed fresher memory from its
-            # own runner. Union the writers field-by-field instead
-            # (tools/merge_state.py, post-mortem 2026-11-15 17:42).
-            cp data/state.json /tmp/ours.json
+            exit 0
+          fi
+          # D1 (audit 2026-11-18): the old dance committed on the
+          # session-start HEAD and `git push || true` swallowed the
+          # whole heal's memory on a lost race — the next heal then
+          # re-filled an already-filled slot (duplicate Short).
+          # Rebuild on fresh origin/main + retries, same as the
+          # daily machine.
+          for i in 1 2 3; do
+            cp data/state.json /tmp/ours.json 2>/dev/null || true
             git fetch --quiet origin main
+            git reset --soft origin/main
             git checkout origin/main -- data/state.json 2>/dev/null || true
             if [ -f data/state.json ]; then
               python tools/merge_state.py /tmp/ours.json data/state.json --prefer core --inplace data/state.json
@@ -177,5 +191,11 @@ jobs:
             fi
             git add -A data ingest
             git commit -m "memory: heal run" || true
-            git push || true
-          fi
+            if git push --quiet origin HEAD:main; then
+              echo "memory pushed (attempt $i)"
+              exit 0
+            fi
+            echo "::warning::memory push lost the race (attempt $i) — rebuilding on fresh origin"
+          done
+          echo "::error::memory push failed 3x — watch data/state.json; the next heal reconciles"
+          exit 1
