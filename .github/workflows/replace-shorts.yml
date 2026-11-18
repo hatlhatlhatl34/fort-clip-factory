@@ -1,0 +1,134 @@
+name: replace-shorts
+
+# ONE-TIME (owner rule 2026-11-18 #4): fix the 4-old-shorts bug.
+#
+# The purge of the first old bank (owner rule #3) landed 2026-11-18
+# AFTER the 08:33 session had already published that day's FOUR
+# old-bank Shorts. This dispatched-only workflow runs
+# tools/replace_shorts.py which:
+#   1. deletes those four videos from YouTube (idempotent — a sandbox
+#      pass usually already did it; 404 = already gone),
+#   2. cleans the ledger (drops the records, unbooks their slots),
+#   3. uploads ONE fresh replacement Short PUBLIC immediately
+#      ("the first one to be uploaded make it public" — owner's words),
+#      live ladder: fresh niche source -> slice -> render -> upload.
+# If the YouTube quota is at its full limit the tool skips the rest
+# for today cleanly — the owner's one-time "skip the 4 shorts rule
+# today only if it exceeded the youtube quota" rule. The freed slots
+# refill via the hourly heals + tomorrow's 08:33 session, fed by the
+# fresh same-month bank the harvest guards stack right after this.
+#
+# NEVER a cron: dispatch-only, run once, then it is history.
+
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: clip-factory       # serialize with the daily machine
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  actions: read              # (media-cache fetches, if ever needed)
+
+jobs:
+  replace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90     # one ladder short: download+render+upload
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ffmpeg + deps + deno
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet --upgrade pip
+          pip install --quiet -r requirements.txt
+          curl -fsSL https://deno.com/install.sh | sh \
+            || echo "::warning::deno install failed — web client may lose formats"
+          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
+
+      - name: Stamp the media-cache artifact name
+        id: mcache
+        run: echo "name=media-cache-$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Run the one-time fix
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          COOKIES_TXT: ${{ secrets.COOKIES_TXT }}
+          COOKIES_TXT2: ${{ secrets.COOKIES_TXT2 }}
+          COOKIES_TXT3: ${{ secrets.COOKIES_TXT3 }}
+        run: |
+          if [ -z "$YT_REFRESH_TOKEN" ]; then
+            echo "::error::YT_REFRESH_TOKEN not set — cannot run the fix"
+            exit 1
+          fi
+          set -o pipefail    # a crash must fail the step loudly
+          python tools/replace_shorts.py 2>&1 | tee replace.log
+
+      - name: Cache the replacement media for the reels cross-poster
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.mcache.outputs.name }}
+          path: media_cache
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: File an issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let log = '';
+            try { log = fs.readFileSync('replace.log', 'utf8').slice(-3000); } catch (e) {}
+            await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title: `One-time fix failure ${new Date().toISOString().slice(0,16)}`,
+              body: `\`\`\`\n${log.slice(-1500)}\n\`\`\``,
+              labels: ['machine-failure']
+            });
+
+      - name: Commit memory back
+        if: always()
+        run: |
+          git config user.name "fort-clip-factory"
+          git config user.email "actions@github.com"
+          git add -A data ingest 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "memory unchanged"
+            exit 0
+          fi
+          # D1 race-safe dance (same as every state writer): rebuild on
+          # fresh origin/main + union-merge so a push race can never
+          # swallow the replacement short's record.
+          for i in 1 2 3; do
+            cp data/state.json /tmp/ours.json 2>/dev/null || true
+            git fetch --quiet origin main
+            git reset --soft origin/main
+            git checkout origin/main -- data/state.json 2>/dev/null || true
+            if [ -f data/state.json ]; then
+              python tools/merge_state.py /tmp/ours.json data/state.json --prefer core --inplace data/state.json
+              cp data/state.json data/state.json.bak
+            else
+              cp /tmp/ours.json data/state.json
+            fi
+            git add -A data ingest
+            git commit -m "memory: one-time 4-old-shorts fix run" || true
+            if git push --quiet origin HEAD:main; then
+              echo "memory pushed (attempt $i)"
+              exit 0
+            fi
+            echo "::warning::memory push lost the race (attempt $i) — rebuilding on fresh origin"
+          done
+          echo "::error::memory push failed 3x — the next heal reconciles"
+          exit 1
