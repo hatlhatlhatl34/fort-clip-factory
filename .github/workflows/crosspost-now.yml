@@ -11,6 +11,15 @@ name: crosspost-now
 on:
   workflow_dispatch: {}
 
+concurrency:
+  # A8 (audit 2026-11-18): pin the SAME group crosspost-hour uses — a
+  # manual dispatch racing the hourly pass double-published IG/FB
+  # reels (the twin was still transcoding, invisible to the dedupe
+  # gate). It stays OUT of clip-factory so it can run beside a long
+  # harvest, exactly as designed.
+  group: crosspost
+  cancel-in-progress: false
+
 permissions:
   contents: read
   issues: write
@@ -36,7 +45,6 @@ jobs:
         env:
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           FB_ACCESS_TOKEN: ${{ secrets.FB_ACCESS_TOKEN }}
-          TIKTOK_ACCESS_TOKEN: ${{ secrets.TIKTOK_ACCESS_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
@@ -50,6 +58,12 @@ jobs:
           # stateless by design: ledger.save() writes stay on THIS
           # runner and vanish with it (no commit step below). The
           # grouped heal adopts whatever went live, never re-posts.
+          # A1 (audit 2026-11-18): TikTok is deliberately NOT armed
+          # here — this run is STATELESS and TikTok has no adoption
+          # scope: an unrecordable post would be re-posted by the next
+          # hourly pass (duplicate). TikTok mirrors ONLY via the
+          # stateful crosspost-hour workflow.
+          set -o pipefail
           python -m src.crosspost --due 2>&1 | tee crosspost.log
           python -m src.crosspost --backfill 2>&1 | tee -a crosspost.log
           python -m src.crosspost --backfill 2>&1 | tee -a crosspost.log
