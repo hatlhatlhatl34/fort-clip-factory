@@ -139,10 +139,10 @@
      "permalink": "https://www.facebook.com/reel/1850971982587130/"
     },
     "tiktok": {
-     "status": "failed",
+     "status": "pending",
      "attempts": 1,
-     "error": "/v2/post/publish/video/init/ -> HTTP 403: spam_risk_too_many_posts This TikTok creator has made too many posts via OpenAPI in the last 24 hours, so this publishing attempt is blocked to minimize spam. The user can try ag",
-     "ts": 1795011906
+     "error": "[wait] TikTok spam-risk throttle (too many posts) — auto-retried next hour",
+     "ts": 1795012042
     },
     "yt_links": true,
     "dupes_deleted": "2026-11-15 FB removed via API; IG dups DfxWWUXElK9 (#11) / DfxWcSeEsOp (#19) removed in-app by owner"
@@ -215,10 +215,10 @@
      "permalink": "https://www.facebook.com/reel/1123055763952083/"
     },
     "tiktok": {
-     "status": "failed",
+     "status": "pending",
      "attempts": 1,
-     "error": "/v2/post/publish/video/init/ -> HTTP 403: spam_risk_too_many_posts This TikTok creator has made too many posts via OpenAPI in the last 24 hours, so this publishing attempt is blocked to minimize spam. The user can try ag",
-     "ts": 1795011916
+     "error": "[wait] TikTok spam-risk throttle (too many posts) — auto-retried next hour",
+     "ts": 1795012042
     },
     "yt_links": true
    },
@@ -255,10 +255,10 @@
      "permalink": "https://www.facebook.com/reel/2141366123137630/"
     },
     "tiktok": {
-     "status": "failed",
+     "status": "pending",
      "attempts": 1,
-     "error": "/v2/post/publish/video/init/ -> HTTP 403: spam_risk_too_many_posts This TikTok creator has made too many posts via OpenAPI in the last 24 hours, so this publishing attempt is blocked to minimize spam. The user can try ag",
-     "ts": 1795011924
+     "error": "[wait] TikTok spam-risk throttle (too many posts) — auto-retried next hour",
+     "ts": 1795012042
     },
     "yt_links": true
    },
@@ -1055,7 +1055,8 @@
      "attempts": 1
     },
     "yt_links": true
-   }
+   },
+   "verified": "2026-11-18T17:30:12+00:00"
   },
   {
    "n": 8,
@@ -1227,7 +1228,7 @@
   "units_used": 8752
  },
  "last_run": "2026-11-18",
- "last_run_ts": 1795011247,
+ "last_run_ts": 1795023012,
  "stats": {
   "shorts_published": 29,
   "days_active": 0
