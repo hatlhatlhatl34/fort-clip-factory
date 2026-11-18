@@ -23,18 +23,30 @@ name: monthly-bank-harvest
 # gets through — "try again and again until the gate opens",
 # exactly as the owner put it.
 #
-# Guard fires at 12:43 UTC (14:43 Cairo) — AFTER the 08:33 UTC
-# daily session has finished (~2h) and well before tomorrow's, so
-# the 5-hour harvest never queues the day's uploads behind it.
-# (2026-11-18: moved OFF the :00 minute — GitHub cron congestion
-# delayed the 13:00 guard to 21:38 UTC on 2026-11-17; it then held
+# OWNER RULE (2026-11-18) — "THE BEGINNING OF THE MONTH": the 1st's
+# food run fires at 00:29 UTC, BEFORE the day-1 08:33 upload session,
+# so the very first slots of the month are served by the fresh
+# harvest (never yesterday's leftover bank — a stale previous-month
+# bank is retired at rollover, see src/bank.py). Two stacking guards
+# a day (12:43 + 22:43 UTC) provision the full >= 124-clip month
+# within the first ~3 days: GitHub's 6-hour job cap makes a
+# literally-one-day harvest impossible, so "beginning of the month"
+# = the first days, every month. The 22:43 session ends ~03:43,
+# well clear of the 08:33 daily upload session (same concurrency
+# group queues, never overlaps).
+#
+# Guard minutes are OFF the :00/:30 marks — GitHub cron congestion
+# delayed the old 13:00 guard to 21:38 UTC on 2026-11-17; it then held
 # the clip-factory group past the 22:00 grid slot and starved the
-# reels for hours. Off-minutes are dramatically more punctual.)
+# reels for hours. Off-minutes are dramatically more punctual.
 
 on:
   schedule:
-    - cron: "29 11 1 * *"    # the 1st: start the month's food run
-    - cron: "43 12 * * *"    # daily guard: stack until provisioned
+    - cron: "29 0 1 * *"    # the 1st, 00:29 UTC: start the month's food run
+    - cron: "43 12 * * *"    # stacking guard I: stack until provisioned
+    - cron: "43 22 * * *"    # stacking guard II (owner rule 2026-11-18):
+                            # a second daily session halves the time to a
+                            # fully-provisioned month (~3 days, not ~5)
   workflow_dispatch: {}
 
 concurrency:
