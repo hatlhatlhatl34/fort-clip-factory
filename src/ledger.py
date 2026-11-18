@@ -38,6 +38,13 @@ def set_read_only(v: bool) -> None:
     _READ_ONLY = v
 
 
+def read_only() -> bool:
+    """True while a --dry-run rehearsal runs (no writes, nothing
+    consumed — checked by the downloader before destroying ingest
+    drops, audit 2026-11-18 C7)."""
+    return _READ_ONLY
+
+
 DEFAULT = {
     "version": 1,
     "shorts": [],           # [{n, source_id, source_title, date, video_id, slot}]
