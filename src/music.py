@@ -97,7 +97,11 @@ def synth_music(seed: int, duration: float, sr: int = SR,
     i = 0
     t_pos = 0.0
     while t_pos < duration:
-        root = chords[i % len(chords)][0]
+        # B12 (audit 2026-11-18): 4 eighths = 2 beats = one chord —
+        # locked to the pads' chord clock. The old every-eighth cycle
+        # put the bass on a different chord than the pads/arp for the
+        # entire track.
+        root = chords[(i // 4) % len(chords)][0]
         dur_n = min(int(eighth * 0.92 * sr), n - int(t_pos * sr))
         if dur_n > 0:
             t = np.arange(dur_n, dtype=np.float32) / sr
