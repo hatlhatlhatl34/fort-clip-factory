@@ -987,6 +987,34 @@
    "verified": "2026-11-16T09:10:43+00:00"
   },
   {
+   "n": 72,
+   "source_id": "G5HLwIBXuFs",
+   "source_title": "trying fortnite parkour map",
+   "source_channel": "Yusuf127",
+   "date": "2026-11-18",
+   "video_id": "2aSFS3DZ1GE",
+   "clip_start": 697.01,
+   "clip_dur": 45.0,
+   "title": "How to get FREE SKINS in Fortnite 🤑 #72",
+   "slot": "2026-11-18T16:14:07.279740+02:00",
+   "public_now": true,
+   "replacement": true,
+   "media": {
+    "file": "short_72.mp4",
+    "artifact": "media-cache-2026-11-18",
+    "run_id": "44321871429",
+    "size": 56141244
+   },
+   "crosspost": {
+    "ig": {
+     "status": "pending"
+    },
+    "fb": {
+     "status": "pending"
+    }
+   }
+  },
+  {
    "n": 8,
    "source_id": "ao:samsung-galaxy-s10e-unboxing-review-gameplay-fortnite-battle-royale",
    "source_title": "Samsung Galaxy S10e Unboxing / Review / Gameplay - Fortnite Battle Royale",
@@ -1147,17 +1175,18 @@
   "Gabor097oS0",
   "EQ7bmD493iM",
   "s-OqeycNUbA",
-  "VhbzwJUZwsk"
+  "VhbzwJUZwsk",
+  "G5HLwIBXuFs"
  ],
  "query_cursor": 11,
  "quota": {
   "date": "2026-11-18",
-  "units_used": 7101
+  "units_used": 8701
  },
  "last_run": "2026-11-18",
- "last_run_ts": 1794990900,
+ "last_run_ts": 1795011247,
  "stats": {
-  "shorts_published": 28,
+  "shorts_published": 29,
   "days_active": 0
  },
  "used_drops": [
@@ -1202,5 +1231,20 @@
   "fb": "131825308398327",
   "ig": "17841405759821353"
  },
- "alerts_sent": {}
+ "alerts_sent": {},
+ "one_time_fix": {
+  "deleted": [
+   "-Vwdn3bk8uA",
+   "5ysmLlL7U9k",
+   "Jw1QpIN3Xf8",
+   "Wp1mvU-dtDw"
+  ],
+  "cleaned": true,
+  "attempt_date": "2026-11-18",
+  "replacement": {
+   "n": 72,
+   "video_id": "2aSFS3DZ1GE",
+   "ts": "2026-11-18T14:14:07.296405+00:00"
+  }
+ }
 }
