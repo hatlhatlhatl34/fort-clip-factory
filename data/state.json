@@ -1281,9 +1281,10 @@
   ]
  },
  "bank": {
-  "month": null,
+  "month": "2026-11",
   "clips": [],
-  "reserved_n": []
+  "reserved_n": [],
+  "harvested_total": 0
  },
  "crosspost_ids": {
   "fb": "131825308398327",
