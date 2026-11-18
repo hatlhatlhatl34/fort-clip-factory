@@ -78,6 +78,9 @@ jobs:
           # newest state before reading it; clean by construction
           # (no local changes yet).
           git pull --ff-only origin main || true
+          set -o pipefail    # A2 (audit 2026-11-18): a python crash
+                            # must fail the step so the alert issue
+                            # can fire — never hidden behind tee
           python -m src.crosspost --due 2>&1 | tee crosspost.log
           python -m src.crosspost --backfill 2>&1 | tee -a crosspost.log
       - name: File an issue on failure
@@ -106,28 +109,31 @@ jobs:
             echo "memory unchanged"
             exit 0
           fi
-          # git must never line-merge state.json (post-mortem
-          # 2026-11-15 17:42): take origin's freshest state.json as
-          # BASE, union OUR crosspost fields onto it, push the merge.
-          cp data/state.json /tmp/ours.json
-          git fetch --quiet origin main
-          git checkout origin/main -- data/state.json 2>/dev/null || true
-          if [ -f data/state.json ]; then
-            python tools/merge_state.py /tmp/ours.json data/state.json --prefer crosspost --inplace data/state.json
-            cp data/state.json data/state.json.bak
-          else
-            cp /tmp/ours.json data/state.json
-          fi
-          git add -A data
-          git commit -m "memory: crosspost run" || true
-          if ! git push --quiet 2>/dev/null; then
-            # someone pushed between fetch and push — merge once more
-            cp data/state.json /tmp/ours2.json
+          # D1 (audit 2026-11-18): the old 2-attempt dance still
+          # committed on the session-start HEAD; a lost race's
+          # done-marks were discarded and the next pass re-posted
+          # live reels. Rebuild the commit on fresh origin/main
+          # (reset --soft keeps our staged work), union through
+          # merge_state, push — with retries, and LOUD on final
+          # failure (a red run beats silent duplicate posts).
+          for i in 1 2 3; do
+            cp data/state.json /tmp/ours.json 2>/dev/null || true
             git fetch --quiet origin main
-            git checkout origin/main -- data/state.json
-            python tools/merge_state.py /tmp/ours2.json data/state.json --prefer crosspost --inplace data/state.json
-            cp data/state.json data/state.json.bak
+            git reset --soft origin/main
+            git checkout origin/main -- data/state.json 2>/dev/null || true
+            if [ -f data/state.json ]; then
+              python tools/merge_state.py /tmp/ours.json data/state.json --prefer crosspost --inplace data/state.json
+              cp data/state.json data/state.json.bak
+            else
+              cp /tmp/ours.json data/state.json
+            fi
             git add -A data
-            git commit -m "memory: crosspost run (re-merged)" || true
-            git push --quiet || echo "::warning::memory push lost the race twice — next run re-reads origin"
-          fi
+            git commit -m "memory: crosspost run" || true
+            if git push --quiet origin HEAD:main; then
+              echo "memory pushed (attempt $i)"
+              exit 0
+            fi
+            echo "::warning::memory push lost the race (attempt $i) — rebuilding on fresh origin"
+          done
+          echo "::error::memory push failed 3x — done-marks at risk of a duplicate re-post next pass; inspect state"
+          exit 1
