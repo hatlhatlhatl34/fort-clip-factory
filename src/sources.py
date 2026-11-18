@@ -174,7 +174,12 @@ def search_sources(state: dict, seed: int) -> list[dict]:
     # prefer lively uploaders over dead ones: sort by a seeded shuffle
     # of recency (freshness first) — never the same pick order twice.
     fresh.sort(key=lambda c: c.get("published_at") or "", reverse=True)
-    rng.shuffle(fresh[:max(1, len(fresh) // 2)])   # shuffle the fresher half
+    # B5 (audit 2026-11-18): shuffle(fresh[:k]) shuffled a COPY — a
+    # silent no-op. Shuffle the real list: the fresher half randomized,
+    # the older half stays date-sorted behind it.
+    half = fresh[:max(1, len(fresh) // 2)]
+    rng.shuffle(half)
+    fresh = half + fresh[len(half):]
     return fresh
 
 
@@ -192,9 +197,23 @@ def _fetch_durations(video_ids: list[str]) -> dict[str, float]:
         req = urllib.request.Request(
             url, headers={"User-Agent": "fort-clip-factory/1.0",
                          **auth_headers})
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = json.loads(resp.read())
-        for it in data.get("items", []):
+        # B2 (audit 2026-11-18): an unguarded videos.list blew the
+        # whole session (uncaught HTTPError/URLError) BEFORE any clip
+        # was made and lost the search's quota spend. One retry, then
+        # a clean SourceError the orchestrator already handles.
+        data = None
+        for attempt in (1, 2):
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    data = json.loads(resp.read())
+                break
+            except (urllib.error.HTTPError, urllib.error.URLError) as e:
+                if attempt == 2:
+                    raise SourceError(
+                        f"videos.list failed: {e}") from e
+                print(f"[sources] videos.list hiccup ({e}) — retrying")
+                time.sleep(3)
+        for it in (data or {}).get("items", []):
             out[it["id"]] = _iso_duration_seconds(
                 (it.get("contentDetails") or {}).get("duration", ""))
     return out
@@ -333,7 +352,10 @@ def harvest_pool(state: dict, seed: int) -> list[dict]:
         fresh.append(c)
 
     fresh.sort(key=lambda c: c.get("published_at") or "", reverse=True)
-    rng.shuffle(fresh[:max(1, len(fresh) // 2)])   # lively, not robotic
+    # B5 (audit 2026-11-18): shuffle the REAL list, not a slice copy
+    half = fresh[:max(1, len(fresh) // 2)]
+    rng.shuffle(half)                    # lively, not robotic
+    fresh = half + fresh[len(half):]
     pool = fresh[:pool_cap]
     bankst["pool"] = pool            # cached for the stacking sessions
     print(f"[harvest] full sweep: {n_queries} queries x "
