@@ -311,13 +311,23 @@ def upload_short(filepath: Path, meta: dict, state: dict) -> str | None:
                     _mark_server_defer(state, reason, 2.0)
                     raise QuotaDefer(msg)
                 raise
-        if video_id:
+        if video_id is not None:
+            # C3 (audit 2026-11-18): a BLIND poll (upload done, id
+            # unknown) must NOT trigger a duplicate re-upload of the
+            # whole file via the no-tags variant
             break
 
-    print(f"[youtube] uploaded short {video_id} "
-          f"(publishAt {slot or 'now'})")
-    if slot:
-        _book_slot(state, slot)
-    ledger.spend_quota(state, UPLOAD_UNITS)
-    _clear_server_defer(state)
+    if video_id:
+        # C3 (audit 2026-11-18): book the slot + burn local quota ONLY
+        # on a real id — a blind-poll "" booked the slot forever while
+        # the clip re-published next session (invisible grid hole)
+        print(f"[youtube] uploaded short {video_id} "
+              f"(publishAt {slot or 'now'})")
+        if slot:
+            _book_slot(state, slot)
+        ledger.spend_quota(state, UPLOAD_UNITS)
+        _clear_server_defer(state)
+    else:
+        print("UPLOAD-ALERT: upload finished with no video id — slot "
+              "NOT booked, local quota NOT spent; the grid retries")
     return video_id
