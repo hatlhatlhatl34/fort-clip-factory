@@ -4,7 +4,7 @@
 Stdlib only (runs before pip install, costs ~15 seconds). Prints RUN
 or SKIP and exits 0 either way — SKIP is a healthy, cheap outcome.
 
-OWNER RULE (2026-11-14): ONE upload session per day at 08:30 UTC
+OWNER RULE (2026-11-14): ONE upload session per day at 08:33 UTC
 (channel.yaml schedule.daily_run_utc — frozen copy below, keep in
 sync). That one session books ALL FOUR 6-hour grid slots of the
 day+1 window (00:00/06:00/12:00/18:00 Cairo, 4/day every day —
@@ -16,7 +16,7 @@ The single rule (used by BOTH the daily cron and the hourly heal):
     next daily fire] — i.e. a slot would go public without a Short
     unless the machine wakes up before the next 08:30 UTC session.
 
-  * At 08:30 UTC that window holds the next 4 open slots -> RUN
+  * At 08:33 UTC that window holds the next 4 open slots -> RUN
     (the session itself).
   * Between sessions the booked slots hide inside -> SKIP (the heal
     stays a seconds-long no-op ~99% of the time).
@@ -50,7 +50,13 @@ DAILY_FIRE_UTC = (8, 33)                       # the one daily session
                                       # with channel.yaml daily_run_utc
                                       # and the daily-factory cron)
 BOOKABLE_MARGIN = 40                           # minutes of render time
-                                              # before publish
+                                              # before publish. KEPT IN
+                                              # SYNC with channel.yaml
+                                              # schedule.bookable_margin_minutes
+                                              # (bank.open_targets reads
+                                              # the same key — audit
+                                              # 2026-11-18 C5: one rule,
+                                              # both sides)
 
 
 def _load_state() -> dict:
@@ -66,7 +72,7 @@ def _load_state() -> dict:
 
 
 def _next_fire(now_utc: datetime) -> datetime:
-    """The next 08:30 UTC strictly beyond the booking margin — a fire
+    """The next 08:33 UTC strictly beyond the booking margin — a fire
     too close to 'now' belongs to the imminent session, not to us."""
     cand = now_utc.replace(hour=DAILY_FIRE_UTC[0],
                            minute=DAILY_FIRE_UTC[1],
