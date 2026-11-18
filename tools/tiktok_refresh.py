@@ -99,15 +99,36 @@ def main() -> int:
     new_refresh = str(d.get("refresh_token") or "")
     if not access or not new_refresh:
         sys.exit(f"refresh response missing tokens: {sorted(d)}")
+
+    # D2 (audit 2026-11-18): TikTok rotates the refresh token on EVERY
+    # successful call — the OLD root is dead the moment this POST
+    # returned. Persist the NEW ROOT FIRST (with retries); only then
+    # verify and swap the access token. A crash between the two
+    # writes now leaves a valid root + an old-but-still-valid-enough
+    # access token (tomorrow's refresh re-derives it) instead of a
+    # DEAD root and an unfixable mirror.
+    def _persist(name: str, value: str, tries: int = 3) -> None:
+        for i in range(1, tries + 1):
+            try:
+                _set_secret(name, value)
+                return
+            except SystemExit as e:
+                if i == tries:
+                    raise
+                print(f"[tiktok-refresh] secret {name} write {i} failed "
+                      f"({e}) — retrying")
+
+    if new_refresh != refresh:
+        _persist("TIKTOK_REFRESH_TOKEN", new_refresh)
+
     user = _verify(access)
     print(f"[tiktok-refresh] verified as "
           f"@{user.get('display_name', '?')} "
           f"(open_id {str(user.get('open_id', '?'))[:8]}...)")
 
-    _set_secret("TIKTOK_ACCESS_TOKEN", access)
+    _persist("TIKTOK_ACCESS_TOKEN", access)
     if new_refresh != refresh:
-        _set_secret("TIKTOK_REFRESH_TOKEN", new_refresh)
-        note = "rotated — secret updated"
+        note = "rotated — the new root was persisted FIRST"
     else:
         note = "unchanged (365-day rolling window)"
     print(f"[tiktok-refresh] DONE: access token swapped in; "
