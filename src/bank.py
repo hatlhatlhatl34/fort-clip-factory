@@ -45,6 +45,19 @@ State (data/state.json):
                    title
   bank.harvested_total  clips ever banked this month (never drops
                    when clips publish) — the guard's provision meter
+
+OWNER RULE (2026-11-18 #2) — SURPLUS = EMERGENCY BUFFER: stacking may
+provision more clips than the month's open slots (max_clips 124 vs
+~120 consumed); the surplus stays banked as the month's emergency
+buffer and is NEVER carried across months — the rollover retire()
+wipes it (fresh harvest feeds the new month; old-month clips are
+poison).
+
+OWNER RULE (2026-11-18 #3) — THE FIRST OLD BANK IS DEAD: the original
+pre-overhaul bank (random Fortnite footage, cross-month slots) was
+completely purged 2026-11-18 (state + artifacts + pointer). A bank
+only ever holds same-month, fresh-sweep niche clips; the harvest
+sweeps unreferenced files before re-uploading parts.
 """
 from __future__ import annotations
 
@@ -102,15 +115,22 @@ def open_targets(state: dict) -> list[str]:
     fire_h, fire_m = map(int,
                          (sched.get("daily_run_utc") or "08:30").split(":"))
     lead = timedelta(minutes=int(sched.get("publish_lead_minutes", 25)))
+    # C5 (audit 2026-11-18): the session must target the SAME window
+    # tools/gate.py treats as fillable (bookable_margin_minutes) — a
+    # narrower probe starves slots in the 25-40 min blind zone when a
+    # heal is cron-delayed. One rule, both sides (channel.yaml).
+    margin = timedelta(minutes=int(
+        sched.get("bookable_margin_minutes", 40)))
     now_utc = datetime.now(ZoneInfo("UTC"))
     fire = now_utc.replace(hour=fire_h, minute=fire_m,
                            second=0, microsecond=0)
-    if fire <= now_utc + lead:
+    if fire <= now_utc + max(lead, margin):
         fire += timedelta(days=1)
     fire_local = fire.astimezone(tz)
     booked = set((state.get("slots") or {}).get("short", []) or [])
     now = datetime.now(tz)
-    probe = now + lead
+    # C5: probe with the SAME bookable margin the gate uses
+    probe = now + max(lead, margin)
     out: list[str] = []
     for d in range(2):                       # today + tomorrow is enough
         base = (now + timedelta(days=d)).date()
@@ -254,12 +274,23 @@ def write_manifest(bank_dir: Path, state: dict) -> str:
 def publish(bank_dir: Path, clip: dict, state: dict,
             dry_run: bool = False) -> int | None:
     """Upload one banked clip into its grid slot. Returns an
-    orchestrator exit code, or None when the clip file is missing
-    (the caller then falls back to the live ladder)."""
+    orchestrator exit code — 0 = published, 3 = clean defer (quota;
+    the grid retries later, uncounted), 1 = real failure (alert) —
+    or None when the clip file is missing (the dead clip is EVICTED
+    and the caller falls back to the live ladder)."""
     f = bank_dir / clip["file"]
     if not f.exists() or f.stat().st_size < 1_000_000:
-        print(f"[bank] clip file {clip['file']} missing from the "
-              "artifact — falling back to the live ladder")
+        print(f"[bank] clip file {clip['file']} missing/unusable — "
+              "EVICTING the dead clip (audit 2026-11-18: it must never "
+              "jam the bank head for a whole month) and falling back "
+              "to the live ladder")
+        bankst = state.setdefault("bank", {})
+        bankst["clips"] = [c for c in bankst.get("clips") or []
+                           if c.get("file") != clip.get("file")]
+        rn = bankst.setdefault("reserved_n", [])
+        if clip.get("n") in rn:
+            rn.remove(clip["n"])
+        ledger.save(state)
         return None
 
     meta = dict(clip.get("meta") or {})
@@ -284,13 +315,13 @@ def publish(bank_dir: Path, clip: dict, state: dict,
     try:
         video_id = youtube.upload_short(f, meta, state)
     except youtube.QuotaDefer:
-        return 0                 # clean exit; the grid retries later
+        return 3                 # clean defer: retry later, uncounted
     except youtube.AuthError as e:
         print(f"AUTH-ALERT: {e}")
         return 1
     if not video_id:
-        print("[upload] deferred (local quota gate) — exiting clean")
-        return 0
+        print("[upload] deferred (local quota gate) — clean defer")
+        return 3
 
     # number grows up: reserved -> published
     reserved = (state.get("bank") or {}).get("reserved_n") or []
@@ -324,12 +355,20 @@ def publish(bank_dir: Path, clip: dict, state: dict,
     ledger.mark_short_uploaded(state, rec, units=0)   # units spent in upload
 
     clips = (state.get("bank") or {}).get("clips") or []
-    clips[:] = [c for c in clips if c is not clip]
+    clips[:] = [c for c in clips
+                if c.get("file") != clip.get("file")]  # stable key
     if not clips:
-        state["bank"] = {"month": None, "clips": [], "reserved_n": []}
-        POINTER.unlink(missing_ok=True)   # bank empty: pointer retired
-        print("[bank] month consumed — back to the live ladder "
-              "(guard will refill when due)")
+        # C2 (audit 2026-11-18): a DRAINED bank KEEPS month +
+        # harvested_total (the provision meter) and the pointer — the
+        # guard's topup path refills the month's emergency buffer
+        # (owner rule 2026-11-18 #2) instead of re-provisioning the
+        # whole 124 mid-month. Unreferenced files are swept at the
+        # next harvest (owner rule 2026-11-18 #3).
+        bankst = state.setdefault("bank", {})
+        bankst["clips"] = []
+        bankst["reserved_n"] = []
+        print("[bank] drained — the live ladder bridges; the guard tops "
+              "the month's emergency buffer back up")
     state["last_run"] = today.date().isoformat()
     state["last_run_ts"] = int(time.time())
     ledger.save(state)
