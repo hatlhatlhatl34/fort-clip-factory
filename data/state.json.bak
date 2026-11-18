@@ -582,11 +582,26 @@
    },
    "crosspost": {
     "ig": {
-     "status": "pending"
+     "status": "done",
+     "media_id": "18111111989191214",
+     "ts": 1794984429,
+     "adopted": true,
+     "permalink": "https://www.instagram.com/reel/Df3N6m2gqiP/"
     },
     "fb": {
-     "status": "pending"
-    }
+     "status": "done",
+     "media_id": "1321840400049582",
+     "ts": 1794984430,
+     "adopted": true,
+     "permalink": "https://www.facebook.com/reel/1321840400049582/"
+    },
+    "tiktok": {
+     "status": "pending",
+     "tt_paused": true,
+     "error": "[paused] unaudited client can only post to a PRIVATE account — flip @h15master back to private in the app (or pass the audit, then set privacy PUBLIC_TO_EVERYONE)",
+     "ts": 1794984430
+    },
+    "yt_links": true
    },
    "verified": "2026-11-18T06:42:31+00:00"
   },
@@ -736,11 +751,26 @@
    },
    "crosspost": {
     "ig": {
-     "status": "pending"
+     "status": "done",
+     "media_id": "18119721761011274",
+     "ts": 1794984464,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/Df35WUxDqnY/"
     },
     "fb": {
-     "status": "pending"
-    }
+     "status": "done",
+     "media_id": "3597390390442729",
+     "ts": 1794984475,
+     "attempts": 1,
+     "permalink": "https://www.facebook.com/reel/3597390390442729/"
+    },
+    "tiktok": {
+     "status": "pending",
+     "tt_paused": true,
+     "error": "[paused] unaudited client can only post to a PRIVATE account — flip @h15master back to private in the app (or pass the audit, then set privacy PUBLIC_TO_EVERYONE)",
+     "ts": 1794984476
+    },
+    "yt_links": true
    },
    "verified": "2026-11-18T06:42:31+00:00"
   },
