@@ -395,6 +395,24 @@ def attempt(state: dict, s: dict, video: Path, title: str,
                   "NOT burned; retried next hour")
             ledger.save(state)
             return False
+        if "spam_risk" in err.lower():
+            # LIVE-DIAGNOSED 2026-11-18 14:25 (backfill #19-#21,
+            # crosspost run 44323514723): HTTP 403
+            # spam_risk_too_many_posts "This TikTok creator has made
+            # too many posts" — a TRANSIENT account-level post
+            # throttle, not a content failure. Burning 8 hourly
+            # attempts on it would give_up healthy shorts while the
+            # throttle window simply hasn't rolled yet. No burn, no
+            # alert — the next hourly pass retries on its own.
+            st.update(status="pending",
+                      error="[wait] TikTok spam-risk throttle (too "
+                            "many posts) — auto-retried next hour",
+                      ts=int(time.time()))
+            st.pop("timeout", None)
+            print(f"[tiktok] #{n} spam-risk throttled — attempt NOT "
+                  "burned; retried next hour")
+            ledger.save(state)
+            return False
         if "access_token" in err.lower() or "unauthorized" in err.lower():
             # A14 (audit 2026-11-18): mid-run 24 h token expiry is a
             # WAIT state (the 03:00 UTC refresh re-arms it) — never a
