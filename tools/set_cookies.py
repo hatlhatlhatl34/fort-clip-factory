@@ -60,13 +60,18 @@ def _validate_jar(block: str, idx: int) -> tuple[bool, str]:
     lines = block.splitlines()
     header = any(l.strip().startswith("# Netscape HTTP Cookie File")
                 for l in lines[:5])
+    # B11 (audit 2026-11-18): keep '#HttpOnly_' rows — they are REAL
+    # cookies (YouTube's SID/HSID/SSID are HttpOnly), not comments
     body = [l for l in lines
-            if l.strip() and not l.lstrip().startswith("#")]
+            if l.strip() and not l.startswith(("# ", "#\t"))]
     if not body:
         return False, "no cookie lines at all — wrong export"
-    malformed = [l for l in body[:80] if len(l.split("\t")) < 7]
+    # D8 (audit 2026-11-18): validate EVERY line — a 100-300 line
+    # export had garbage past line 80 sail through validation only to
+    # die inside the 5h harvest
+    malformed = [l for l in body if len(l.split("\t")) < 7]
     if malformed:
-        return False, (f"{len(malformed)}/{min(len(body), 80)} lines "
+        return False, (f"{len(malformed)}/{len(body)} lines "
                        "are not 7-field Netscape rows — wrong export "
                        "format (JSON?). Re-export with 'Get cookies.txt "
                        "LOCALLY' in Netscape format.")
