@@ -157,11 +157,30 @@ downloads) happens **once a month** in ONE long session from ONE
 IP with the cookie jars; the daily runs do ONLY the API upload
 (OAuth is identity-based, never IP-flagged).
 
-* `monthly-bank-harvest.yml` fires on the 1st (12:00 UTC) and its
-  guard retries daily at 13:00 UTC (15:00 Cairo — after the day's
-  08:30 session has finished, before tomorrow's) until the month is
-  provisioned — "try again and again until the gate opens".
-* The harvest downloads only a ~5-minute **slice** of each source
+* `monthly-bank-harvest.yml` fires on the 1st (**00:29 UTC**, owner
+  rule 2026-11-18 — BEFORE the day-1 08:33 upload session, so the
+  month's very first slots are served by the fresh harvest) and its
+  stacking guards retry daily at **12:43 + 22:43 UTC** until the
+  month is provisioned — "try again and again until the gate opens".
+  The 22:43 second session halves the provisioning time: the whole
+  124-clip month is ready within the first ~3 days (GitHub's 6-hour
+  job cap makes a literally-one-day harvest impossible — "beginning
+  of the month" = the first days, every month).
+* **OWNER RULE (2026-11-18) — no old bank clips, ever:** a leftover
+  bank from a PREVIOUS month is POISON for the algorithm. At month
+  rollover the daily publish path **retires** it
+  (`src/bank.py` `stale()`/`retire()`: clips discarded, pointer
+  unlinked) and the live ladder feeds the grid until the fresh
+  month's harvest provisions the new bank. The `daily-factory.yml`
+  bank check also refuses to even fetch a previous-month artifact,
+  and the harvest never plans clips past its own month boundary.
+* **OWNER RULE (2026-11-18) — harvest ALL videos:** the monthly
+  candidate pool is a FULL sweep over every query phrasing (16
+  queries x 50 results, ~1,600 quota units once a month), cached in
+  `state.bank.pool` — the stacking sessions reuse the SAME pool at
+  zero quota cost, and the pool dies with the bank at month
+  rollover, so every month starts from a fully fresh sweep. The
+  harvest downloads only a ~5-minute **slice** of each source
   (`--download-sections`), clips + renders Shorts, and banks them
   into GitHub **artifact parts** `bank-<ym>-p1/p2/...` (~4.2 GB each;
   free on public repos, auto-expire after 45 days — no repo bloat).
