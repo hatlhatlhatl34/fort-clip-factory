@@ -178,10 +178,21 @@ jobs:
           # re-filled an already-filled slot (duplicate Short).
           # Rebuild on fresh origin/main + retries, same as the
           # daily machine.
-          for i in 1 2 3; do
+          for i in 1 2 3 4 5; do
             cp data/state.json /tmp/ours.json 2>/dev/null || true
             git fetch --quiet origin main
-            git reset --soft origin/main
+            # D2 (live fix 2026-11-18): --soft kept the STALE session
+            # tree staged — a workflow file that lands while this run
+            # sits queued (its checkout predates the file) rides into
+            # the memory commit as a DELETION and GitHub rejects the
+            # whole push ("refusing to allow a GitHub App to create or
+            # update workflow ... without workflows permission") — a
+            # green session went red with its memory lost (harvest
+            # run 44288392287). --hard rebuilds the tree on fresh
+            # origin/main first (mid-run commits preserved), OUR data
+            # memory goes on top: the memory commit can only ever
+            # touch data/ + ingest/ — zero workflow surface.
+            git reset --hard origin/main
             git checkout origin/main -- data/state.json 2>/dev/null || true
             if [ -f data/state.json ]; then
               python tools/merge_state.py /tmp/ours.json data/state.json --prefer core --inplace data/state.json
@@ -196,6 +207,7 @@ jobs:
               exit 0
             fi
             echo "::warning::memory push lost the race (attempt $i) — rebuilding on fresh origin"
+            sleep $((i * 4))   # let the racer finish before the retry
           done
-          echo "::error::memory push failed 3x — watch data/state.json; the next heal reconciles"
+          echo "::error::memory push failed 5x — watch data/state.json; the next heal reconciles"
           exit 1
