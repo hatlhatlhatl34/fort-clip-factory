@@ -139,10 +139,12 @@
      "permalink": "https://www.facebook.com/reel/1850971982587130/"
     },
     "tiktok": {
-     "status": "pending",
-     "attempts": 1,
-     "error": "[wait] TikTok spam-risk throttle (too many posts) — auto-retried next hour",
-     "ts": 1795012042
+     "status": "done",
+     "attempts": 2,
+     "error": "upload in flight — re-check before re-post",
+     "ts": 1795025674,
+     "publish_id": "v_pub_file~v2-1.7709576199235962900",
+     "media_id": "v_pub_file~v2-1.7709576199235962900"
     },
     "yt_links": true,
     "dupes_deleted": "2026-11-15 FB removed via API; IG dups DfxWWUXElK9 (#11) / DfxWcSeEsOp (#19) removed in-app by owner"
@@ -215,10 +217,12 @@
      "permalink": "https://www.facebook.com/reel/1123055763952083/"
     },
     "tiktok": {
-     "status": "pending",
-     "attempts": 1,
-     "error": "[wait] TikTok spam-risk throttle (too many posts) — auto-retried next hour",
-     "ts": 1795012042
+     "status": "done",
+     "attempts": 2,
+     "error": "upload in flight — re-check before re-post",
+     "ts": 1795025706,
+     "publish_id": "v_pub_file~v2-1.7709576402764335105",
+     "media_id": "v_pub_file~v2-1.7709576402764335105"
     },
     "yt_links": true
    },
@@ -255,10 +259,12 @@
      "permalink": "https://www.facebook.com/reel/2141366123137630/"
     },
     "tiktok": {
-     "status": "pending",
-     "attempts": 1,
-     "error": "[wait] TikTok spam-risk throttle (too many posts) — auto-retried next hour",
-     "ts": 1795012042
+     "status": "done",
+     "attempts": 2,
+     "error": "upload in flight — re-check before re-post",
+     "ts": 1795025740,
+     "publish_id": "v_pub_file~v2-1.7709576572700723220",
+     "media_id": "v_pub_file~v2-1.7709576572700723220"
     },
     "yt_links": true
    },
@@ -293,6 +299,14 @@
      "media_id": "1728872342164530",
      "adopted": true,
      "permalink": "https://www.facebook.com/reel/1728872342164530/"
+    },
+    "tiktok": {
+     "status": "done",
+     "publish_id": "v_pub_file~v2-1.7709576690716035124",
+     "error": "upload in flight — re-check before re-post",
+     "ts": 1795025773,
+     "media_id": "v_pub_file~v2-1.7709576690716035124",
+     "attempts": 1
     },
     "yt_links": true
    },
