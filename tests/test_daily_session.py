@@ -135,8 +135,14 @@ def main() -> int:
     leaders = []
     for _ in range(10):
         leaders.append(downloader._rotate(jar_names)[0])
-    check("rotation cycles 0..4", leaders[:5] == ["j0", "j1", "j2",
-                                                  "j3", "j4"],
+    # audit 2026-11-18 (B6): the cursor is seeded by a 15-minute time
+    # bucket so every runner session starts on a DIFFERENT jar — the
+    # invariant is full cyclic coverage, not a fixed start at jar #1
+    # (the old always-starts-at-#1 behavior put account 1 in front of
+    # the most wall-exposed download of every session)
+    start = jar_names.index(leaders[0])
+    check("rotation cycles through all jars",
+          leaders[:5] == jar_names[start:] + jar_names[:start],
           str(leaders[:6]))
 
     with tempfile.TemporaryDirectory() as td:
