@@ -127,7 +127,10 @@ def _quality_ok(p: Path, min_dur: float = 0.0) -> bool:
         return False
     floor = int((cfg().get("sources") or {}).get("min_source_height", 720))
     h = _probe_height(p)
-    if floor and h and h < floor:
+    # B3 (audit 2026-11-18): fail-CLOSED — an unreadable height (0) is
+    # a rejection, not a pass; the old `h and` gate shipped
+    # unprobeable garbage straight to the render
+    if floor and (not h or h < floor):
         print(f"[download] quality gate: {p.name} is {h}p "
               f"(< {floor}p floor) — rejecting, trying next rung")
         return False
@@ -140,7 +143,11 @@ _JAR_SEP = re.compile(r"^=+\s*jar\s*#?\s*\d+\s*=*$", re.IGNORECASE)
 # ladder advances one position on EVERY download call, so each of
 # the 5 accounts leads ~1/5 of the session's downloads instead of
 # account #1 always going first (round-robin, crash-safe, stateless).
-_JAR_CURSOR = [0]
+# B6 (audit 2026-11-18): a per-process cursor resets to jar #1 on
+# every fresh GitHub runner — account 1 led the FIRST, most
+# wall-exposed download of EVERY session. Seed by a 15-minute time
+# bucket instead: every session starts on a different jar.
+_JAR_CURSOR = [int(time.time()) // 900]
 
 
 def _rotate(jars: list[Path]) -> list[Path]:
@@ -158,7 +165,10 @@ def _write_jar(work: Path, block: str, idx: int) -> Path | None:
     header = any(l.strip().startswith("# Netscape HTTP Cookie File")
                  for l in lines[:5])
     body = [l for l in lines
-            if l.strip() and not l.lstrip().startswith("#")]
+            # B11 (audit 2026-11-18): keep '#HttpOnly_' rows — they are
+            # REAL cookies (YouTube's SID/HSID/SSID are HttpOnly), not
+            # comments; only drop true header comments
+            if l.strip() and not l.startswith(("# ", "#\t"))]
     if not body:
         print(f"[cookies] jar {idx}: no cookie lines — wrong export, "
               "jar skipped")
@@ -245,18 +255,33 @@ def _take_ingest_drop(work: Path, state: dict) -> Path | None:
     out = work / f"drop_{src.stem}.mp4"
     shutil.copy(src, out)
     dur = _probe_duration_s(out)
-    if dur < 45:
+    # B10 (audit 2026-11-18): the clipper needs lo+10 s of source to
+    # cut a >= lo window — gate drops at the SAME bar or a 45-54.9 s
+    # drop is burned forever (deleted + marked used) with ZERO clips
+    # produced
+    lo = float((cfg()["clip"].get("target_len_s") or [45, 90])[0])
+    if dur < lo + 10:
         print(f"[download] drop {src.name} too short "
-              f"({dur:.0f}s < 45s) — discarding, moving on")
+              f"({dur:.0f}s < {lo + 10:.0f}s) — discarding, moving on")
     else:
         print(f"[download] using ingest/ drop: {src.name} "
               f"({dur:.0f}s of footage)")
+    if ledger.read_only():
+        # C7 (audit 2026-11-18): a --dry-run rehearsal must NEVER
+        # consume/destroy the owner's drops ("no upload, no memory
+        # writes" — main.py's own promise)
+        print(f"[download] dry-run: drop {src.name} left in place, "
+              "not consumed")
+        if dur >= lo + 10 and _quality_ok(out):
+            return out
+        out.unlink(missing_ok=True)
+        return None
     # consumed either way: remembered immediately + removed from the
     # tree so this drop is mined at most once, ever
     state["used_drops"].append(src.name)
     ledger.save(state)
     src.unlink(missing_ok=True)
-    if dur >= 45 and _quality_ok(out):
+    if dur >= lo + 10 and _quality_ok(out):
         return out
     print(f"[download] drop {src.name} discarded "
           "(too short or below the quality floor)")
