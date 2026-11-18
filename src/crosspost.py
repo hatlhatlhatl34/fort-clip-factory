@@ -409,19 +409,30 @@ def _existing_reel(platform: str, yt_vid: str, *, igt: str = "",
     if not yt_vid:
         return ""
     needle = f"shorts/{yt_vid}"
+    # A12 (audit 2026-11-18): follow the paging cursor up to 3 pages —
+    # at 4+ posts/day the feed passes 50 items within ~2 weeks and a
+    # deeper twin would be invisible to the adoption gate (re-post)
     try:
-        if platform == "ig":
-            d = _graph(igt, f"{ig_id}/media", params={
-                "fields": "id,caption", "limit": "50"})
+        after = None
+        for _page in range(3):
+            params = ({"fields": "id,caption", "limit": "50"}
+                      if platform == "ig"
+                      else {"fields": "id,description", "limit": "50"})
+            if after:
+                params["after"] = after
+            path = f"{ig_id}/media" if platform == "ig" \
+                else f"{page_id}/videos"
+            d = (_graph(igt, path, params=params) if platform == "ig"
+                 else _graph(fbt, path, params=params))
             for m in d.get("data") or []:
-                if needle in str(m.get("caption") or ""):
+                blob = str(m.get("caption")
+                           or m.get("description") or "")
+                if needle in blob:
                     return str(m.get("id") or "")
-        else:
-            d = _graph(fbt, f"{page_id}/videos", params={
-                "fields": "id,description", "limit": "50"})
-            for m in d.get("data") or []:
-                if needle in str(m.get("description") or ""):
-                    return str(m.get("id") or "")
+            paging = d.get("paging") or {}
+            after = (paging.get("cursors") or {}).get("after")
+            if not (paging.get("next") and after):
+                break
     except Exception as e:                      # noqa: BLE001
         print(f"[crosspost] dedupe scan skipped ({e})")
     return ""
@@ -466,8 +477,19 @@ def _gh_json(path: str, token: str) -> dict:
                  "Accept": "application/vnd.github+json",
                  "X-GitHub-Api-Version": "2022-11-28",
                  "User-Agent": "fort-clip-factory"})
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        return json.loads(resp.read())
+    # A7 (audit 2026-11-18): URLError/socket timeout/HTML-garbage must
+    # surface as a clean CrosspostError — one flaky GitHub API call
+    # must never abort the whole due/backfill pass with a traceback
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        raise CrosspostError(f"GitHub API {e.code}: {path}") from e
+    except (urllib.error.URLError, OSError) as e:
+        raise CrosspostError(
+            f"GitHub API unreachable: {path} ({e})") from e
+    except ValueError as e:                      # bad JSON / HTML page
+        raise CrosspostError(f"GitHub API bad JSON: {path}") from e
 
 
 def fetch_media(media: dict, workdir: Path,
@@ -486,8 +508,13 @@ def fetch_media(media: dict, workdir: Path,
         return None
     workdir.mkdir(parents=True, exist_ok=True)
     zips = zips if zips is not None else {}
+    # A3 (audit 2026-11-18): key the cache by (run_id, name) — the same
+    # day's session and heal upload media-cache-<date> under DIFFERENT
+    # run ids; keyed by name only, one short's fetch reused the OTHER
+    # run's zip, missed its file, and false-gave-up healthy reels
+    key = (run_id, name)
     try:
-        if name not in zips:
+        if key not in zips:
             arts = _gh_json(
                 f"/repos/{repo}/actions/runs/{run_id}/artifacts"
                 f"?per_page=100", token).get("artifacts") or []
@@ -496,13 +523,20 @@ def fetch_media(media: dict, workdir: Path,
                 raise CrosspostError(
                     f"artifact {name} not found in run {run_id} "
                     "(expired after 30 days?)")
-            zpath = workdir / f"{name}.zip"
+            zpath = workdir / f"{run_id}_{name}.zip"
             _download(art["archive_download_url"],
                       {"Authorization": f"Bearer {token}",
                        "Accept": "application/vnd.github+json",
                        "User-Agent": "fort-clip-factory"}, zpath)
-            zips[name] = zpath
-        with zipfile.ZipFile(zips[name]) as z:
+            zips[key] = zpath
+        # A7: a truncated/corrupt zip is a clean CrosspostError, never
+        # an unhandled BadZipFile aborting the whole pass
+        try:
+            z = zipfile.ZipFile(zips[key])
+        except zipfile.BadZipFile as e:
+            raise CrosspostError(
+                f"corrupt artifact zip {name}: {e}") from e
+        with z:
             if fname not in z.namelist():
                 raise CrosspostError(f"{fname} not inside artifact {name}")
             z.extract(fname, workdir)
@@ -845,14 +879,22 @@ def run_due(state: dict) -> int:
 
         try:
             video = fetch_media(s.get("media") or {}, workdir, zips)
-        except CrosspostError as e:
+        except (CrosspostError, OSError) as e:
+            # A7 (audit 2026-11-18): OSError joins the clean per-short
+            # catch — stray file errors must never abort the pass
             print(f"[crosspost] #{n} media fetch failed: {e}")
             alert_once(state, f"media-{n}",
                        f"media cache unreachable for short #{n}",
                        f"Could not fetch the cached video for short #{n} "
                        f"({e}). The reels for this Short cannot be "
                        "posted; YouTube is unaffected.")
-            for p in ("ig", "fb"):
+            # A10 (audit 2026-11-18): settle EVERY armed platform — the
+            # old hard-coded ("ig","fb") left a tiktok record pending
+            # forever, re-selected hourly with daily alert churn
+            plats = ("ig", "fb")
+            if (s.get("crosspost") or {}).get("tiktok"):
+                plats = plats + ("tiktok",)
+            for p in plats:
                 stx = (s.setdefault("crosspost", {})
                        .setdefault(p, {"status": "pending"}))
                 if stx.get("status") not in ("done", "gave_up", "skipped"):
@@ -1248,9 +1290,12 @@ def run_backfill(state: dict) -> int:
             for p in plats:
                 stx = (s.setdefault("crosspost", {})
                        .setdefault(p, {"status": "pending"}))
-                stx.update(status="gave_up", attempts=max_attempts,
-                           reason="source video deleted from YouTube",
-                           ts=int(time.time()))
+                # A11 (audit 2026-11-18): never regress a LIVE reel —
+                # done stays done even when the source video is gone
+                if stx.get("status") not in ("done", "gave_up", "skipped"):
+                    stx.update(status="gave_up", attempts=max_attempts,
+                               reason="source video deleted from YouTube",
+                               ts=int(time.time()))
             ledger.save(state)
             continue
         if video is None:
