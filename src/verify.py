@@ -57,13 +57,34 @@ def run(state: dict, *, today: date | None = None,
     dirty = False
     now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
-    try:
-        recent = [s for s in state.get("shorts", [])
-                  if s.get("video_id")
-                  and date.fromisoformat(s.get("date") or "1970-01-01")
-                  >= cutoff]
-    except (TypeError, ValueError):
-        recent = []
+    # C10 (audit 2026-11-18): ONE malformed record must never blind
+    # the whole verification pass (the old whole-list try/except
+    # silently zeroed `recent` and suppressed every VERIFY-ALERT)
+    recent = []
+    bad_records = 0
+    for s in state.get("shorts", []):
+        try:
+            if s.get("video_id") and date.fromisoformat(
+                    s.get("date") or "1970-01-01") >= cutoff:
+                recent.append(s)
+        except (TypeError, ValueError):
+            bad_records += 1
+    if bad_records:
+        line = (f"VERIFY-ALERT: {bad_records} malformed shorts record(s) "
+                "in state — check data/state.json")
+        alerts.append(line)
+        print(line)
+    # D9 (audit 2026-11-18): a destroyed/lost state.json must never
+    # verify green silently — stats say shorts were published but the
+    # records are gone (ledger recovered from the empty default)
+    stats_published = int((state.get("stats") or {}).get(
+        "shorts_published", 0) or 0)
+    if stats_published and not state.get("shorts"):
+        line = ("VERIFY-ALERT: stats report {} published short(s) but "
+                "state has NO shorts records — data/state.json may be "
+                "corrupt or lost").format(stats_published)
+        alerts.append(line)
+        print(line)
 
     for s in recent:
         if s.get("verified") or s.get("owner_deleted"):
