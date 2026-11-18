@@ -4,23 +4,30 @@ name: replace-shorts
 #
 # The purge of the first old bank (owner rule #3) landed 2026-11-18
 # AFTER the 08:33 session had already published that day's FOUR
-# old-bank Shorts. This dispatched-only workflow runs
-# tools/replace_shorts.py which:
-#   1. deletes those four videos from YouTube (idempotent — a sandbox
-#      pass usually already did it; 404 = already gone),
+# old-bank Shorts. This workflow runs tools/replace_shorts.py which:
+#   1. deletes those four videos from YouTube (zero-cost on re-runs —
+#      the ledger guard remembers),
 #   2. cleans the ledger (drops the records, unbooks their slots),
 #   3. uploads ONE fresh replacement Short PUBLIC immediately
 #      ("the first one to be uploaded make it public" — owner's words),
-#      live ladder: fresh niche source -> slice -> render -> upload.
-# If the YouTube quota is at its full limit the tool skips the rest
-# for today cleanly — the owner's one-time "skip the 4 shorts rule
-# today only if it exceeded the youtube quota" rule. The freed slots
-# refill via the hourly heals + tomorrow's 08:33 session, fed by the
-# fresh same-month bank the harvest guards stack right after this.
+#      BANK FIRST (a banked clip from the fresh same-month bank; the
+#      live ladder is the fallback, rotating query phrasings).
+# If the YouTube quota is at its full limit the tool skips for the day
+# cleanly — the owner's one-time "skip the 4 shorts rule today only if
+# it exceeded the youtube quota" rule. The freed slots refill via the
+# hourly heals + the 08:33 session, fed by the fresh bank.
 #
-# NEVER a cron: dispatch-only, run once, then it is history.
+# SCHEDULE: the one shot fires 2026-11-19 08:07 UTC — right after the
+# Pacific quota reset (08:00) and before the 08:33 daily session, so
+# the FIRST new upload of the fresh quota day lands PUBLIC. (On
+# 2026-11-18 itself the quota was spent: 4 uploads + the sweep — the
+# replacement clean-skipped, exactly the owner's rule.) Later fires
+# are guarded no-ops via the state marker + the ledger check; remove
+# the schedule once the replacement is confirmed if you like.
 
 on:
+  schedule:
+    - cron: "7 8 19 11 *"   # the one shot: Nov 19, 08:07 UTC
   workflow_dispatch: {}
 
 concurrency:
@@ -30,12 +37,13 @@ concurrency:
 permissions:
   contents: write
   issues: write
-  actions: read              # (media-cache fetches, if ever needed)
+  actions: read              # fetch bank/media artifacts
 
 jobs:
   replace:
     runs-on: ubuntu-latest
-    timeout-minutes: 90     # one ladder short: download+render+upload
+    timeout-minutes: 90     # one short: bank pop is minutes, the
+                            # live-ladder fallback needs download+render
     steps:
       - uses: actions/checkout@v4
 
@@ -53,6 +61,49 @@ jobs:
             || echo "::warning::deno install failed — web client may lose formats"
           echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
 
+      - name: Bank check (is a banked clip waiting?)
+        id: bank
+        run: |
+          python - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          from pathlib import Path
+          ready, name, run_id = "false", "", ""
+          p = Path("data/bank_pointer.json")
+          if p.exists():
+              try:
+                  ptr = json.loads(p.read_text())
+                  st = json.loads(Path("data/state.json").read_text())
+                  clips = (st.get("bank") or {}).get("clips") or []
+                  month = (st.get("bank") or {}).get("month") or ""
+                  # OWNER RULE (2026-11-18): old bank clips are POISON —
+                  # a previous-month bank is never fetched (and the
+                  # orchestrator retires it at run time anyway).
+                  now_m = datetime.now(timezone.utc).strftime("%Y-%m")
+                  if clips and month != now_m:
+                      print(f"[bank] STALE bank ({month or '-'}) — "
+                            "old-month clips are never published "
+                            "(owner rule 2026-11-18); live ladder this run")
+                  elif clips and ptr.get("artifact") and ptr.get("run_id"):
+                      ready, name = "true", ptr["artifact"]
+                      run_id = str(ptr["run_id"])
+              except Exception as e:
+                  print("bank check failed:", e)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"ready={ready}\nname={name}\nrun-id={run_id}\n")
+          PY
+
+      - name: Fetch the banked clips
+        if: steps.bank.outputs.ready == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ steps.bank.outputs.name }}*
+          merge-multiple: true
+          run-id: ${{ steps.bank.outputs.run-id }}
+          path: bank_month
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true   # any failure -> live ladder, never starve
+
       - name: Stamp the media-cache artifact name
         id: mcache
         run: echo "name=media-cache-$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
@@ -66,6 +117,7 @@ jobs:
           COOKIES_TXT: ${{ secrets.COOKIES_TXT }}
           COOKIES_TXT2: ${{ secrets.COOKIES_TXT2 }}
           COOKIES_TXT3: ${{ secrets.COOKIES_TXT3 }}
+          BANK_ARTIFACT_DIR: bank_month
         run: |
           if [ -z "$YT_REFRESH_TOKEN" ]; then
             echo "::error::YT_REFRESH_TOKEN not set — cannot run the fix"
@@ -110,7 +162,7 @@ jobs:
           fi
           # D1 race-safe dance (same as every state writer): rebuild on
           # fresh origin/main + union-merge so a push race can never
-          # swallow the replacement short's record.
+          # swallow the replacement short's record or the fix marker.
           for i in 1 2 3; do
             cp data/state.json /tmp/ours.json 2>/dev/null || true
             git fetch --quiet origin main
