@@ -63,10 +63,11 @@
      "permalink": "https://www.facebook.com/reel/2167053610563733/"
     },
     "tiktok": {
-     "status": "failed",
-     "attempts": 1,
+     "status": "done",
+     "attempts": 2,
      "error": "/v2/post/publish/video/init/ -> HTTP 403: unaudited_client_can_only_post_to_private_accounts Please review our integration guidelines at https://developers.tiktok.com/doc/content-sharing-guidelines/",
-     "ts": 1794951307
+     "ts": 1794991346,
+     "media_id": "v_pub_file~v2-1.7709428754905483285"
     },
     "yt_links": true
    },
@@ -846,10 +847,11 @@
      "permalink": "https://www.facebook.com/reel/3597390390442729/"
     },
     "tiktok": {
-     "status": "pending",
-     "tt_paused": true,
+     "status": "done",
      "error": "[paused] unaudited client can only post to a PRIVATE account — flip @h15master back to private in the app (or pass the audit, then set privacy PUBLIC_TO_EVERYONE)",
-     "ts": 1794984476
+     "ts": 1794991217,
+     "media_id": "v_pub_file~v2-1.7709428215206447125",
+     "attempts": 1
     },
     "yt_links": true
    },
@@ -994,10 +996,11 @@
      "permalink": "https://www.facebook.com/reel/1141590011905563/"
     },
     "tiktok": {
-     "status": "failed",
-     "attempts": 1,
+     "status": "done",
+     "attempts": 2,
      "error": "/v2/post/publish/video/init/ -> HTTP 403: unaudited_client_can_only_post_to_private_accounts Please review our integration guidelines at https://developers.tiktok.com/doc/content-sharing-guidelines/",
-     "ts": 1794951286
+     "ts": 1794991250,
+     "media_id": "v_pub_file~v2-1.7709428428831606804"
     },
     "yt_links": true
    },
@@ -1118,10 +1121,11 @@
      "permalink": "https://www.facebook.com/reel/2147496972557028/"
     },
     "tiktok": {
-     "status": "failed",
-     "attempts": 1,
+     "status": "done",
+     "attempts": 2,
      "error": "/v2/post/publish/video/init/ -> HTTP 403: unaudited_client_can_only_post_to_private_accounts Please review our integration guidelines at https://developers.tiktok.com/doc/content-sharing-guidelines/",
-     "ts": 1794951293
+     "ts": 1794991282,
+     "media_id": "v_pub_file~v2-1.7709428551925123092"
     },
     "yt_links": true
    },
@@ -1154,10 +1158,11 @@
      "permalink": "https://www.facebook.com/reel/1841252850458379/"
     },
     "tiktok": {
-     "status": "failed",
-     "attempts": 1,
+     "status": "done",
+     "attempts": 2,
      "error": "/v2/post/publish/video/init/ -> HTTP 403: unaudited_client_can_only_post_to_private_accounts Please review our integration guidelines at https://developers.tiktok.com/doc/content-sharing-guidelines/",
-     "ts": 1794951300
+     "ts": 1794991314,
+     "media_id": "v_pub_file~v2-1.7709428551925188628"
     },
     "yt_links": true
    },
