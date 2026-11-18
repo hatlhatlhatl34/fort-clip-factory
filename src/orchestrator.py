@@ -74,6 +74,19 @@ def run(*, dry_run: bool = False, offline: bool = False,
     print(f"[session] {len(targets)} open slot(s) to fill: "
           f"{', '.join(targets)}")
 
+    # ── OWNER RULE (2026-11-18): old bank clips are POISON ──────────
+    # "harvest all the clips in the beginning of the month so the
+    # machine don't use the old bank clips" — a leftover bank from
+    # a previous month must never feed this month's slots. Retire it
+    # BEFORE any manifest check: even if the daily workflow fetched
+    # the stale artifact (bank_month/manifest.json present), nothing
+    # is popped from it.
+    if bank.stale(state):
+        bank.retire(state,
+                    f"bank.month={(state.get('bank') or {}).get('month')} "
+                    f"!= current month {bank.current_month()}")
+        ledger.save(state)
+
     bdir = Path(os.environ.get("BANK_ARTIFACT_DIR", "bank_month"))
     published = 0
     hard_failures = 0
@@ -288,6 +301,11 @@ def harvest(count: int | None = None,
         provision_left = max_clips
 
     plan_slots = bank.plan(state, days=days_ahead)
+    # OWNER RULE (2026-11-18): the bank NEVER plans past its own
+    # month — clips banked near month-end for NEXT-month slots would
+    # be retired at rollover, so they are never banked in the first
+    # place. The month's bank feeds the month, exactly.
+    plan_slots = [s for s in plan_slots if s[:7] == ym]
     if count is not None:
         target = int(count)
     elif provision_left > 0:
@@ -304,31 +322,33 @@ def harvest(count: int | None = None,
     print(f"[harvest] banking {target} Shorts for the next {days_ahead} "
           f"days: ONE IP, ONE session, sliced downloads, human pacing")
 
-    # candidates: oversample 2.5x (some will fail the wall)
+    # OWNER RULE (2026-11-18) — "harvest ALL videos": the candidate
+    # pool is a FULL sweep over every query phrasing (16 queries x
+    # sweep_results), cached in bank.pool so the month's stacking
+    # sessions reuse it without re-spending search quota. Re-sweeps
+    # only when the unmined pool drops below harvest.pool_min.
     today = datetime.now(ZoneInfo(cfg()["schedule"]["timezone"]))
     seed = seed_for(today.date().isoformat(), 0,
                     state.get("query_cursor", 0))
     rng = random.Random(seed ^ 0xBEEF)
-    need = target * 2 + 4
-    candidates: list[dict] = []
-    for attempt in range(8):
-        if len(candidates) >= need:
-            break
-        try:
-            batch = sources.search_sources(state, seed + attempt)
-        except sources.SourceError as e:
-            print(f"[harvest] search attempt {attempt+1}: {e}")
-            if "credential" in str(e).lower():
-                break          # env cannot change mid-run — stop hammering
-            continue
-        for c in batch:
-            if c.get("id") not in {x["id"] for x in candidates}:
-                candidates.append(c)
-    if not candidates:
-        print("HARVEST-ALERT: no candidates found — guard retries "
-              "tomorrow 13:00 UTC; daily publishing continues live")
+    try:
+        candidates = sources.harvest_pool(state, seed)
+    except sources.SourceError as e:
+        print(f"HARVEST-ALERT: pool sweep failed — {e}. The guard "
+              "retries tomorrow; daily publishing continues live")
+        ledger.save(state)     # the sweep's quota spend survives the exit
         return 0
-    print(f"[harvest] {len(candidates)} fresh candidates pooled")
+    if not candidates:
+        print("HARVEST-ALERT: no candidates in the pool — guard retries "
+              "tomorrow 12:43 UTC; daily publishing continues live")
+        ledger.save(state)
+        return 0
+    # the sweep (and its 1,600-unit spend) is banked NOW — even a
+    # fully-walled session that banks 0 clips keeps the pool for the
+    # next stacking guard (no re-sweep, no re-spend)
+    ledger.save(state)
+    print(f"[harvest] {len(candidates)} unmined candidate(s) in the "
+          f"month pool — {target} clip(s) to bank this session")
 
     # the long session
     top_p, foot_p = overlay.render_overlays(work)
