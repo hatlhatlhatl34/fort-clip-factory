@@ -86,7 +86,10 @@ def _scene_cuts(src: Path, start: float, dur: float,
     """Timestamps (relative to `start`) of hard scene changes."""
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "info",
            "-ss", f"{start:.3f}", "-t", f"{dur:.3f}", "-i", str(src),
-           "-vf", f"select='gt(scene,{threshold})',showinfo",
+           # B13 (audit 2026-11-18): downscale BEFORE select — decoding
+           # 16 min of full-res frames blew the 600 s cap on 2-vCPU
+           # runners; scene scores are resolution-stable
+           "-vf", f"scale=320:-2,select='gt(scene,{threshold})',showinfo",
            "-an", "-f", "null", "-"]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
     cuts = []
@@ -148,7 +151,13 @@ def best_window(src: Path, seed: int,
                            for u0, ud in used_windows)
             if overlaps:
                 continue
-            if score < min_motion and best is not None:
+            # B4 (audit 2026-11-18): the old `and best is not None`
+            # accepted the FIRST window unconditionally — for low-motion
+            # ("fortnite afk xp map") sources the pick was window #0,
+            # the LEAST-motion one, and the argmax fallback was dead
+            # code. Below the floor is NEVER the pick; the fallback
+            # owns the all-below-floor case.
+            if score < min_motion:
                 continue
             if best is None or score > best[0]:
                 best = (score, s0, float(dur))
