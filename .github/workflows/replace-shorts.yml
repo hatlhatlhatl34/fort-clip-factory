@@ -27,7 +27,16 @@ name: replace-shorts
 
 on:
   schedule:
+    # FOUR staggered one-shot fires (GitHub cron skips whole runs under
+    # congestion — 2026-11-18 lost 09:17-12:23 outright). The first
+    # successful fire does the replacement; the rest are guarded no-ops
+    # (and double as retries if an early fire fails).
     - cron: "7 8 19 11 *"   # the one shot: Nov 19, 08:07 UTC
+    - cron: "13 8 19 11 *"  # backup I  (08:13 UTC)
+    - cron: "27 8 19 11 *"  # backup II (08:27 UTC, still before 08:33)
+    - cron: "43 8 19 11 *"  # backup III (08:43 UTC — after the session,
+                            # still PUBLIC-first: session clips premiere
+                            # at their slots, this one is live instantly)
   workflow_dispatch: {}
 
 concurrency:
