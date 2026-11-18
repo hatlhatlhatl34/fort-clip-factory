@@ -27,9 +27,15 @@ permissions:
 jobs:
   gate:
     runs-on: ubuntu-latest
+    timeout-minutes: 5      # D7 (audit 2026-11-18): a hung gate
+                            # held the clip-factory group for 6h
+                            # (default timeout) and starved the day
     steps:
       - uses: actions/checkout@v4
-      - run: python tools/gate.py --event "${{ github.event_name }}" --actor "${{ github.actor }}" | tee gate.txt
+      - run: |
+          set -o pipefail    # A2 (audit 2026-11-18): a gate crash must
+                            # fail the step, never hide behind tee
+          python tools/gate.py --event "${{ github.event_name }}" --actor "${{ github.actor }}" | tee gate.txt
       - id: verdict
         run: echo "verdict=$(head -1 gate.txt | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
     outputs:
@@ -109,6 +115,15 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true   # any failure -> live ladder, never starve
 
+      - name: Stamp the media-cache artifact name
+        # A5 (audit 2026-11-18): stamped at session START — a session
+        # crossing UTC midnight stamps D while its post-midnight shorts
+        # carry D+1 in state (cache_video stamps per short at publish
+        # time); the old after-factory stamp mismatched the MAJORITY
+        # of a crossing session's shorts instead of the rare tail
+        id: mcache
+        run: echo "name=media-cache-$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
       - name: Run the factory
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -126,11 +141,6 @@ jobs:
           fi
           set -o pipefail
           python main.py 2>&1 | tee factory.log
-
-      - name: Stamp the media-cache artifact name
-        if: ${{ !cancelled() }}
-        id: mcache
-        run: echo "name=media-cache-$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
 
       - name: Cache published media for the reels cross-poster
         # owner rule 2026-11-15: the SAME Short -> YouTube + Instagram
@@ -173,14 +183,21 @@ jobs:
           git add -A data ingest 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "memory unchanged"
-          else
-            # git must never line-merge state.json: another workflow
-            # (heal/crosspost/watchdog) may have pushed fresher memory
-            # while this session rendered. Union the writers
-            # field-by-field instead (tools/merge_state.py, post-mortem
-            # 2026-11-15 17:42).
-            cp data/state.json /tmp/ours.json
+            exit 0
+          fi
+          # D1 (audit 2026-11-18): the old dance committed on the
+          # session-start HEAD — any push from another workflow while
+          # this session rendered made git push non-fast-forward and
+          # `|| true` silently discarded the ENTIRE session's memory
+          # (shorts records, slot bookings, bank pops, pointer
+          # retirements). Rebuild the commit on fresh origin/main
+          # (reset --soft keeps OUR staged work, including consumed
+          # ingest drops), union state through merge_state, push —
+          # with retries, never silent.
+          for i in 1 2 3; do
+            cp data/state.json /tmp/ours.json 2>/dev/null || true
             git fetch --quiet origin main
+            git reset --soft origin/main
             git checkout origin/main -- data/state.json 2>/dev/null || true
             if [ -f data/state.json ]; then
               python tools/merge_state.py /tmp/ours.json data/state.json --prefer core --inplace data/state.json
@@ -190,5 +207,11 @@ jobs:
             fi
             git add -A data ingest
             git commit -m "memory: $(date -u +%Y-%m-%d) run" || true
-            git push || true
-          fi
+            if git push --quiet origin HEAD:main; then
+              echo "memory pushed (attempt $i)"
+              exit 0
+            fi
+            echo "::warning::memory push lost the race (attempt $i) — rebuilding on fresh origin"
+          done
+          echo "::error::memory push failed 3x — watch data/state.json; the next run reconciles"
+          exit 1
