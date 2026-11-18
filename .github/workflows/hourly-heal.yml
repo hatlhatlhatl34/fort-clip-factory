@@ -66,6 +66,7 @@ jobs:
         run: |
           python - <<'PY'
           import json, os
+          from datetime import datetime, timezone
           from pathlib import Path
           ready, name, run_id = "false", "", ""
           p = Path("data/bank_pointer.json")
@@ -74,7 +75,16 @@ jobs:
                   ptr = json.loads(p.read_text())
                   st = json.loads(Path("data/state.json").read_text())
                   clips = (st.get("bank") or {}).get("clips") or []
-                  if clips and ptr.get("artifact") and ptr.get("run_id"):
+                  month = (st.get("bank") or {}).get("month") or ""
+                  # OWNER RULE (2026-11-18): old bank clips are POISON —
+                  # a previous-month bank is never fetched (and the
+                  # orchestrator retires it at run time anyway).
+                  now_m = datetime.now(timezone.utc).strftime("%Y-%m")
+                  if clips and month != now_m:
+                      print(f"[bank] STALE bank ({month or '-'}) — "
+                            "old-month clips are never published "
+                            "(owner rule 2026-11-18); live ladder this run")
+                  elif clips and ptr.get("artifact") and ptr.get("run_id"):
                       ready, name = "true", ptr["artifact"]
                       run_id = str(ptr["run_id"])
               except Exception as e:
