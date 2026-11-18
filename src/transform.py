@@ -69,7 +69,23 @@ def render(src: Path, start: float, dur: float,
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
     if r.returncode != 0 or not out.exists():
         raise RuntimeError(f"ffmpeg failed: {r.stderr[-600:]}")
-    print(f"[render] done: {out.stat().st_size/1e6:.1f} MB")
+    # B8 (audit 2026-11-18): a salvaged/truncated source can make
+    # ffmpeg ship a clip SHORTER than ordered (running past physical
+    # EOF) — probe the FINAL file and refuse anything under the
+    # ordered length; the caller skips to the next source
+    pr = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "csv=p=0", str(out)],
+        capture_output=True, text=True, timeout=120)
+    try:
+        got = float(pr.stdout.strip() or 0)
+    except ValueError:
+        got = 0.0
+    if got < dur - 2:
+        out.unlink(missing_ok=True)
+        raise RuntimeError(f"render too short: {got:.1f}s < "
+                           f"{dur - 2:.1f}s (truncated source?)")
+    print(f"[render] done: {out.stat().st_size/1e6:.1f} MB, {got:.1f}s")
     return out
 
 
