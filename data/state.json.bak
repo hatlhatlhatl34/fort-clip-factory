@@ -99,6 +99,14 @@
      "attempts": 1,
      "permalink": "https://www.facebook.com/reel/1497621865765490/"
     },
+    "tiktok": {
+     "status": "done",
+     "publish_id": "v_pub_file~v2-1.7709517048355981333",
+     "error": "upload in flight — re-check before re-post",
+     "ts": 1795011900,
+     "media_id": "v_pub_file~v2-1.7709517048355981333",
+     "attempts": 1
+    },
     "yt_links": true,
     "dupes_deleted": "2026-11-15 FB removed via API; IG dups DfxWWUXElK9 (#11) / DfxWcSeEsOp (#19) removed in-app by owner"
    },
@@ -129,6 +137,12 @@
      "ts": 1794764635,
      "attempts": 1,
      "permalink": "https://www.facebook.com/reel/1850971982587130/"
+    },
+    "tiktok": {
+     "status": "failed",
+     "attempts": 1,
+     "error": "/v2/post/publish/video/init/ -> HTTP 403: spam_risk_too_many_posts This TikTok creator has made too many posts via OpenAPI in the last 24 hours, so this publishing attempt is blocked to minimize spam. The user can try ag",
+     "ts": 1795011906
     },
     "yt_links": true,
     "dupes_deleted": "2026-11-15 FB removed via API; IG dups DfxWWUXElK9 (#11) / DfxWcSeEsOp (#19) removed in-app by owner"
@@ -200,6 +214,12 @@
      "adopted": true,
      "permalink": "https://www.facebook.com/reel/1123055763952083/"
     },
+    "tiktok": {
+     "status": "failed",
+     "attempts": 1,
+     "error": "/v2/post/publish/video/init/ -> HTTP 403: spam_risk_too_many_posts This TikTok creator has made too many posts via OpenAPI in the last 24 hours, so this publishing attempt is blocked to minimize spam. The user can try ag",
+     "ts": 1795011916
+    },
     "yt_links": true
    },
    "media": null
@@ -233,6 +253,12 @@
      "media_id": "2141366123137630",
      "adopted": true,
      "permalink": "https://www.facebook.com/reel/2141366123137630/"
+    },
+    "tiktok": {
+     "status": "failed",
+     "attempts": 1,
+     "error": "/v2/post/publish/video/init/ -> HTTP 403: spam_risk_too_many_posts This TikTok creator has made too many posts via OpenAPI in the last 24 hours, so this publishing attempt is blocked to minimize spam. The user can try ag",
+     "ts": 1795011924
     },
     "yt_links": true
    },
@@ -1007,11 +1033,28 @@
    },
    "crosspost": {
     "ig": {
-     "status": "pending"
+     "status": "done",
+     "media_id": "17874698550643880",
+     "ts": 1795011824,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/Df4tgC5gWYp/"
     },
     "fb": {
-     "status": "pending"
-    }
+     "status": "done",
+     "media_id": "4411795535704465",
+     "ts": 1795011836,
+     "attempts": 1,
+     "permalink": "https://www.facebook.com/reel/4411795535704465/"
+    },
+    "tiktok": {
+     "status": "done",
+     "publish_id": "v_pub_file~v2-1.7709517028109666324",
+     "error": "upload in flight — re-check before re-post",
+     "ts": 1795011866,
+     "media_id": "v_pub_file~v2-1.7709517028109666324",
+     "attempts": 1
+    },
+    "yt_links": true
    }
   },
   {
@@ -1181,7 +1224,7 @@
  "query_cursor": 11,
  "quota": {
   "date": "2026-11-18",
-  "units_used": 8701
+  "units_used": 8752
  },
  "last_run": "2026-11-18",
  "last_run_ts": 1795011247,
