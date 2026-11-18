@@ -34,39 +34,6 @@ def _description_body(codes: dict, xlinks: dict) -> str:
     """The description block built from the CURRENT codes + links —
     shared by build() (fresh shorts) and refresh_description()
     (publish-time refresh of banked clips, so a code switch applies
-    to the whole remaining bank, live-diagnosed 2026-11-18)."""
-    desc = [
-        f"🗺️ MAP CODE: {codes['map_code']}",
-        f"🛒 CREATOR CODE: {codes['creator_code']} — use it in the Fortnite "
-        "item shop and support the channel!",
-        "",
-        "How to play: Fortnite → search → enter the map code above. 🎮",
-    ]
-    # OWNER RULE (2026-11-15): cross-links — every YouTube description
-    # points at the other platforms (the per-video reel links are
-    # appended by the cross-poster once the reels are live).
-    if xlinks.get("ig") or xlinks.get("fb"):
-        desc += ["", "WATCH EVERYWHERE:"]
-        if xlinks.get("ig"):
-            desc.append(f"📸 Instagram: {xlinks['ig']}")
-        if xlinks.get("fb"):
-            desc.append(f"📱 Facebook: {xlinks['fb']}")
-    if xlinks.get("tiktok"):
-        desc += ["", "🎵 TIKTOK: " + str(xlinks["tiktok"])]
-    # OWNER RULE (2026-11-10): no source credit of any kind — the
-    # "clipped from ..." sentence is banned from descriptions.
-    desc += [
-        "",
-        "#fortnite #fortnitemap #fortnitecreative #fortniteclips "
-        "#uefn #mapcode #shorts",
-    ]
-    return "\n".join(desc)[:4800]          # limit is 5000
-
-
-def _description_body(codes: dict, xlinks: dict) -> str:
-    """The description block built from the CURRENT codes + links —
-    shared by build() (fresh shorts) and refresh_description()
-    (publish-time refresh of banked clips, so a code switch applies
     to the whole remaining bank; live-diagnosed 2026-11-18)."""
     desc = [
         f"🗺️ MAP CODE: {codes['map_code']}",
