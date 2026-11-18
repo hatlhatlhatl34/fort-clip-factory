@@ -126,6 +126,36 @@ def open_targets(state: dict) -> list[str]:
 
 # ── state helpers ───────────────────────────────────────────────────
 
+def current_month() -> str:
+    """The bank's month key (UTC, like bank.month everywhere)."""
+    return datetime.now(ZoneInfo("UTC")).strftime("%Y-%m")
+
+
+def stale(state: dict) -> bool:
+    """True when the banked clips belong to a PREVIOUS month.
+
+    OWNER RULE (2026-11-18): "harvest all the clips in the beginning
+    of the month so the machine don't use the old bank clips" — a
+    leftover bank from November must never feed December slots. The
+    daily publish path checks this BEFORE popping any clip."""
+    bm = (state.get("bank") or {}).get("month")
+    return bool(bm) and bm != current_month()
+
+
+def retire(state: dict, why: str) -> None:
+    """Kill a stale (previous-month) bank: clips discarded, pointer
+    unlinked. The grid runs on the live ladder until the fresh
+    month's harvest provisions a new bank. Never raises."""
+    try:
+        POINTER.unlink(missing_ok=True)
+    except OSError:
+        pass
+    state["bank"] = {"month": None, "clips": [], "reserved_n": []}
+    print(f"[bank] RETIRED the stale bank ({why}) — old-month clips "
+          "are NEVER published (owner rule 2026-11-18); the live "
+          "ladder feeds the grid until the fresh harvest lands")
+
+
 def reset(state: dict) -> None:
     """Start a clean month bank (rebuild semantics — month rollover
     or an unreachable artifact). harvested_total restarts at 0 and
