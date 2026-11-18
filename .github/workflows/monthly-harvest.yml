@@ -54,6 +54,18 @@ name: monthly-bank-harvest
 on:
   schedule:
     - cron: "29 0 1 * *"    # the 1st, 00:29 UTC: start the month's food run
+    - cron: "9 8 19 11 *"   # ONE-SHOT (owner rule 2026-11-19): the first
+                            # shot at the November bank RIGHT AFTER the
+                            # Pacific quota reset (08:00 UTC) — the fresh
+                            # 10,000 units cover the 1,640-unit pool sweep
+                            # and a FRESH runner IP draws a new wall
+                            # lottery before the day gets busy. If the wall
+                            # holds, the sweep pool is CACHED (a retry
+                            # re-spends NOTHING) and the 12:43 + 22:43
+                            # stacking guards retry on two more fresh IPs
+                            # the same day — three draws; historically
+                            # 3-of-4 days break through. Remove this line
+                            # after 2026-11-19 (inert after that date).
     - cron: "43 12 * * *"    # stacking guard I: stack until provisioned
     - cron: "43 22 * * *"    # stacking guard II (owner rule 2026-11-18):
                             # a second daily session halves the time to a
