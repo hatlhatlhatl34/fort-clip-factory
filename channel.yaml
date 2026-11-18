@@ -96,6 +96,20 @@ clip:
 # the rest of the month (refill_threshold is the drained-bank
 # emergency only). The full month (~7 GB) ships as artifact PARTS
 # (~4.2 GB each) — one artifact cannot exceed 5 GB.
+#
+# OWNER RULE (2026-11-18) — "THE BEGINNING OF THE MONTH": harvest
+# ALL the videos and make the clips at the start of the month, so
+# shorts are ready for the whole month and the machine NEVER uses
+# old bank clips (they hurt the algorithm). Enforced three ways:
+#   * the 1st-of-month cron fires at 00:29 UTC — BEFORE the day-1
+#     08:33 session, so the new bank serves the month's FIRST clips;
+#   * a leftover previous-month bank is RETIRED at rollover (never
+#     published; the live ladder feeds the gap; src/bank.py stale/);
+#   * the bank never plans clips past its own month boundary.
+# Stacking guards (12:43 + 22:43 UTC daily) provision the full
+# >= 124-clip month within the first ~3 days — GitHub's 6-hour job
+# cap makes literally-one-day impossible, so "beginning of the
+# month" = the first days, every month, without exception.
 harvest:
   max_clips: 124              # 4/day x 31 days — the month provision
   slice_s: 300               # seconds of source grabbed per video
@@ -106,6 +120,14 @@ harvest:
                              # upload (~3 GB typ.)
   refill_threshold: 8        # drained-bank emergency (see above)
   topup_clips: 32             # emergency top-up size when it fires
+  # OWNER RULE (2026-11-18) — "harvest ALL videos": the monthly pool
+  # is a FULL sweep over all 16 query phrasings (16 x 100 quota
+  # units, once a month), cached in state.bank.pool so the stacking
+  # sessions reuse it at ZERO quota cost. The pool dies with the
+  # bank at month rollover — every month sweeps fresh.
+  sweep_results: 50           # results per query on the sweep (API max)
+  pool_min: 40               # re-sweep only when the cached pool drops below
+  pool_cap: 300               # pool entries kept in state (lean memory)
 
 # ── TRANSFORMATION (this is what makes it OUR video) ────────────────
 transform:
