@@ -1,9 +1,10 @@
 name: watchdog
 
-# Six times a day: verify published Shorts are actually public
+# Four times a day: verify published Shorts are actually public
 # (zero-quota oEmbed), and file an Issue if anything is late or the
 # main machine has failed twice in a row. Silence is the failure mode
-# this workflow exists to kill.
+# this workflow exists to kill.  # D5 (audit 2026-11-18): comment
+# said "six" while the cron fires 4x — doc/behavior drift fixed.
 on:
   schedule:
     - cron: "0 3,9,15,21 * * *"
