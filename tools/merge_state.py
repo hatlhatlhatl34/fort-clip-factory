@@ -117,6 +117,52 @@ def merge_shorts(ours: list, base: list, prefer: str) -> list:
     return merged
 
 
+def _quota_merge(a: dict, base: dict) -> dict:
+    """D4 (audit 2026-11-18): quota joins monotonically, regardless of
+    direction — the later server defer stamp wins, units take the max,
+    the newer Pacific date wins. Wholesale ownership silently dropped
+    a concurrent writer's defer stamp / spend before."""
+    out = dict(base)
+    for k, v in (a or {}).items():
+        if k not in ("defer_until", "defer_reason", "units_used", "date"):
+            out[k] = v
+    da = int((a or {}).get("defer_until") or 0)
+    db = int((base or {}).get("defer_until") or 0)
+    if da or db:
+        out["defer_until"] = max(da, db)
+        src = a if da >= db else base
+        if src.get("defer_reason"):
+            out["defer_reason"] = src["defer_reason"]
+    try:
+        out["units_used"] = max(int((a or {}).get("units_used") or 0),
+                                int((base or {}).get("units_used") or 0))
+    except (TypeError, ValueError):
+        pass
+    a_d = str((a or {}).get("date") or "")
+    b_d = str((base or {}).get("date") or "")
+    if a_d or b_d:
+        out["date"] = max(a_d, b_d)
+    return out
+
+
+def _slots_merge(a: dict, base: dict) -> dict:
+    """D4: slot bookings are append-only truth — set-union both ways."""
+    out = dict(base)
+    for k, v in (a or {}).items():
+        if isinstance(v, list):
+            ours = list(out.get(k) or [])
+            out[k] = ours + [x for x in v if x not in ours]
+        elif v is not None and k not in out:
+            out[k] = v
+    return out
+
+
+def _list_union(a: list, base: list) -> list:
+    out = list(base)
+    out += [x for x in (a or []) if x not in out]
+    return out
+
+
 def merge(ours: dict, base: dict, prefer: str = "crosspost") -> dict:
     prefer = "core" if prefer == "core" else "crosspost"
     out = dict(ours if prefer == "core" else base)   # non-owned keys
@@ -135,6 +181,17 @@ def merge(ours: dict, base: dict, prefer: str = "crosspost") -> dict:
             if _nonempty(v) or k not in m:
                 m[k] = v
         out[key] = m
+    # D4 (audit 2026-11-18): quota / slots.short / used_sources are
+    # append-only or monotonic — they must join monotonically NO
+    # MATTER the direction; wholesale ownership under --prefer core
+    # silently dropped a concurrent writer's defer stamp, slot
+    # bookings and source marks
+    out["quota"] = _quota_merge(ours.get("quota") or {},
+                               base.get("quota") or {})
+    out["slots"] = _slots_merge(ours.get("slots") or {},
+                                base.get("slots") or {})
+    out["used_sources"] = _list_union(ours.get("used_sources") or [],
+                                      base.get("used_sources") or [])
     return out
 
 
