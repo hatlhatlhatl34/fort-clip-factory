@@ -238,5 +238,37 @@ check("exactly one alert fired", len(saved_alerts) == 1
 check("IG/FB marks are not touched by the tiktok module",
       "ig" not in s2["crosspost"] and "fb" not in s2["crosspost"])
 
+# 9. LIVE-DIAGNOSED 2026-11-18 (shorts #7-#10): a PUBLIC account
+# flips every init to HTTP 403 unaudited_client_can_only_post_to_
+# private_accounts — a WAIT state, never a failure: no attempt burn,
+# no alert, no give_up; stays pending and auto-resumes the hour the
+# account is private again.
+short3_state = {"shorts": [{"n": 101}]}
+s3 = short3_state["shorts"][0]
+s3["crosspost"] = {"tiktok": {"status": "pending", "attempts": 3,
+                              "error": "old"}}
+
+
+def unaudited_publish(video, title, tok):
+    raise RuntimeError("/v2/post/publish/video/init/ -> HTTP 403: "
+                      "unaudited_client_can_only_post_to_private_accounts "
+                      "Please review our integration guidelines")
+
+
+tiktok.publish = unaudited_publish
+ok = tiktok.attempt(short3_state, s3, tmp, "t", max_attempts=8)
+check("unaudited 403 returns False (not live)", ok is False)
+check("unaudited 403 is a PAUSE, not a failure",
+      s3["crosspost"]["tiktok"]["status"] == "pending"
+      and s3["crosspost"]["tiktok"].get("tt_paused") is True)
+check("attempts NOT burned by the pause",
+      s3["crosspost"]["tiktok"]["attempts"] == 3)
+check("no extra alert fired for the pause",
+      len(saved_alerts) == 1)
+check("pause error names the fix (account private)",
+      "private" in s3["crosspost"]["tiktok"]["error"].lower())
+check("paused short is still due (auto-resume path)",
+      not tiktok.settled(s3))
+
 print(f"\n{len(PASS)}/{len(PASS)} checks passed")
 sys.exit(0 if all(PASS) else 1)

@@ -30,6 +30,72 @@ from . import ledger
 from .config import cfg
 
 
+def _description_body(codes: dict, xlinks: dict) -> str:
+    """The description block built from the CURRENT codes + links —
+    shared by build() (fresh shorts) and refresh_description()
+    (publish-time refresh of banked clips, so a code switch applies
+    to the whole remaining bank, live-diagnosed 2026-11-18)."""
+    desc = [
+        f"🗺️ MAP CODE: {codes['map_code']}",
+        f"🛒 CREATOR CODE: {codes['creator_code']} — use it in the Fortnite "
+        "item shop and support the channel!",
+        "",
+        "How to play: Fortnite → search → enter the map code above. 🎮",
+    ]
+    # OWNER RULE (2026-11-15): cross-links — every YouTube description
+    # points at the other platforms (the per-video reel links are
+    # appended by the cross-poster once the reels are live).
+    if xlinks.get("ig") or xlinks.get("fb"):
+        desc += ["", "WATCH EVERYWHERE:"]
+        if xlinks.get("ig"):
+            desc.append(f"📸 Instagram: {xlinks['ig']}")
+        if xlinks.get("fb"):
+            desc.append(f"📱 Facebook: {xlinks['fb']}")
+    if xlinks.get("tiktok"):
+        desc += ["", "🎵 TIKTOK: " + str(xlinks["tiktok"])]
+    # OWNER RULE (2026-11-10): no source credit of any kind — the
+    # "clipped from ..." sentence is banned from descriptions.
+    desc += [
+        "",
+        "#fortnite #fortnitemap #fortnitecreative #fortniteclips "
+        "#uefn #mapcode #shorts",
+    ]
+    return "\n".join(desc)[:4800]          # limit is 5000
+
+
+def _description_body(codes: dict, xlinks: dict) -> str:
+    """The description block built from the CURRENT codes + links —
+    shared by build() (fresh shorts) and refresh_description()
+    (publish-time refresh of banked clips, so a code switch applies
+    to the whole remaining bank; live-diagnosed 2026-11-18)."""
+    desc = [
+        f"🗺️ MAP CODE: {codes['map_code']}",
+        f"🛒 CREATOR CODE: {codes['creator_code']} — use it in the Fortnite "
+        "item shop and support the channel!",
+        "",
+        "How to play: Fortnite → search → enter the map code above. 🎮",
+    ]
+    # OWNER RULE (2026-11-15): cross-links — every YouTube description
+    # points at the other platforms (the per-video reel links are
+    # appended by the cross-poster once the reels are live).
+    if xlinks.get("ig") or xlinks.get("fb"):
+        desc += ["", "WATCH EVERYWHERE:"]
+        if xlinks.get("ig"):
+            desc.append(f"📸 Instagram: {xlinks['ig']}")
+        if xlinks.get("fb"):
+            desc.append(f"📱 Facebook: {xlinks['fb']}")
+    if xlinks.get("tiktok"):
+        desc += ["", "🎵 TIKTOK: " + str(xlinks["tiktok"])]
+    # OWNER RULE (2026-11-10): no source credit of any kind — the
+    # "clipped from ..." sentence is banned from descriptions.
+    desc += [
+        "",
+        "#fortnite #fortnitemap #fortnitecreative #fortniteclips "
+        "#uefn #mapcode #shorts",
+    ]
+    return "\n".join(desc)[:4800]          # limit is 5000
+
+
 def build(source: dict, state: dict, seed: int) -> dict:
     codes = cfg()["codes"]          # description + bars only, NEVER titles
     n = ledger.next_short_number(state)
@@ -62,31 +128,8 @@ def build(source: dict, state: dict, seed: int) -> dict:
 
     title = title[:95]                       # YouTube hard limit is 100
 
-    desc = [
-        f"🗺️ MAP CODE: {codes['map_code']}",
-        f"🛒 CREATOR CODE: {codes['creator_code']} — use it in the Fortnite "
-        "item shop and support the channel!",
-        "",
-        "How to play: Fortnite → search → enter the map code above. 🎮",
-    ]
-    # OWNER RULE (2026-11-15): cross-links — every YouTube description
-    # points at the other two platforms (the per-video reel links are
-    # appended by the cross-poster once the reels are live).
-    xlinks = (cfg().get("crosspost") or {}).get("links") or {}
-    if xlinks.get("ig") or xlinks.get("fb"):
-        desc += ["", "WATCH EVERYWHERE:"]
-        if xlinks.get("ig"):
-            desc.append(f"📸 Instagram: {xlinks['ig']}")
-        if xlinks.get("fb"):
-            desc.append(f"📱 Facebook: {xlinks['fb']}")
-    # OWNER RULE (2026-11-10): no source credit of any kind — the
-    # "clipped from ..." sentence is banned from descriptions.
-    desc += [
-        "",
-        "#fortnite #fortnitemap #fortnitecreative #fortniteclips "
-        "#uefn #mapcode #shorts",
-    ]
-    description = "\n".join(desc)[:4800]     # limit is 5000
+    desc = _description_body(codes, (cfg().get("crosspost") or {}).get("links") or {})
+    description = desc
 
     tags = [
         "fortnite", "fortnite creative", "fortnite map", "map code",
@@ -101,3 +144,20 @@ def build(source: dict, state: dict, seed: int) -> dict:
         "tags": tags,
         "n": n,
     }
+
+
+def refresh_description(meta: dict) -> dict:
+    """Publish-time refresh of a BANKED clip's description.
+
+    The banked meta was baked at HARVEST time; a map-code switch after
+    the harvest would otherwise keep selling the old code in every
+    description for weeks (38 pre-switch clips were banked when
+    1789-8528-6429 -> 7992-0068-2838 landed 2026-11-17). Rebuild the
+    description from the CURRENT channel.yaml; title/tags/n stay as
+    banked (titles never carry codes — owner rule 2026-11-13).
+    """
+    out = dict(meta)
+    codes = cfg()["codes"]
+    xlinks = (cfg().get("crosspost") or {}).get("links") or {}
+    out["description"] = _description_body(codes, xlinks)
+    return out

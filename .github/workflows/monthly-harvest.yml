@@ -23,14 +23,18 @@ name: monthly-bank-harvest
 # gets through — "try again and again until the gate opens",
 # exactly as the owner put it.
 #
-# Guard fires at 13:00 UTC (15:00 Cairo) — AFTER the 08:30 UTC
+# Guard fires at 12:43 UTC (14:43 Cairo) — AFTER the 08:33 UTC
 # daily session has finished (~2h) and well before tomorrow's, so
 # the 5-hour harvest never queues the day's uploads behind it.
+# (2026-11-18: moved OFF the :00 minute — GitHub cron congestion
+# delayed the 13:00 guard to 21:38 UTC on 2026-11-17; it then held
+# the clip-factory group past the 22:00 grid slot and starved the
+# reels for hours. Off-minutes are dramatically more punctual.)
 
 on:
   schedule:
-    - cron: "0 12 1 * *"    # the 1st: start the month's food run
-    - cron: "0 13 * * *"    # daily guard: stack until provisioned
+    - cron: "29 11 1 * *"    # the 1st: start the month's food run
+    - cron: "43 12 * * *"    # daily guard: stack until provisioned
   workflow_dispatch: {}
 
 concurrency:
@@ -217,7 +221,24 @@ jobs:
           git add -A data ingest 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "memory unchanged"
-          else
-            git commit -m "memory: harvest run $(date -u +%Y-%m-%d)" || true
-            git push || true
+            exit 0
           fi
+          # 2026-11-18: the crosspost workflow now runs in its OWN
+          # concurrency group and CAN push state.json while this
+          # 5-hour session renders. The old simple commit would hit a
+          # non-fast-forward push, fail, and `|| true` would swallow
+          # the loss — the whole harvest's bank memory silently gone.
+          # Union through tools/merge_state.py exactly like every
+          # other writer (post-mortem 2026-11-15 17:42).
+          cp data/state.json /tmp/ours.json
+          git fetch --quiet origin main
+          git checkout origin/main -- data/state.json 2>/dev/null || true
+          if [ -f data/state.json ]; then
+            python tools/merge_state.py /tmp/ours.json data/state.json --prefer core --inplace data/state.json
+            cp data/state.json data/state.json.bak
+          else
+            cp /tmp/ours.json data/state.json
+          fi
+          git add -A data ingest
+          git commit -m "memory: harvest run $(date -u +%Y-%m-%d)" || true
+          git push || true

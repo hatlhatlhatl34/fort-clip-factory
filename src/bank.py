@@ -56,7 +56,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from . import crosspost, ledger, youtube
+from . import crosspost, ledger, metadata, transform, youtube
 from .config import ROOT, cfg
 
 POINTER = ROOT / "data" / "bank_pointer.json"
@@ -233,6 +233,12 @@ def publish(bank_dir: Path, clip: dict, state: dict,
         return None
 
     meta = dict(clip.get("meta") or {})
+    # PUBLISH-TIME TRUTH (live-diagnosed 2026-11-18): the banked meta
+    # was baked at harvest time, so clips banked BEFORE a code switch
+    # would ship the OLD map code in their description for weeks.
+    # The description is rebuilt from the CURRENT channel.yaml; the
+    # burned-in bars get the same guarantee via transform.restamp.
+    meta = metadata.refresh_description(meta)
     if dry_run:
         print(f"[dry-run] would upload banked short #{meta.get('n')} "
               f"({f.name}, {f.stat().st_size/1e6:.1f} MB) with title "
@@ -241,6 +247,9 @@ def publish(bank_dir: Path, clip: dict, state: dict,
 
     print(f"[bank] publishing banked short #{meta.get('n')} "
           f"(slot {clip.get('slot')})")
+    # re-burn the code bars with the CURRENT codes (opaque cover of
+    # the harvest-time bars) — best-effort, never blocks a publish
+    f = transform.restamp_current(f)
     slots_before = len((state.get("slots") or {}).get("short") or [])
     try:
         video_id = youtube.upload_short(f, meta, state)

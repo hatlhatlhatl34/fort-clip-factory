@@ -1,15 +1,26 @@
 # Hourly heal crumb — the safety net BETWEEN daily sessions.
 
 # The gate RUNs only when an open grid slot would expire before the
-# next 08:30 UTC session could claim it (a missed session, a quota
+# next 08:33 UTC session could claim it (a missed session, a quota
 # window that cleared early). It then heals those holes in one go.
 # Otherwise SKIP — a seconds-long no-op ~99% of the time.
+#
+# 2026-11-18 SPLIT: the crosspost job moved to its OWN workflow
+# (crosspost-hour.yml, concurrency group "crosspost") after the
+# live-diagnosed starvation — a delayed monthly-harvest held the
+# clip-factory group through the 22:00 UTC grid slot and short #30
+# sat live on YouTube with zero reels for hours. Reel posting no
+# longer serializes behind factory/harvest runs. This workflow keeps
+# the gate + factory jobs only.
 
 name: hourly-heal
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    # off-minute: GitHub's most congested minutes are :00/:30 — the
+    # old "0 * * * *" lost whole runs to cron skipping (no heal fired
+    # between 18:04 and 21:33 on 2026-11-17)
+    - cron: "17 * * * *"
   workflow_dispatch: {}
 
 concurrency:
@@ -157,111 +168,4 @@ jobs:
             git add -A data ingest
             git commit -m "memory: heal run" || true
             git push || true
-          fi
-
-  crosspost:
-    # OWNER RULE (2026-11-15): every Short -> YouTube Short + Instagram
-    # Reel + Facebook Reel — the SAME mp4. Runs EVERY hour (independent
-    # of the gate verdict): at each 6-hour grid slot (00/06/12/18 Cairo)
-    # it fetches the cached video back and pushes it to Meta's
-    # resumable-upload endpoints minutes after the YouTube twin goes
-    # live. Failures retry next hour and NEVER touch the YouTube
-    # pipeline. Unarmed platforms (missing token/id) are cleanly OFF.
-    needs: [gate, factory]     # strictly after any factory work in this
-                               # run — never two state writers at once
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 45      # due reels + backfill burst (yt-dlp
-                              # downloads + uploads + possible yuv420p
-                              # re-encodes + yt description updates)
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install ffmpeg + deps + deno
-        # ffmpeg: yt-dlp merge + yuv420p re-encodes; yt-dlp[default]:
-        # the EJS challenge-solver + deno runtime — the backfill rides
-        # the SAME proven ladder as the factory job (cookies x client
-        # rotation); without them YouTube bot-gates the runner
-        run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
-          pip install --quiet PyYAML "yt-dlp[default]"
-          curl -fsSL https://deno.com/install.sh | sh \
-            || echo "::warning::deno install failed — web client may lose formats"
-          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
-      - name: Cross-post due Shorts + backfill the catalogue
-        env:
-          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
-          FB_ACCESS_TOKEN: ${{ secrets.FB_ACCESS_TOKEN }}
-          TIKTOK_ACCESS_TOKEN: ${{ secrets.TIKTOK_ACCESS_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
-          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
-          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
-          COOKIES_TXT: ${{ secrets.COOKIES_TXT }}
-          COOKIES_TXT2: ${{ secrets.COOKIES_TXT2 }}
-          COOKIES_TXT3: ${{ secrets.COOKIES_TXT3 }}
-        run: |
-          # freshness first: the factory job of THIS run pushed its
-          # memory seconds before this job's checkout fetched
-          # (live-diagnosed 2026-11-15 17:40 — a 2 s miss). Pull the
-          # newest state before reading it; clean by construction
-          # (no local changes yet).
-          git pull --ff-only origin main || true
-          python -m src.crosspost --due 2>&1 | tee crosspost.log
-          python -m src.crosspost --backfill 2>&1 | tee -a crosspost.log
-      - name: File an issue on failure
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            let log = '';
-            try { log = fs.readFileSync('crosspost.log', 'utf8').slice(-3000); } catch (e) {}
-            const alerts = log.split('\n').filter(l =>
-              l.includes('ALERT') || l.includes('FAILED')).slice(0, 20).join('\n');
-            await github.rest.issues.create({
-              owner: context.repo.owner, repo: context.repo.repo,
-              title: `Crosspost failure ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
-              body: `The reels cross-poster failed.\n\n\`\`\`\n${alerts || log.slice(-1500) || 'no log'}\n\`\`\``,
-              labels: ['machine-failure']
-            });
-      - name: Commit memory back (merge, never line-conflict)
-        if: always()
-        run: |
-          git config user.name "fort-clip-factory"
-          git config user.email "actions@github.com"
-          git add -A data 2>/dev/null || true
-          if git diff --cached --quiet; then
-            echo "memory unchanged"
-            exit 0
-          fi
-          # POST-MORTEM 2026-11-15 17:42: `git pull --rebase
-          # --autostash` popped into a state.json conflict, the commit
-          # died, `|| true` swallowed it — this job's reels vanished
-          # from state and the next run re-posted them as duplicates.
-          # Now: take origin's freshest state.json, union OUR crosspost
-          # fields onto it (tools/merge_state.py), push the merge.
-          cp data/state.json /tmp/ours.json
-          git fetch --quiet origin main
-          git checkout origin/main -- data/state.json 2>/dev/null || true
-          if [ -f data/state.json ]; then
-            python tools/merge_state.py /tmp/ours.json data/state.json --prefer crosspost --inplace data/state.json
-            cp data/state.json data/state.json.bak
-          else
-            cp /tmp/ours.json data/state.json
-          fi
-          git add -A data
-          git commit -m "memory: crosspost run" || true
-          if ! git push --quiet 2>/dev/null; then
-            # someone pushed between fetch and push — merge once more
-            cp data/state.json /tmp/ours2.json
-            git fetch --quiet origin main
-            git checkout origin/main -- data/state.json
-            python tools/merge_state.py /tmp/ours2.json data/state.json --prefer crosspost --inplace data/state.json
-            cp data/state.json data/state.json.bak
-            git add -A data
-            git commit -m "memory: crosspost run (re-merged)" || true
-            git push --quiet || echo "::warning::memory push lost the race twice — next run re-reads origin"
           fi

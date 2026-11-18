@@ -44,7 +44,11 @@ STATE_BAK = Path(__file__).resolve().parent.parent / "data" / "state.json.bak"
 # install, so no YAML — values frozen here)
 GRID_TZ = ZoneInfo("Africa/Cairo")
 GRID = ("00:00", "06:00", "12:00", "18:00")   # 4 slots every 6h, EVERY day
-DAILY_FIRE_UTC = (8, 30)                       # the one daily session
+DAILY_FIRE_UTC = (8, 33)                       # the one daily session
+                                      # (08:33 — off the congested
+                                      # :00/:30 minutes; keep in sync
+                                      # with channel.yaml daily_run_utc
+                                      # and the daily-factory cron)
 BOOKABLE_MARGIN = 40                           # minutes of render time
                                               # before publish
 

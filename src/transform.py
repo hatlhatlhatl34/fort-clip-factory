@@ -71,3 +71,54 @@ def render(src: Path, start: float, dur: float,
         raise RuntimeError(f"ffmpeg failed: {r.stderr[-600:]}")
     print(f"[render] done: {out.stat().st_size/1e6:.1f} MB")
     return out
+
+
+def restamp_current(src: Path) -> Path:
+    """Re-burn the code bars over a FINISHED render with the CURRENT
+    channel.yaml codes — the publish-time guarantee for banked clips.
+
+    A banked clip was rendered at HARVEST time, so a map-code switch
+    after its harvest would keep selling the old code for weeks (the
+    bank held 38 pre-switch clips when 1789-8528-6429 ->
+    7992-0068-2838 landed 2026-11-17). The restamp bars are fully
+    opaque (rendered by overlay.render_restamp) and cover whatever is
+    underneath; restamping an already-current clip is a visual no-op,
+    so it is applied to EVERY banked publish unconditionally.
+
+    Best-effort: on any ffmpeg/PIL problem the ORIGINAL file is
+    returned unchanged — a restamp failure never blocks a publish.
+    Only ever used from the daily/heal factory job (ffmpeg present).
+    """
+    from .config import ROOT
+
+    try:
+        from . import overlay as ov
+        top_p, foot_p = ov.render_restamp(ROOT / "work")
+        foot_y = ov.footer_placement_y()
+        out = src.with_name(src.stem + "_rs.mp4")
+        cmd = [
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-i", str(src), "-i", str(top_p), "-i", str(foot_p),
+            "-filter_complex",
+            f"[0:v][1:v]overlay=(W-w)/2:0:format=auto[v1];"
+            f"[v1][2:v]overlay=(W-w)/2:{foot_y}:format=auto[v]",
+            "-map", "[v]", "-map", "0:a?",
+            "-c:v", "libx264", "-preset", "fast", "-crf", "19",
+            "-pix_fmt", "yuv420p", "-c:a", "copy",
+            "-movflags", "+faststart",
+            str(out),
+        ]
+        print(f"[restamp] re-burning the code bars on {src.name} "
+              f"(map {str(ov.cfg()['codes']['map_code'])[:14]}...)")
+        r = subprocess.run(cmd, capture_output=True, text=True,
+                           timeout=1800)
+        if r.returncode == 0 and out.exists() \
+                and out.stat().st_size > 1_000_000:
+            print(f"[restamp] done: {out.name} "
+                  f"({out.stat().st_size/1e6:.1f} MB)")
+            return out
+        print(f"[restamp] ffmpeg problem ({r.stderr[-300:]}) — "
+              "publishing the un-restamped file")
+    except Exception as e:                      # noqa: BLE001
+        print(f"[restamp] skipped ({e}) — publishing un-restamped")
+    return src

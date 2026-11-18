@@ -140,9 +140,12 @@ schedule:
   timezone: "Africa/Cairo"
   slots: ["00:00", "06:00", "12:00", "18:00"]  # every 6 hours, 4/day
   publish_lead_minutes: 25            # book only slots >=25 min out
-  daily_run_utc: "08:30"              # the one daily session (UTC).
-                                      # ALSO frozen in tools/gate.py —
-                                      # keep both in sync
+  daily_run_utc: "08:33"              # the one daily session (UTC).
+                                      # ALSO frozen in tools/gate.py
+                                      # AND the daily-factory cron —
+                                      # keep all three in sync (the
+                                      # :33 minute dodges GitHub's
+                                      # :00/:30 cron congestion)
 
 # ── CROSS-POSTING (owner rule 2026-11-15: the SAME Short goes to ──
 # YouTube + Instagram Reel + Facebook Reel) ──────────────────────

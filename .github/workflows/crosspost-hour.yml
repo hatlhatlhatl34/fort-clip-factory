@@ -1,0 +1,133 @@
+# The hourly cross-poster — its OWN workflow + its OWN concurrency
+# group, split out of hourly-heal.yml on 2026-11-18.
+#
+# WHY THE SPLIT (live-diagnosed 2026-11-18, short #30): the crosspost
+# job used to ride inside hourly-heal.yml, which shares the
+# clip-factory group with monthly-harvest (a 350-min job). GitHub's
+# top-of-hour cron congestion delayed the guard harvest from 13:00 to
+# 21:38 UTC — it then held the clip-factory group through the 22:00
+# grid slot, every heal queued behind it, and short #30 sat live on
+# YouTube with ZERO reels for hours while IG/FB/TikTok fans saw
+# nothing. Reel posting is the time-critical arm of the machine; it
+# must never serialize behind a bank harvest or a factory session.
+#
+# Concurrency reality after the split: this workflow CAN run beside a
+# factory/heal/harvest job — that is exactly why every writer unions
+# state through tools/merge_state.py instead of letting git
+# line-merge state.json (post-mortem 2026-11-15 17:42), and why the
+# hourly-heal crosspost commit dance below re-merges on push race.
+#
+# Cron: "23 * * * *" — an off-minute (GitHub's most congested minutes
+# are :00/:30; the old "0 * * * *" lost whole runs to skipping) and
+# ~23 min after each 6-hour grid slot (00/06/12/18 Cairo = 22/04/10/16
+# UTC): the reels land minutes after the YouTube twin goes public.
+
+name: crosspost-hour
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: crosspost            # NEVER the clip-factory group
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  actions: read              # fetch media-cache artifacts
+
+jobs:
+  crosspost:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45      # due reels + backfill burst (yt-dlp
+                              # downloads + uploads + possible yuv420p
+                              # re-encodes + yt description updates)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ffmpeg + deps + deno
+        # ffmpeg: yt-dlp merge + yuv420p re-encodes; yt-dlp[default]:
+        # the EJS challenge-solver + deno runtime — the backfill rides
+        # the SAME proven ladder as the factory job (cookies x client
+        # rotation); without them YouTube bot-gates the runner
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          pip install --quiet PyYAML "yt-dlp[default]"
+          curl -fsSL https://deno.com/install.sh | sh \
+            || echo "::warning::deno install failed — web client may lose formats"
+          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
+      - name: Cross-post due Shorts + backfill the catalogue
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          FB_ACCESS_TOKEN: ${{ secrets.FB_ACCESS_TOKEN }}
+          TIKTOK_ACCESS_TOKEN: ${{ secrets.TIKTOK_ACCESS_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          COOKIES_TXT: ${{ secrets.COOKIES_TXT }}
+          COOKIES_TXT2: ${{ secrets.COOKIES_TXT2 }}
+          COOKIES_TXT3: ${{ secrets.COOKIES_TXT3 }}
+        run: |
+          # freshness first: a factory/heal job may have pushed its
+          # memory seconds before this checkout fetched. Pull the
+          # newest state before reading it; clean by construction
+          # (no local changes yet).
+          git pull --ff-only origin main || true
+          python -m src.crosspost --due 2>&1 | tee crosspost.log
+          python -m src.crosspost --backfill 2>&1 | tee -a crosspost.log
+      - name: File an issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let log = '';
+            try { log = fs.readFileSync('crosspost.log', 'utf8').slice(-3000); } catch (e) {}
+            const alerts = log.split('\n').filter(l =>
+              l.includes('ALERT') || l.includes('FAILED')).slice(0, 20).join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title: `Crosspost failure ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
+              body: `The reels cross-poster failed.\n\n\`\`\`\n${alerts || log.slice(-1500) || 'no log'}\n\`\`\``,
+              labels: ['machine-failure']
+            });
+      - name: Commit memory back (merge, never line-conflict)
+        if: always()
+        run: |
+          git config user.name "fort-clip-factory"
+          git config user.email "actions@github.com"
+          git add -A data 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "memory unchanged"
+            exit 0
+          fi
+          # git must never line-merge state.json (post-mortem
+          # 2026-11-15 17:42): take origin's freshest state.json as
+          # BASE, union OUR crosspost fields onto it, push the merge.
+          cp data/state.json /tmp/ours.json
+          git fetch --quiet origin main
+          git checkout origin/main -- data/state.json 2>/dev/null || true
+          if [ -f data/state.json ]; then
+            python tools/merge_state.py /tmp/ours.json data/state.json --prefer crosspost --inplace data/state.json
+            cp data/state.json data/state.json.bak
+          else
+            cp /tmp/ours.json data/state.json
+          fi
+          git add -A data
+          git commit -m "memory: crosspost run" || true
+          if ! git push --quiet 2>/dev/null; then
+            # someone pushed between fetch and push — merge once more
+            cp data/state.json /tmp/ours2.json
+            git fetch --quiet origin main
+            git checkout origin/main -- data/state.json
+            python tools/merge_state.py /tmp/ours2.json data/state.json --prefer crosspost --inplace data/state.json
+            cp data/state.json data/state.json.bak
+            git add -A data
+            git commit -m "memory: crosspost run (re-merged)" || true
+            git push --quiet || echo "::warning::memory push lost the race twice — next run re-reads origin"
+          fi

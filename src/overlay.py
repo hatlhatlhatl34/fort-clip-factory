@@ -33,9 +33,33 @@ def _font(name: str, size: int) -> ImageFont.FreeTypeFont:
 
 def render_overlays(out_dir: Path) -> tuple[Path, Path]:
     """Render top.png + footer.png (idempotent — reused if present)."""
+    return _render_pair(out_dir, "overlay_top.png", "overlay_footer.png",
+                       alpha_override=None, cache=True)
+
+
+def render_restamp(out_dir: Path) -> tuple[Path, Path]:
+    """RESTAMP bars — the publish-time guarantee that the burned-in
+    codes ALWAYS match the CURRENT channel.yaml.
+
+    Banked clips are finished renders; clips harvested BEFORE a code
+    switch carry the OLD code burned in forever (live-diagnosed
+    2026-11-18: 38 banked clips from before the 1789-8528-6429 ->
+    7992-0068-2838 switch). These bars are drawn FULLY OPAQUE
+    (alpha 255, not the config 205) so they completely cover
+    whatever sits underneath — old code text, older bar, anything.
+    NEVER cached: codes can change again any day, so the pair is
+    re-rendered on every call (PIL cost: milliseconds)."""
+    return _render_pair(out_dir, "restamp_top.png", "restamp_footer.png",
+                       alpha_override=255, cache=False)
+
+
+def _render_pair(out_dir: Path, top_name: str, foot_name: str,
+                 *, alpha_override: int | None, cache: bool
+                 ) -> tuple[Path, Path]:
     conf = cfg()["overlay"]
     accent = conf.get("accent", "#FFD400")
-    bar_alpha = int(conf.get("bar_opacity", 205))
+    bar_alpha = int(alpha_override if alpha_override is not None
+                    else conf.get("bar_opacity", 205))
 
     top_h = int(conf.get("top_bar_height", 300))
     footer_h = int(conf.get("footer_bar_height", 240))
@@ -43,9 +67,9 @@ def render_overlays(out_dir: Path) -> tuple[Path, Path]:
     creator_code = cfg()["codes"]["creator_code"]
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    top_p = out_dir / "overlay_top.png"
-    foot_p = out_dir / "overlay_footer.png"
-    if top_p.exists() and foot_p.exists():
+    top_p = out_dir / top_name
+    foot_p = out_dir / foot_name
+    if cache and top_p.exists() and foot_p.exists():
         return top_p, foot_p
 
     # ── TOP BAR ────────────────────────────────────────────────────

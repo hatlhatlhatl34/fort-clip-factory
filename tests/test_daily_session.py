@@ -1,6 +1,6 @@
 """Architecture tests for the owner's redesign:
 
-  1. ONE daily session at 08:30 UTC fills ALL open grid slots
+  1. ONE daily session at 08:33 UTC fills ALL open grid slots
   2. 4 Shorts/day 6-hour grid (00:00/06:00/12:00/18:00 Cairo)
   3. hooking titles: NO map code, {n} only, <= 95 chars, "Fortnite"
      in EVERY title (owner rules 2026-11-13/14)
@@ -49,7 +49,7 @@ def main() -> int:
           f"gaps={gaps}")
     check("no weekend slots left", not sched.get("weekend_slots"))
     check("daily session time set",
-          sched.get("daily_run_utc") == "08:30")
+          sched.get("daily_run_utc") == "08:33")
     check("harvest target 124", int(cfg()["harvest"]["max_clips"]) == 124)
     check("session produces 4",
           int(cfg()["clip"]["max_clips_per_run"]) == 4)
@@ -217,6 +217,38 @@ def main() -> int:
     check("bank.reset zeroes the provision meter",
           st["bank"]["harvested_total"] == 0
           and st["bank"]["clips"] == [])
+
+    # ── PUBLISH-TIME TRUTH (live-diagnosed 2026-11-18) ──────────────
+    # A banked clip was rendered + described at HARVEST time; a code
+    # switch after the harvest must not ship the old code for weeks.
+    stale = {"title": "This Fortnite map levels you up FAST 🔥 #31",
+             "description": "🗺️ MAP CODE: 1789-8528-6429\n"
+                            "🛒 CREATOR CODE: H15 — old baked copy",
+             "tags": ["fortnite"], "n": 31}
+    fresh = metadata.refresh_description(stale)
+    check("refresh_description swaps in the CURRENT map code",
+          cfg()["codes"]["map_code"] in fresh["description"]
+          and "1789-8528-6429" not in fresh["description"])
+    check("refresh_description keeps the banked title",
+          fresh["title"] == stale["title"])
+    check("refresh_description keeps tags/n",
+          fresh["tags"] == stale["tags"] and fresh["n"] == 31)
+    check("refresh_description carries the creator code + TikTok link",
+          cfg()["codes"]["creator_code"] in fresh["description"]
+          and "tiktok.com/@h15master" in fresh["description"])
+    from src import overlay as ov, transform
+    with tempfile.TemporaryDirectory() as rtd:
+        top, foot = ov.render_restamp(Path(rtd))
+        check("restamp bars render on demand (no cache)",
+              top.exists() and foot.exists())
+        from PIL import Image
+        with Image.open(top) as im:
+            alpha = im.getextrema()[3][1] if im.mode == "RGBA" else 255
+        check("restamp bars are FULLY opaque (old code cannot bleed)",
+              alpha == 255)
+    missing = transform.restamp_current(Path("/nonexistent.mp4"))
+    check("restamp failure degrades to the original file",
+          str(missing) == "/nonexistent.mp4")
 
     with tempfile.TemporaryDirectory() as td:
         bdir = Path(td)

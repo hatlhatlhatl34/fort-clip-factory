@@ -306,6 +306,7 @@ def attempt(state: dict, s: dict, video: Path, title: str,
         st.update(status="done", media_id=pid, ts=int(time.time()),
                   attempts=attempts + 1)
         st.pop("timeout", None)
+        st.pop("tt_paused", None)
         print(f"[tiktok] #{n} -> posted ({pid}) "
               f"privacy={_conf().get('privacy', 'SELF_ONLY')}")
         ledger.save(state)
@@ -314,13 +315,42 @@ def attempt(state: dict, s: dict, video: Path, title: str,
         st.update(status="failed", attempts=attempts + 1,
                   error=str(e)[:220], ts=int(time.time()),
                   publish_id=e.publish_id, timeout=True)
+        st.pop("tt_paused", None)
         print(f"[tiktok] #{n} poll timeout (kept for re-check): {e}")
         ledger.save(state)
         return False
     except Exception as e:                       # noqa: BLE001
+        if "unaudited_client" in str(e):
+            # LIVE-DIAGNOSED 2026-11-18 (shorts #7-#10): the TikTok
+            # account was switched PUBLIC mid-flight and every init
+            # flipped to HTTP 403
+            # unaudited_client_can_only_post_to_private_accounts —
+            # an unaudited app may only post while the account is
+            # PRIVATE (or after the audit passes). That is a WAIT
+            # state, not a failure: no attempt burned, no alert, no
+            # give_up — the short stays pending and each hourly pass
+            # re-probes (one init per short per hour). The moment the
+            # account is private again — or the audit passes —
+            # posting resumes with zero intervention.
+            st.update(status="pending", tt_paused=True,
+                      error="[paused] unaudited client can only post "
+                            "to a PRIVATE account — flip "
+                            f"@{_conf().get('username', 'h15master')} "
+                            "back to private in the app (or pass the "
+                            "audit, then set privacy "
+                            "PUBLIC_TO_EVERYONE)",
+                      ts=int(time.time()))
+            st.pop("timeout", None)
+            print(f"[tiktok] #{n} PAUSED: unaudited client cannot post "
+                  "to a public account — attempts NOT burned; the "
+                  "mirror auto-resumes once the account is private "
+                  "again (RUNBOOK section 9)")
+            ledger.save(state)
+            return False
         st.update(status="failed", attempts=attempts + 1,
                   error=str(e)[:220], ts=int(time.time()))
         st.pop("timeout", None)
+        st.pop("tt_paused", None)
         print(f"[tiktok] #{n} FAILED "
               f"(attempt {attempts + 1}/{max_attempts}): {e}")
         ledger.save(state)

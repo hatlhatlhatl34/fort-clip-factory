@@ -1,9 +1,11 @@
 # Daily TikTok token refresh — swaps the 24 h access token secret.
 #
 # Access tokens live 24 h; the refresh token rolls on a 365-day
-# window. Runs at 03:00 UTC (hours before the 08:30 factory session),
-# verifies the new token, then rewrites TIKTOK_ACCESS_TOKEN (and
-# TIKTOK_REFRESH_TOKEN when TikTok rotates it) via tools/set_secret.py.
+# window. Runs at 03:07 UTC (off-minute — GitHub's :00 minutes are
+# congested and can skip; 03:07 comfortably precedes the 08:33
+# factory session), verifies the new token, then rewrites
+# TIKTOK_ACCESS_TOKEN (and TIKTOK_REFRESH_TOKEN when TikTok rotates
+# it) via tools/set_secret.py.
 # The runner's own GITHUB_TOKEN cannot write secrets — PAT_SET_SECRETS
 # (a classic PAT with repo scope) exists ONLY for this job.
 #
@@ -14,7 +16,7 @@ name: tiktok-token-refresh
 
 on:
   schedule:
-    - cron: "0 3 * * *"
+    - cron: "7 3 * * *"
   workflow_dispatch: {}
 
 concurrency:

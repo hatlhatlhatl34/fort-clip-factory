@@ -220,19 +220,38 @@ of the 10,000 daily quota — comfortable margin. Weekdays ≈ 5,100.
 ## Daily shape (owner rule 2026-11-13: 4/day, ONE session)
 
 ```
-08:30 UTC cron (the ONLY daily wake-up) -> gate RUN -> ONE session:
+08:33 UTC cron (the ONLY daily wake-up; :33 = off-minute — GitHub's
+    :00/:30 crons are congested and skipped; the old 08:30 fired as
+    late as 17:46 UTC on 2026-11-17) -> gate RUN -> ONE session:
     pops up to 4 banked clips (or live-ladder fallback) ->
-    uploads all 4 at once -> publishAt 12:00+18:00 Cairo today,
-    00:00+06:00 Cairo tomorrow (one Short every 6 hours) ->
-    caches each final MP4 for the reels cross-poster
-hourly heal cron -> gate SKIPs the factory ~99% of the time, BUT the
-    crosspost job runs EVERY hour: at each grid slot it pushes the
-    same MP4 as an Instagram Reel + Facebook Reel (see section 8);
-    the factory part only RUNs when a slot would expire before the
-    next 08:30 UTC session -> then heals every hole at once
+    restamps each with the CURRENT map/creator code bars +
+    rebuilds each description from the CURRENT channel.yaml
+    (publish-time truth — a code switch applies to the whole
+    remaining bank) -> uploads all 4 at once -> publishAt
+    12:00+18:00 Cairo today, 00:00+06:00 Cairo tomorrow (one Short
+    every 6 hours) -> caches each final MP4 for the cross-poster
+crosspost-hour cron (:23 past every hour, OWN concurrency group —
+    2026-11-18 split) -> --due reels/TikToks minutes after each grid
+    slot + --backfill at 4/run; NEVER queues behind the bank harvest
+hourly-heal cron (:17, group clip-factory) -> the factory part only
+    RUNs when a slot would expire before the next 08:33 UTC session
+    -> then heals every hole at once
 watchdog 6x/day -> oEmbed verify; Issue if a Short is late
-monthly harvest (1st + daily guard) -> banks ~124 clips for the month
+monthly harvest (1st at 11:29 + daily guard at 12:43 UTC, off-minutes)
+    -> banks ~124 clips for the month
 ```
+
+**2026-11-18 post-mortem — why crosspost is its own workflow**: the
+harvest guard (old cron 13:00, delayed by GitHub to 21:38 UTC) held
+the shared `clip-factory` group through the 22:00 UTC grid slot;
+every hourly heal queued behind the 5-hour job; short #30 sat live
+on YouTube with ZERO reels for hours. Reel posting is time-critical:
+it now runs in `crosspost-hour.yml` (group `crosspost`) and can never
+serialize behind a harvest or factory session. Because the crosspost
+job can now run BESIDE a harvest, the harvest's memory commit unions
+through `tools/merge_state.py` like every other writer (its old
+simple commit would have silently lost the bank state on a push
+race).
 
 Quota math: one session = 4 x upload 1600 + search/verify crumbs
 = **~6,500 units** of the 10,000 daily budget — comfortable margin
@@ -485,10 +504,10 @@ assistant -> the code is exchanged server-side (codes expire in
 | `TIKTOK_ACCESS_TOKEN` | the 24 h access token (auto-swapped daily) |
 | `PAT_SET_SECRETS` | classic PAT with repo scope — used ONLY by the refresh workflow to write the token secrets (the runner GITHUB_TOKEN cannot) |
 
-`tiktok-token-refresh.yml` runs daily 03:00 UTC: refresh -> verify
-against /v2/user/info/ -> swap both secrets (a rotated refresh token
-is written back the same run). A refresh failure files an issue; the
-mirror keeps running on the previous token for up to 24 h, then
+`tiktok-token-refresh.yml` runs daily 03:07 UTC (off-minute): refresh ->
+verify against /v2/user/info/ -> swap both secrets (a rotated refresh
+token is written back the same run). A refresh failure files an issue;
+the mirror keeps running on the previous token for up to 24 h, then
 pauses itself cleanly (never breaks IG/FB/YouTube).
 
 ### Unaudited reality (until the Content Posting API audit passes)
@@ -497,7 +516,19 @@ pauses itself cleanly (never breaks IG/FB/YouTube).
   flip to `PUBLIC_TO_EVERYONE` is one line in channel.yaml
   (`crosspost.tiktok.privacy`) AFTER approval, nothing else changes;
 - **@h15master must stay a private account** in the app (TikTok
-  couples unaudited direct-post to private accounts);
+  couples unaudited direct-post to private accounts). LIVE PROOF
+  2026-11-18: the account was switched PUBLIC and every init
+  flipped to HTTP 403
+  `unaudited_client_can_only_post_to_private_accounts` (shorts
+  #7-#10 burned failures on it). The mirror now treats that exact
+  error as a **PAUSE, not a failure**: no attempt burned, no alert,
+  no give_up — the short stays pending with `tt_paused: true` and
+  every hourly pass re-probes; the hour the account is private
+  again (or the audit passes) posting auto-resumes. To see views
+  on already-posted SELF_ONLY videos in the meantime, flip them
+  one-by-one in the app AND keep the account public — but accept
+  that the mirror pauses while it is. The permanent fix is the
+  audit (below);
 - the re-review description (prepared, 1000-char, full-scope
   explanation) goes in with the sandbox's Products: Login Kit +
   Content Posting API — remove **Share Kit** and **Data Portability
@@ -536,6 +567,16 @@ pauses itself cleanly (never breaks IG/FB/YouTube).
   same status-rank merge; regression lives in
   `tests/test_merge_state.py`; the state itself was repaired by
   hand the same hour (publish_ids restored from the run log).
+- **Publish-time code truth** (2026-11-18): banked clips are
+  finished renders — clips harvested before the map-code switch
+  would have shipped the OLD code burned-in + old description for
+  weeks. Every banked publish now (a) re-burns the code bars with
+  the CURRENT channel.yaml codes (`transform.restamp_current`,
+  fully-opaque cover, idempotent, never blocks a publish) and
+  (b) rebuilds the description from the CURRENT config
+  (`metadata.refresh_description`). Changing `codes.map_code` in
+  channel.yaml therefore applies to the whole remaining bank the
+  very next day. Tests: `tests/test_daily_session.py`.
 - Egypt is not a TikTok Creator Rewards region — TikTok stays a
   pure traffic funnel to the YouTube/FB/IG feeds; the money engine
   is unchanged.
