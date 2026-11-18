@@ -624,3 +624,58 @@ owner can supply. No code exists for them yet by design.
    every frame, and the description/caption carries the same code as
    the overlay. History per code is tracked in state so analytics
    stay attributable.
+
+
+---
+
+## 2026-11-18 — the old bank purge + the full-repo audit
+
+### OWNER RULES (2026-11-18)
+- **#2 SURPLUS = EMERGENCY BUFFER** — the monthly harvest may stack past
+  the month's open slots (124 banked vs ~120 consumed). The surplus stays
+  banked as the month's emergency buffer, consumed by heal/topups; it is
+  NEVER carried across months (the rollover retirement wipes it —
+  old-month clips are poison).
+- **#3 THE FIRST OLD BANK IS DEAD** — the pre-overhaul bank (random
+  Fortnite footage, cross-month slots) was completely deleted
+  2026-11-18: all bank-2026-11 artifacts (~13.3 GB),
+  data/bank_pointer.json and state.bank. A bank only ever holds
+  same-month fresh-sweep niche clips; the harvest sweeps unreferenced
+  bank/ files before re-uploading parts, so dead weight can never ride
+  again.
+
+### The audit (every file, from scratch) — 2026-11-18
+Four parallel auditors + coordinator verification; 30+ real bugs found
+and fixed (full detail lives in code comments marked `audit 2026-11-18`):
+- **Duplicate-post killers**: crosspost-now no longer arms TikTok
+  (stateless + no adoption scope = guaranteed duplicate); TikTok
+  publish_id is persisted BEFORE the upload; the adoption re-check
+  fails CLOSED; the media-zip cache is keyed by (run_id, artifact).
+- **Memory-race killers**: daily-factory / hourly-heal /
+  monthly-harvest / crosspost-hour commits are rebuilt on fresh
+  origin/main (reset --soft) with 3 push retries and a LOUD final
+  failure — a session's whole memory can never be silently swallowed
+  by `git push || true` again (the pointer-stranding race was observed
+  live).
+- **Grid protectors**: the daily render block is guarded per-source; a
+  missing bank clip is EVICTED (no month-long bank jam); a drained
+  bank keeps its provision meter (topup, not full re-provision); the
+  month-rollover poison check runs per target; the bookable window is
+  ONE rule in gate.py + open_targets (channel.yaml
+  bookable_margin_minutes); quota/slots/used_sources union
+  monotonically in merge_state.
+- **TikTok token arm**: the rotated 365-day refresh root is persisted
+  FIRST (a crash can no longer strand a dead root); mid-run token
+  expiry is a wait-state (no burned attempts).
+- **Quality**: motion-floor picker fixed (the first window was
+  auto-accepted); post-render duration gate; HttpOnly cookie rows
+  kept; jar rotation seeded per session; scene analysis downscaled;
+  bass locked to the chord clock; ingest drops survive --dry-run; the
+  download quality gate fails CLOSED.
+
+### Machine state after the purge
+- bank: month=None, clips=[], harvested=0 — the next guard re-provisions
+  November from a FRESH sweep (niche queries, this month's slots only).
+- 4 old-bank clips were uploaded by the 08:33 session minutes before
+  the deletion (n=31/32/33/51, publishAt Nov 18-19 slots); they can be
+  deleted on request via videos.delete.
