@@ -87,7 +87,10 @@ def run(*, dry_run: bool = False, offline: bool = False,
                     f"!= current month {bank.current_month()}")
         ledger.save(state)
 
-    bdir = Path(os.environ.get("BANK_ARTIFACT_DIR", "bank_month"))
+    # C12 (audit 2026-11-18): ROOT-anchored like every other path —
+    # running main.py from another directory must never silently miss
+    # the bank and fall to the bot-wall ladder
+    bdir = ROOT / os.environ.get("BANK_ARTIFACT_DIR", "bank_month")
     published = 0
     hard_failures = 0
 
@@ -109,6 +112,14 @@ def run(*, dry_run: bool = False, offline: bool = False,
 
         seed = base_seed + i * 31
 
+        # C6 (audit 2026-11-18): the poison check runs per TARGET — a
+        # session crossing the UTC month boundary must never publish a
+        # just-turned-stale clip (owner rule: old bank clips are poison)
+        if bank.stale(state):
+            bank.retire(state, f"month rollover mid-session "
+                        f"(bank.month={(state.get('bank') or {}).get('month')}")
+            ledger.save(state)
+
         # ── 0. THE BANK: publish a banked clip when one exists ────
         # (monthly harvest cache; the daily IP never touches yt-dlp)
         if (bdir / "manifest.json").exists():
@@ -122,6 +133,11 @@ def run(*, dry_run: bool = False, offline: bool = False,
                 elif rc == 0:
                     published += 1
                     continue
+                elif rc == 3:
+                    # C9 (audit 2026-11-18): a clean defer (quota) is NOT
+                    # a publish — stop the session honestly, uncounted
+                    print("[bank] clean defer — stopping the session")
+                    break
                 else:
                     return rc          # real failure -> alert
 
@@ -158,18 +174,34 @@ def run(*, dry_run: bool = False, offline: bool = False,
             continue
 
         # 4. overlays + soundtrack + render
-        top_p, foot_p = overlay.render_overlays(work)
-        wav = work / "track.wav"
-        music.make_track(wav, dur, seed)
+        # B1 (audit 2026-11-18): the daily path gets the SAME
+        # skip-to-next-source guard the harvest path always had — one
+        # ffmpeg/font/synth failure must never kill the day's
+        # remaining slots
+        final = None
+        try:
+            top_p, foot_p = overlay.render_overlays(work)
+            wav = work / "track.wav"
+            music.make_track(wav, dur, seed)
 
-        final_name = sample_out.name if sample_out else \
-            f"short_{day.replace('-', '')}_{slot_hour:02d}_{i}.mp4"
-        final = work / final_name
-        transform.render(src_path, start, dur, (top_p, foot_p), wav,
-                         final)
+            final_name = sample_out.name if sample_out else \
+                f"short_{day.replace('-', '')}_{slot_hour:02d}_{i}.mp4"
+            final = work / final_name
+            transform.render(src_path, start, dur, (top_p, foot_p),
+                             wav, final)
 
-        # 5. metadata
-        meta = metadata.build(source, state, seed)
+            # 5. metadata
+            meta = metadata.build(source, state, seed)
+        except Exception as e:  # noqa: BLE001
+            print(f"[render] pipeline failed on this source ({e}) — "
+                  "skipping to the next source")
+            hard_failures += 1
+            try:
+                if final and final.exists():
+                    final.unlink()      # partial render never uploads
+            except OSError:
+                pass
+            continue
 
         if sample_out is not None:
             # sample mode: copy to the requested path, no upload
@@ -222,14 +254,19 @@ def run(*, dry_run: bool = False, offline: bool = False,
             "title": meta["title"],
             "slot": booked_slot,
         }
-        # cache the exact published bytes for the reels cross-poster
-        # (owner rule 2026-11-15 — same Short -> YT + IG + FB)
-        crosspost.cache_video(state, rec, final)
-        ledger.mark_short_uploaded(state, rec,
-                                   units=0)   # units spent in upload_short
+        # C4 (audit 2026-11-18): the short record lands FIRST (atomic);
+        # the wide crash window of the multi-MB media cache copy comes
+        # after — a kill mid-cache can no longer orphan a live video
+        ledger.mark_short_uploaded(state, rec, units=0)
         state["last_run"] = day
         state["last_run_ts"] = int(time.time())
         ledger.save(state)
+        # cache the exact published bytes for the reels cross-poster
+        # (owner rule 2026-11-15 — same Short -> YT + IG + FB)
+        crosspost.cache_video(state, rec, final)
+        ledger.save(state)
+        src_path.unlink(missing_ok=True)   # B9: multi-GB ladder files
+                                            # never pile up mid-session
         published += 1
         print(f"\n[done] short #{meta['n']} published as {video_id} "
               f"(source {source['id']}, clip {start:.0f}s+{dur:.0f}s)")
@@ -289,7 +326,12 @@ def harvest(count: int | None = None,
     existing = len(bankst.get("clips") or [])
     harvested_total = int(bankst.get("harvested_total") or 0)
     fetched = list(bank_dir.glob("*.mp4")) if bank_dir.exists() else []
-    if bankst.get("month") == ym and existing and fetched:
+    # C2 (audit 2026-11-18): a DRAINED bank keeps month/harvested_total
+    # (the provision meter) — the topup path (harvested_total already
+    # >= max_clips -> target = topup_clips) must stay reachable instead
+    # of re-provisioning the whole 124 mid-month.
+    if bankst.get("month") == ym and (existing or harvested_total) \
+            and fetched:
         print(f"[harvest] APPEND mode: keeping {existing} banked clip(s) "
               f"({len(fetched)} files fetched) — provision "
               f"{harvested_total}/{max_clips}, stacking to the month")
@@ -383,9 +425,13 @@ def harvest(count: int | None = None,
             transform.render(path, start, cdur, (top_p, foot_p), wav,
                              final)
             meta = metadata.build(source, state, seed + banked)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"[harvest] candidate skipped: {e}")
             path.unlink(missing_ok=True)
+            try:
+                final.unlink(missing_ok=True)   # B7: a partial render
+            except (NameError, OSError):         # never rides the parts
+                pass
             continue
 
         ledger.mark_source_used(state, source["id"])
@@ -397,6 +443,20 @@ def harvest(count: int | None = None,
         print(f"[harvest] banked {banked}/{target} for slot {slot} — "
               f"{str(source.get('title', ''))[:60]!r}")
         time.sleep(rng.uniform(pace_lo, pace_hi))   # human-ish pacing
+
+    # OWNER RULE (2026-11-18 #3) — THE OLD BANK IS DEAD: any file in
+    # bank/ that state.bank.clips does NOT reference is poison dead
+    # weight (purged clips, published clips' leftovers, abandoned
+    # partial renders). Sweep before the manifest/parts are built so
+    # the re-uploaded artifact carries ONLY the clips the state still
+    # points at — the purge of the first old bank can never resurrect.
+    referenced = {c.get("file") for c in
+                  (state.get("bank") or {}).get("clips") or []}
+    for f in bank_dir.glob("*.mp4"):
+        if f.name not in referenced:
+            print(f"[harvest] sweeping unreferenced {f.name} "
+                  "(owner rule 2026-11-18 #3 — dead weight never rides)")
+            f.unlink(missing_ok=True)
 
     if banked == 0:
         print("HARVEST-ALERT: 0 clips banked — the bot wall held today. "
