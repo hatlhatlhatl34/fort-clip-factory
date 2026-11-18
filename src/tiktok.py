@@ -179,9 +179,15 @@ def _fit_upload(video: Path) -> tuple[Path, int]:
                        "single-chunk ceiling after two re-encodes")
 
 
-def publish(video: Path, title: str, tok: str) -> str:
+def publish(video: Path, title: str, tok: str,
+            on_init=None) -> str:
     """One TikTok post: init -> single-chunk PUT -> status poll.
-    Returns the publish_id. Raises on any hard failure."""
+    Returns the publish_id. Raises on any hard failure.
+
+    `on_init(publish_id)` is called the moment init returns — the id
+    is persisted BEFORE the upload/poll, so a runner kill mid-flight
+    can never cause a duplicate post next hour (audit 2026-11-18 A4).
+    """
     privacy = str(_conf().get("privacy", "SELF_ONLY"))
     video, size = _fit_upload(video)
     # ALWAYS one chunk: chunk == video_size, total_chunk_count == 1
@@ -214,6 +220,11 @@ def publish(video: Path, title: str, tok: str) -> str:
     if not publish_id or not upload_url:
         raise RuntimeError(f"init returned no publish_id/upload_url "
                            f"({sorted(init)})")
+    if on_init:
+        try:
+            on_init(publish_id)
+        except Exception:                       # noqa: BLE001
+            pass        # best-effort persistence, never fatal
 
     with open(video, "rb") as fh:
         offset = 0
@@ -277,8 +288,11 @@ def attempt(state: dict, s: dict, video: Path, title: str,
 
     # poll-timeout adoption: a previous run's post may have completed
     # after we stopped watching — verify BEFORE posting anything.
+    # (audit 2026-11-18 A4: 'pending' counts too — a persisted
+    # pre-upload id from a runner kill re-checks before re-posting)
     prior = str(st.get("publish_id") or "")
-    if prior and st.get("status") == "failed" and st.get("timeout"):
+    if prior and st.get("timeout") and st.get("status") in \
+            ("failed", "pending"):
         try:
             cur = _api("POST", "/v2/post/publish/status/fetch/",
                        token=tok, payload={"publish_id": prior})
@@ -289,8 +303,16 @@ def attempt(state: dict, s: dict, video: Path, title: str,
                       "— ADOPTED (no duplicate posted)")
                 ledger.save(state)
                 return True
-        except Exception:                        # noqa: BLE001
-            pass                                  # fall through: re-post
+        except Exception as e:                   # noqa: BLE001
+            # A13 (audit 2026-11-18): a transient probe error must
+            # NEVER re-post — the earlier post may have completed; stay
+            # pending and re-check next hour
+            st.update(error=f"[recheck] probe failed: {str(e)[:120]}",
+                      ts=int(time.time()))
+            ledger.save(state)
+            print(f"[tiktok] #{n} adoption re-check failed ({e}) — "
+                  "staying pending, NO re-post")
+            return False
 
     attempts = int(st.get("attempts") or 0)
     if attempts >= max_attempts:
@@ -302,7 +324,16 @@ def attempt(state: dict, s: dict, video: Path, title: str,
         ledger.save(state)
         return False
     try:
-        pid = publish(video, title, tok)
+        def _persist(pid):
+            # A4 (audit 2026-11-18): the publish_id is in state BEFORE
+            # the bytes leave the runner — a kill mid-upload/mid-poll
+            # re-checks next hour instead of re-posting a duplicate
+            st.update(status="pending", publish_id=pid, timeout=True,
+                      error="upload in flight — re-check before re-post",
+                      ts=int(time.time()))
+            ledger.save(state)
+            print(f"[tiktok] #{n} publish_id {pid} persisted pre-upload")
+        pid = publish(video, title, tok, on_init=_persist)
         st.update(status="done", media_id=pid, ts=int(time.time()),
                   attempts=attempts + 1)
         st.pop("timeout", None)
@@ -362,6 +393,19 @@ def attempt(state: dict, s: dict, video: Path, title: str,
             st.pop("timeout", None)
             print(f"[tiktok] #{n} rate-limited (6 req/min) — attempt "
                   "NOT burned; retried next hour")
+            ledger.save(state)
+            return False
+        if "access_token" in err.lower() or "unauthorized" in err.lower():
+            # A14 (audit 2026-11-18): mid-run 24 h token expiry is a
+            # WAIT state (the 03:00 UTC refresh re-arms it) — never a
+            # burned attempt on an otherwise healthy short
+            st.update(status="pending",
+                      error="[wait] access token expired mid-run — "
+                            "re-armed by the next refresh, retried next "
+                            "hour", ts=int(time.time()))
+            st.pop("timeout", None)
+            print(f"[tiktok] #{n} token expired mid-run — attempt NOT "
+                  "burned; retried next hour")
             ledger.save(state)
             return False
         st.update(status="failed", attempts=attempts + 1,
