@@ -47,6 +47,7 @@ slot); later fires are guarded no-ops via the state marker.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import random
 import sys
@@ -82,6 +83,57 @@ MAX_LADDER_TRIES = 3       # fresh-source attempts (query rotates each)
 
 def _marker(state: dict) -> dict:
     return state.setdefault("one_time_fix", {})
+
+
+# ── the release carry (hardening, 2026-11-18 evening) ──────────────
+# GitHub runners were bot-walled ALL day 2026-11-18 (the harvest
+# banked 0 clips — every slice came back 0p), so the replacement was
+# rendered OUTSIDE the wall and rides a repo release (56 MB MP4 + its
+# manifest, uploaded as prerelease assets). This branch fetches it
+# and uploads it PUBLIC-now — the guaranteed "first one".
+def _release_carry(work: Path) -> tuple[Path, dict] | None:
+    """Fetch the replacement MP4 + manifest from the one-time carry
+    release. Public repo -> no auth; redirects followed by urllib.
+    Returns (mp4_path, manifest) or None (no tag set / fetch failed)."""
+    tag = os.environ.get("REPLACE_RELEASE_TAG", "").strip()
+    if not tag:
+        return None
+    repo = os.environ.get("GITHUB_REPOSITORY",
+                          "hatlhatlhatl34/fort-clip-factory")
+    base = (f"https://github.com/{repo}/releases/download/"
+            f"{tag}")
+    try:
+        with urllib.request.urlopen(f"{base}/replacement.json",
+                                    timeout=60) as r:
+            manifest = json.loads(r.read())
+        n = int(manifest.get("n") or 0)
+        if not n:
+            print("  [carry] manifest has no n — skipping the carry")
+            return None
+        mp4 = work / f"short_{n}.mp4"
+        if not mp4.exists() or mp4.stat().st_size < 1_000_000:
+            print(f"  [carry] fetching short_{n}.mp4 from the release ...")
+            with urllib.request.urlopen(f"{base}/short_{n}.mp4",
+                                        timeout=600) as r, \
+                    open(mp4, "wb") as fh:
+                total = 0
+                while True:
+                    chunk = r.read(1024 * 512)
+                    if not chunk:
+                        break
+                    fh.write(chunk)
+                    total += len(chunk)
+            if mp4.stat().st_size < 1_000_000:
+                mp4.unlink(missing_ok=True)
+                print("  [carry] downloaded file too small — skipping")
+                return None
+        print(f"  [carry] release {tag}: short_{n}.mp4 "
+              f"({mp4.stat().st_size / 1e6:.1f} MB) + manifest ready")
+        return mp4, manifest
+    except Exception as e:  # noqa: BLE001
+        print(f"  [carry] release fetch failed ({e}) — bank/ladder "
+              "take over")
+        return None
 
 
 # ── phase 1: delete the old-bank videos ─────────────────────────────
@@ -189,8 +241,64 @@ def phase_replacement(state: dict, dry_run: bool = False) -> int:
     today = datetime.now(ZoneInfo(cfg()["schedule"]["timezone"]))
     day = today.date().isoformat()
     mark["attempt_date"] = day
+    work = ROOT / "work"
+    work.mkdir(parents=True, exist_ok=True)
 
-    # ── BANK FIRST: the fresh same-month bank is the designed source ─
+    # ── RELEASE CARRY FIRST: the sandbox-rendered replacement ────
+    # (rendered outside the bot wall 2026-11-18 — the guaranteed
+    # "first one public"; falls through to bank/ladder if the
+    # release is unreachable)
+    carry = _release_carry(work)
+    if carry:
+        mp4, manifest = carry
+        meta = dict(manifest.get("meta") or {})
+        meta = metadata.refresh_description(meta)
+        if dry_run:
+            print(f"  [dry-run] would upload {mp4.name} "
+                  f"({mp4.stat().st_size / 1e6:.1f} MB) PUBLIC now "
+                  f"with title {meta.get('title')!r}")
+            return 0
+        video_id = _upload_public_now(mp4, meta, state)
+        if video_id:
+            src = manifest.get("source") or {}
+            if src.get("id"):
+                ledger.mark_source_used(state, str(src["id"]))
+            now_iso = datetime.now(
+                ZoneInfo(cfg()["schedule"]["timezone"])).isoformat()
+            rec = {
+                "n": meta.get("n"),
+                "source_id": src.get("id", ""),
+                "source_title": src.get("title", ""),
+                "source_channel": src.get("channel", ""),
+                "date": day,
+                "video_id": video_id,
+                "clip_start": manifest.get("clip_start", 0),
+                "clip_dur": manifest.get("clip_dur", 0),
+                "title": meta.get("title", ""),
+                "slot": now_iso,
+                "public_now": True,       # the one-time owner rule marker
+                "replacement": True,
+            }
+            ledger.mark_short_uploaded(state, rec, units=0)
+            state["last_run"] = day
+            state["last_run_ts"] = int(time.time())
+            ledger.save(state)
+            crosspost.cache_video(state, rec, mp4)  # reels ride the cache
+            ledger.save(state)
+            mark["replacement"] = {"n": meta.get("n"),
+                                  "video_id": video_id,
+                                  "ts": datetime.now(
+                                      ZoneInfo("UTC")).isoformat()}
+            ledger.save(state)
+            print(f"\n  [done] replacement short #{meta.get('n')} "
+                  f"PUBLIC NOW as {video_id} — {meta.get('title')!r} "
+                  "(carried through the wall by the one-time release)")
+            return 1
+        print("  upload deferred (quota) — clean skip; the scheduled "
+              "re-run retries after the Pacific reset")
+        return 0
+
+    # ── BANK SECOND: the fresh same-month bank is the designed source ─
     bdir = ROOT / os.environ.get("BANK_ARTIFACT_DIR", "bank_month")
     if (bdir / "manifest.json").exists() and not bank.stale(state):
         clip = bank.take_next(state)
