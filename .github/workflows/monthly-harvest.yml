@@ -168,6 +168,20 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true   # unreachable -> orchestrator rebuilds
 
+      - name: Wall diagnostic (emergency 2026-11-19)
+        run: |
+          set -x
+          ffmpeg -hide_banner -loglevel error -f lavfi \
+            -i testsrc2=size=1280x720:rate=30 -t 2 \
+            -pix_fmt yuv420p /tmp/probe_ctrl.mp4
+          echo "control height, csv path (expect 720):"
+          ffprobe -v error -select_streams v:0 -show_entries stream=height \
+            -of csv=p=0 /tmp/probe_ctrl.mp4
+          echo "control height, JSON path:"
+          ffprobe -v error -show_streams -show_entries stream=codec_type,height \
+            -of json /tmp/probe_ctrl.mp4 | head -8
+          yt-dlp --version
+          ffmpeg -version | head -1
       - name: Harvest the month (one IP, one session)
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
