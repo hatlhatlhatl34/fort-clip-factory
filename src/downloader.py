@@ -65,6 +65,15 @@ PLAYER_CLIENTS = ["web", "android_vr", "tv", "web_embedded", "ios",
 # wasted attempts. web/web_embedded work once the EJS solver from
 # yt-dlp[default] is installed; tv stays as a last try.
 JAR_CLIENTS = ["web", "web_embedded", "tv"]
+# D6 (EMERGENCY 2026-11-19): the web-family rungs served 0p junk from
+# EVERY runner IP all day — 56/56 candidates died at the gate while
+# the mobile clients sat unreachable behind the cookie ladder. The
+# mobile rungs run cookie-FREE (they cannot take cookies) and ride a
+# different serving path that is historically unjunked from datacenter
+# IPs; the jar ladder keeps its web rungs in front on a normal day.
+MOBILE_CLIENTS = ["android_vr", "ios", "tv_simply"]
+# consecutive 0p results in this process: >= 3 marks a hard-wall day
+_WALL_HITS = [0]
 
 AO_UA = ("Mozilla/5.0 (X11; Linux x86_64) fort-clip-factory/1.0")
 AO_SEARCH = "https://archive.org/advancedsearch.php"
@@ -103,17 +112,60 @@ def _probe_duration_s(p: Path) -> float:
         return 0.0
 
 
+_PROBE_WARNED = [False]
+
+
 def _probe_height(p: Path) -> int:
-    """Video height in pixels (0 when probing fails)."""
+    """Video height in pixels (0 when probing fails).
+
+    D6 (emergency 2026-11-19): today EVERY download — yt-dlp slices AND
+    archive.org files — probed 0p and died at the gate. Two defenses: a
+    JSON fallback parse (a different ffprobe path can rescue a real
+    video the csv path misreads), and a one-time raw probe dump so the
+    run log itself settles junk-stream vs broken-probe with evidence.
+    """
     try:
         r = subprocess.run(
             ["ffprobe", "-v", "-error", "-select_streams", "v:0",
              "-show_entries", "stream=height",
              "-of", "csv=p=0", str(p)],
             capture_output=True, text=True, timeout=60)
-        return int((r.stdout.strip().splitlines() or ["0"])[0] or 0)
+        h = int((r.stdout.strip().splitlines() or ["0"])[0] or 0)
+        if h > 0:
+            return h
     except Exception:
-        return 0
+        pass
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "-error", "-show_streams",
+             "-show_entries", "stream=codec_type,height",
+             "-of", "json", str(p)],
+            capture_output=True, text=True, timeout=60)
+        doc = json.loads(r.stdout or "{}")
+        for s in doc.get("streams", []):
+            if s.get("codec_type") == "video":
+                h = int(s.get("height") or 0)
+                if h > 0:
+                    print(f"[download] probe fallback: {p.name} is {h}p "
+                          "via JSON parse (csv path returned 0)")
+                    return h
+    except Exception:
+        pass
+    if not _PROBE_WARNED[0]:
+        _PROBE_WARNED[0] = True
+        try:
+            r = subprocess.run(
+                ["ffprobe", "-v", "error", "-select_streams", "v:0",
+                 "-show_entries",
+                 "stream=height,width,codec_name,codec_type",
+                 "-of", "default", str(p)],
+                capture_output=True, text=True, timeout=60)
+            print(f"[download] PROBE-DIAG {p.name}: height=0 — raw probe "
+                  f"out={(r.stdout or '').strip()[:100]!r} "
+                  f"err={(r.stderr or '').strip()[:140]!r}")
+        except Exception as e:
+            print(f"[download] PROBE-DIAG {p.name}: probe crashed: {e}")
+    return 0
 
 
 def _quality_ok(p: Path, min_dur: float = 0.0) -> bool:
@@ -292,7 +344,8 @@ def _take_ingest_drop(work: Path, state: dict) -> Path | None:
 # ── RUNG 1: yt-dlp ladder ───────────────────────────────────────────
 
 def _run_ytdlp(url: str, out: Path, jars: list[Path],
-               deadline: float, sections: str | None = None) -> bool:
+               deadline: float, sections: str | None = None,
+               min_dur: float = 0.0) -> bool:
     base = ["yt-dlp", "-f", FMT, "--merge-output-format", "mp4",
             "--no-playlist", "--no-part",
             "-o", str(out),
@@ -301,12 +354,21 @@ def _run_ytdlp(url: str, out: Path, jars: list[Path],
     if sections:
         base += ["--download-sections", sections]
 
-    # attempt ladder: every rotated jar x the cookie-capable clients
-    # (cap 12); anonymous (no jars) -> the full 6-client ladder as before
+    # D6 (emergency 2026-11-19): attempt ladder. Anonymous (no jars)
+    # keeps the full 6-client ladder exactly as before. WITH jars the
+    # web rungs keep the lead on a normal day, but the cookie-FREE
+    # mobile rungs are ALWAYS in the ladder (inserted after the lead
+    # jar's two web attempts); once 3 consecutive junk streams mark a
+    # hard-wall day the mobile rungs lead for the rest of the session.
     if jars:
-        combos = [(client, jar)
-                  for jar in _rotate(jars)
-                  for client in JAR_CLIENTS][:12]
+        rot = _rotate(jars)
+        web = ([("web", rot[0]), ("web_embedded", rot[0])]
+               + [(c, j) for j in rot[1:] for c in JAR_CLIENTS])
+        mobile = [(c, None) for c in MOBILE_CLIENTS]
+        if _WALL_HITS[0] >= 3:
+            combos = (mobile + web)[:14]
+        else:
+            combos = (web[:2] + mobile + web[2:])[:14]
     else:
         combos = [(client, None) for client in PLAYER_CLIENTS]
 
@@ -330,10 +392,23 @@ def _run_ytdlp(url: str, out: Path, jars: list[Path],
             continue
         if r.returncode == 0 and out.exists() \
                 and out.stat().st_size > 1_000_000:
-            print(f"[download] OK via player_client={client}"
-                  f"{', jar ' + jar.stem if jar else ''} "
-                  f"({out.stat().st_size/1e6:.1f} MB)")
-            return True
+            if _quality_ok(out, min_dur):
+                print(f"[download] OK via player_client={client}"
+                      f"{', jar ' + jar.stem if jar else ''} "
+                      f"({out.stat().st_size/1e6:.1f} MB)")
+                _WALL_HITS[0] = 0
+                return True
+            # D6 (emergency 2026-11-19): rc=0 with a 0p/junk stream is
+            # THE WALL signature — a 448 MB "download" probing 0p. The
+            # old code returned True here, the outer gate killed the
+            # candidate, and the ladder's remaining rungs never ran.
+            # Drop the junk and fall through to the next rung.
+            out.unlink(missing_ok=True)
+            _WALL_HITS[0] += 1
+            if _WALL_HITS[0] == 3:
+                print("[download] wall signature x3 this session — "
+                      "mobile client rungs now LEAD the ladder")
+            continue
         tail = (r.stderr or "").strip().splitlines()[-3:]
         print(f"[download] attempt {i+1} ({client}, "
               f"jar {jar.stem if jar else '-'}): "
@@ -363,7 +438,8 @@ def download_slice(source: dict, work: Path, slice_start: float,
     try:
         ok = _run_ytdlp(url, out, jars, deadline,
                         sections=f"*{int(max(0, slice_start))}-"
-                                  f"{int(max(0, slice_start) + slice_len)}")
+                                  f"{int(max(0, slice_start) + slice_len)}",
+                        min_dur=45)
         if ok and _quality_ok(out, 45):
             return out
         out.unlink(missing_ok=True)
