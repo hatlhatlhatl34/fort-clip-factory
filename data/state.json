@@ -517,6 +517,14 @@
      "attempts": 1,
      "permalink": "https://www.facebook.com/reel/2131191727501143/"
     },
+    "tiktok": {
+     "status": "done",
+     "publish_id": "v_pub_file~v2-1.7709803356973434901",
+     "error": "upload in flight — re-check before re-post",
+     "ts": 1795078601,
+     "media_id": "v_pub_file~v2-1.7709803356973434901",
+     "attempts": 1
+    },
     "yt_links": true
    },
    "verified": "2026-11-17T12:53:00+00:00"
@@ -554,6 +562,14 @@
      "attempts": 1,
      "permalink": "https://www.facebook.com/reel/1497271975646129/"
     },
+    "tiktok": {
+     "status": "done",
+     "publish_id": "v_pub_file~v2-1.7709803628592318485",
+     "error": "upload in flight — re-check before re-post",
+     "ts": 1795078629,
+     "media_id": "v_pub_file~v2-1.7709803628592318485",
+     "attempts": 1
+    },
     "yt_links": true
    },
    "verified": "2026-11-17T12:53:00+00:00"
@@ -590,6 +606,12 @@
      "ts": 1794920115,
      "attempts": 1,
      "permalink": "https://www.facebook.com/reel/2769066776883562/"
+    },
+    "tiktok": {
+     "status": "failed",
+     "attempts": 1,
+     "error": "Command '['ffmpeg', '-y', '-v', 'error', '-i', '/home/runner/work/fort-clip-factory/fort-clip-factory/work_backfill/short_29.mp4', '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease', '-c:v', 'libx264', '-pix_fm",
+     "ts": 1795078629
     },
     "yt_links": true
    },
@@ -669,10 +691,12 @@
      "permalink": "https://www.facebook.com/reel/1321840400049582/"
     },
     "tiktok": {
-     "status": "pending",
-     "tt_paused": true,
-     "error": "[paused] unaudited client can only post to a PRIVATE account — flip @h15master back to private in the app (or pass the audit, then set privacy PUBLIC_TO_EVERYONE)",
-     "ts": 1794984430
+     "status": "done",
+     "error": "upload in flight — re-check before re-post",
+     "ts": 1795078663,
+     "publish_id": "v_pub_file~v2-1.7709803774973429781",
+     "media_id": "v_pub_file~v2-1.7709803774973429781",
+     "attempts": 1
     },
     "yt_links": true
    },
