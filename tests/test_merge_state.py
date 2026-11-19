@@ -177,6 +177,27 @@ with tempfile.TemporaryDirectory() as td:
                         text=True, timeout=30)
     check("usage: exit 2 with no args", r2.returncode == 2)
 
+
+# ── 8. D5 (2026-11-19): quota cross-day merge — the newer Pacific
+#    day wins WHOLESALE; the old day's spend never resurrects ──────
+m = run_tool({"quota": {"date": "2026-11-19", "units_used": 0}},
+             {"quota": {"date": "2026-11-18", "units_used": 8752}},
+             prefer="core")
+check("D5: fresh day keeps 0u — old day's 8752 never rides",
+      m.get("quota", {}).get("date") == "2026-11-19"
+      and m.get("quota", {}).get("units_used") == 0)
+m2 = run_tool({"quota": {"date": "2026-11-18", "units_used": 8752}},
+              {"quota": {"date": "2026-11-19", "units_used": 0}},
+              prefer="core")
+check("D5: direction must not matter",
+      m2.get("quota", {}).get("date") == "2026-11-19"
+      and m2.get("quota", {}).get("units_used") == 0)
+m3 = run_tool({"quota": {"date": "2026-11-19", "units_used": 300}},
+              {"quota": {"date": "2026-11-19", "units_used": 100}},
+              prefer="core")
+check("D5: same-day monotonic join keeps max (no lost spend)",
+      m3.get("quota", {}).get("units_used") == 300)
+
 print()
 print("ALL GREEN" if FAIL == 0 else f"{FAIL} FAILURE(S)")
 sys.exit(1 if FAIL else 0)
