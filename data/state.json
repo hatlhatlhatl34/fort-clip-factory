@@ -342,6 +342,14 @@
      "adopted": true,
      "permalink": "https://www.facebook.com/reel/29678379178422426/"
     },
+    "tiktok": {
+     "status": "done",
+     "publish_id": "v_pub_file~v2-1.7709673683798886421",
+     "error": "upload in flight — re-check before re-post",
+     "ts": 1795048350,
+     "media_id": "v_pub_file~v2-1.7709673683798886421",
+     "attempts": 1
+    },
     "yt_links": true
    },
    "media": null
@@ -374,6 +382,14 @@
      "ts": 1794793131,
      "adopted": true,
      "permalink": "https://www.facebook.com/reel/1737071074425646/"
+    },
+    "tiktok": {
+     "status": "done",
+     "publish_id": "v_pub_file~v2-1.7709673719644342292",
+     "error": "upload in flight — re-check before re-post",
+     "ts": 1795048384,
+     "media_id": "v_pub_file~v2-1.7709673719644342292",
+     "attempts": 1
     },
     "yt_links": true
    }
@@ -411,6 +427,14 @@
      "attempts": 1,
      "permalink": "https://www.facebook.com/reel/40332927746353507/"
     },
+    "tiktok": {
+     "status": "done",
+     "publish_id": "v_pub_file~v2-1.7709673775944452116",
+     "error": "upload in flight — re-check before re-post",
+     "ts": 1795048414,
+     "media_id": "v_pub_file~v2-1.7709673775944452116",
+     "attempts": 1
+    },
     "yt_links": true
    },
    "verified": "2026-11-16T09:10:43+00:00"
@@ -447,6 +471,14 @@
      "ts": 1794859566,
      "attempts": 1,
      "permalink": ""
+    },
+    "tiktok": {
+     "status": "done",
+     "publish_id": "v_pub_file~v2-1.7709673877840758805",
+     "error": "upload in flight — re-check before re-post",
+     "ts": 1795048443,
+     "media_id": "v_pub_file~v2-1.7709673877840758805",
+     "attempts": 1
     },
     "yt_links": true
    },
