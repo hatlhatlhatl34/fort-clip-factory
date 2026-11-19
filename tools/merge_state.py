@@ -121,25 +121,41 @@ def _quota_merge(a: dict, base: dict) -> dict:
     """D4 (audit 2026-11-18): quota joins monotonically, regardless of
     direction — the later server defer stamp wins, units take the max,
     the newer Pacific date wins. Wholesale ownership silently dropped
-    a concurrent writer's defer stamp / spend before."""
+    a concurrent writer's defer stamp / spend before.
+
+    D5 (live fix 2026-11-19): the monotonic join is only valid WITHIN
+    one Pacific quota day. Across a day boundary the double-max
+    resurrected the OLD day's spend under the NEW day's date — live
+    symptom: 2026-11-18's 8752u rode into 2026-11-19 (truth: 0 spent),
+    the machine read 1,248 units left, the factory floor-stopped and
+    the harvest sweep deferred on phantom spend. When the two sides
+    disagree on date, the NEWER Pacific day wins WHOLESALE (its date,
+    its units_used, its defer stamp) — the old day's units are spent
+    and gone, YouTube's window has moved on. Same-day joins stay
+    monotonic (max units, defer stamps kept, no lost spend)."""
+    a = a or {}
+    base = base or {}
+    a_d = str(a.get("date") or "")
+    b_d = str(base.get("date") or "")
+    if a_d and b_d and a_d != b_d:
+        # D5: cross-day — the newer Pacific day is the only truth.
+        return dict(a if a_d > b_d else base)
     out = dict(base)
-    for k, v in (a or {}).items():
+    for k, v in a.items():
         if k not in ("defer_until", "defer_reason", "units_used", "date"):
             out[k] = v
-    da = int((a or {}).get("defer_until") or 0)
-    db = int((base or {}).get("defer_until") or 0)
+    da = int(a.get("defer_until") or 0)
+    db = int(base.get("defer_until") or 0)
     if da or db:
         out["defer_until"] = max(da, db)
         src = a if da >= db else base
         if src.get("defer_reason"):
             out["defer_reason"] = src["defer_reason"]
     try:
-        out["units_used"] = max(int((a or {}).get("units_used") or 0),
-                                int((base or {}).get("units_used") or 0))
+        out["units_used"] = max(int(a.get("units_used") or 0),
+                                int(base.get("units_used") or 0))
     except (TypeError, ValueError):
         pass
-    a_d = str((a or {}).get("date") or "")
-    b_d = str((base or {}).get("date") or "")
     if a_d or b_d:
         out["date"] = max(a_d, b_d)
     return out
