@@ -244,6 +244,10 @@ def promote_scheduled(state: dict) -> str | None:
         print(f"[youtube] promote failed: {e}")
         return None
     s["slot"] = now.isoformat()
+    # the guard lives HERE (not only in the orchestrator): any caller
+    # — standalone publish-now trigger included — stamps the day, so
+    # a later session can never flip a second short the same day
+    state["last_promote_day"] = now.date().isoformat()
     ledger.spend_quota(state, 50)
     ledger.save(state)
     print(f"[youtube] PROMOTE {s['video_id']} -> LIVE now "
