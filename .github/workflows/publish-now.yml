@@ -1,0 +1,66 @@
+# D8 (owner order 2026-11-20): "with the first downloaded video clip
+# it and publish it. I will not wait for the bank."
+#
+# A tiny standalone trigger that flips the earliest still-scheduled
+# Short to LIVE immediately (~50 quota units; the scheduled video is
+# already rendered and uploaded — making it public is instant).
+#
+# Why standalone: the factory workflows share the "clip-factory"
+# concurrency group, so a heal dispatched while a monthly-harvest is
+# running sits QUEUED behind it for hours. This workflow has NO
+# concurrency group — it runs the moment it is dispatched. It never
+# downloads, renders, or books slots; the only file it can ever
+# change is data/state.json (the promote stamps last_promote_day, so
+# at most ONE short goes live early per calendar day — the schedule
+# behind it is never stripped).
+name: publish-now
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Flip the earliest scheduled Short to LIVE now
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: |
+          if [ -z "$YT_REFRESH_TOKEN" ]; then
+            echo "::warning::YT_REFRESH_TOKEN not set — cannot flip. Exiting."
+            exit 0
+          fi
+          pip install -q "PyYAML>=6.0"
+          python tools/publish_now.py
+
+      - name: Commit memory back (data/state.json only)
+        run: |
+          git config user.name "clip-factory-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A data/state.json
+          git commit -m "memory: D8 publish-now promote" || true
+          for i in 1 2 3 4 5; do
+            if git push --quiet origin HEAD:main; then
+              echo "memory pushed (attempt $i)"
+              exit 0
+            fi
+            git fetch -q origin main
+            git rebase -q origin/main || \
+              git checkout --theirs data/state.json 2>/dev/null || true
+            sleep $((i * 3))
+          done
+          echo "::warning::state push raced 5x — the flip itself already \
+            succeeded; the next heal run reconciles the ledger"
+          exit 0
