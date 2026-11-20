@@ -141,7 +141,14 @@ def next_slot(state: dict) -> str | None:
     2026-11-14: one Short every 6 hours, 4/day). Scans today/tomorrow/
     day-after, skipping slots already booked in state.slots. A missed
     slot just means the next Short takes the next open one — the grid
-    self-heals."""
+    self-heals.
+
+    D8 (owner order 2026-11-20): a TODAY slot whose time already
+    passed unbooked is returned FIRST — upload_short turns a past
+    slot into an immediate LIVE publish (no publishAt; the API
+    rejects past times). Slots from previous days stay written off:
+    only today's holes heal.
+    """
     from zoneinfo import ZoneInfo
     sched = cfg()["schedule"]
     tz = ZoneInfo(sched["timezone"])
@@ -152,6 +159,16 @@ def next_slot(state: dict) -> str | None:
     now = datetime.now(tz)
     lead = timedelta(minutes=int(
         sched.get("publish_lead_minutes", 25)))
+    # D8: earliest overdue unbooked slot of TODAY first — the next
+    # Short publishes LIVE immediately to close the hole.
+    today_slots = slots + (weekend_slots
+                           if now.date().weekday() in weekend_days else [])
+    for hhmm in today_slots:
+        hh, mm = map(int, hhmm.split(":"))
+        slot_dt = datetime(now.year, now.month, now.day,
+                           hh, mm, tzinfo=tz)
+        if slot_dt <= now and slot_dt.isoformat() not in booked:
+            return slot_dt.isoformat()
     for day_offset in (0, 1, 2):
         base = (now + timedelta(days=day_offset)).date()
         day_slots = slots + (weekend_slots
@@ -170,6 +187,68 @@ def _book_slot(state: dict, slot_iso: str) -> None:
     if slot_iso not in box:
         box.append(slot_iso)
     ledger.save(state)
+
+
+def promote_scheduled(state: dict) -> str | None:
+    """D8 (owner order 2026-11-20): publish NOW — never make the
+    owner wait for content that already exists.
+
+    Flips the earliest still-scheduled (future publishAt) uploaded
+    Short to public: it goes LIVE the moment the API call lands, for
+    ~50 quota units instead of 1600 for a fresh upload. Returns the
+    video id, or None when nothing is scheduled or the flip fails —
+    a None is a no-op for the caller, never a session failure.
+    """
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo(cfg()["schedule"]["timezone"])
+    now = datetime.now(tz)
+    cands = []
+    for s in state.get("shorts", []):
+        if not (s.get("video_id") and s.get("slot")):
+            continue
+        try:
+            when = datetime.fromisoformat(s["slot"])
+        except (TypeError, ValueError):
+            continue
+        if when > now:
+            cands.append((when, s))
+    if not cands:
+        print("[youtube] promote: nothing scheduled in the future — "
+              "no short to flip live")
+        return None
+    cands.sort(key=lambda pair: pair[0])
+    when, s = cands[0]
+    token = get_access_token()
+    yconf = cfg()["youtube"]
+    body = json.dumps({
+        "id": s["video_id"],
+        "status": {
+            "privacyStatus": "public",
+            "madeForKids": bool(yconf.get("made_for_kids", False)),
+            "selfDeclaredMadeForKids":
+                bool(yconf.get("made_for_kids", False)),
+        },
+    }).encode()
+    req = urllib.request.Request(
+        f"{API_BASE}/videos?part=status", data=body, method="PUT",
+        headers={"Authorization": f"Bearer {token}",
+                 "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            resp.read()
+    except urllib.error.HTTPError as e:
+        print(f"[youtube] promote failed ({e.code}): "
+              f"{e.read().decode()[:400]}")
+        return None
+    except Exception as e:                    # network, token, whatever
+        print(f"[youtube] promote failed: {e}")
+        return None
+    s["slot"] = now.isoformat()
+    ledger.spend_quota(state, 50)
+    ledger.save(state)
+    print(f"[youtube] PROMOTE {s['video_id']} -> LIVE now "
+          f"(was scheduled {when.isoformat()})")
+    return s["video_id"]
 
 
 # ── resumable upload ────────────────────────────────────────────────
@@ -258,12 +337,23 @@ def upload_short(filepath: Path, meta: dict, state: dict) -> str | None:
 
     yconf = cfg()["youtube"]
     slot = next_slot(state)
+    # D8: an OVERDUE slot (its time already passed) publishes LIVE
+    # immediately — no publishAt (the API rejects past times), just
+    # public. "With the first downloaded video clip it and publish
+    # it — I will not wait."
+    overdue = False
+    if slot:
+        try:
+            _when = datetime.fromisoformat(slot)
+            overdue = _when <= datetime.now(_when.tzinfo)
+        except ValueError:
+            overdue = False
     status = {
         "privacyStatus": "private",
         "madeForKids": bool(yconf.get("made_for_kids", False)),
         "selfDeclaredMadeForKids": bool(yconf.get("made_for_kids", False)),
     }
-    if slot:
+    if slot and not overdue:
         status["publishAt"] = slot
     else:
         status["privacyStatus"] = yconf.get("privacy", "public")
@@ -321,8 +411,9 @@ def upload_short(filepath: Path, meta: dict, state: dict) -> str | None:
         # C3 (audit 2026-11-18): book the slot + burn local quota ONLY
         # on a real id — a blind-poll "" booked the slot forever while
         # the clip re-published next session (invisible grid hole)
-        print(f"[youtube] uploaded short {video_id} "
-              f"(publishAt {slot or 'now'})")
+        tail = (f"LIVE now — overdue slot {slot}" if overdue and slot else
+                f"publishAt {slot}" if slot else "now")
+        print(f"[youtube] uploaded short {video_id} ({tail})")
         if slot:
             _book_slot(state, slot)
         ledger.spend_quota(state, UPLOAD_UNITS)
