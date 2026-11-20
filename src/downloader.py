@@ -123,10 +123,21 @@ def _probe_height(p: Path) -> int:
     JSON fallback parse (a different ffprobe path can rescue a real
     video the csv path misreads), and a one-time raw probe dump so the
     run log itself settles junk-stream vs broken-probe with evidence.
+
+    D7 (live fix 2026-11-20 ~13:00 UTC): the PROBE-DIAG dump settled
+    it — raw probe showed width=1920/height=1080 for files the csv
+    path called 0p. Root cause: D6's two new probes passed "-v",
+    "-error" — an INVALID ffprobe loglevel (ffprobe prints 'Invalid
+    loglevel "-error"', exits, stdout empty, parse -> 0). Every real
+    download since D6 landed was rejected at the gate: heals failed,
+    the harvest banked nothing, zero publishes for two days. Fix:
+    "-v error". Plus a third fallback that PARSES the default-format
+    dump (the exact path PROBE-DIAG proved works), so a future csv+json
+    miss can never wall the machine again.
     """
     try:
         r = subprocess.run(
-            ["ffprobe", "-v", "-error", "-select_streams", "v:0",
+            ["ffprobe", "-v", "error", "-select_streams", "v:0",
              "-show_entries", "stream=height",
              "-of", "csv=p=0", str(p)],
             capture_output=True, text=True, timeout=60)
@@ -137,7 +148,7 @@ def _probe_height(p: Path) -> int:
         pass
     try:
         r = subprocess.run(
-            ["ffprobe", "-v", "-error", "-show_streams",
+            ["ffprobe", "-v", "error", "-show_streams",
              "-show_entries", "stream=codec_type,height",
              "-of", "json", str(p)],
             capture_output=True, text=True, timeout=60)
@@ -149,6 +160,23 @@ def _probe_height(p: Path) -> int:
                     print(f"[download] probe fallback: {p.name} is {h}p "
                           "via JSON parse (csv path returned 0)")
                     return h
+    except Exception:
+        pass
+    # D7 third fallback: parse the default-format dump — the one probe
+    # path PROBE-DIAG proved correct on live runners.
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=height",
+             "-of", "default", str(p)],
+            capture_output=True, text=True, timeout=60)
+        m = re.search(r"height\s*=\s*(\d+)", r.stdout or "")
+        if m:
+            h = int(m.group(1))
+            if h > 0:
+                print(f"[download] probe fallback: {p.name} is {h}p "
+                      "via default-format parse (csv+json returned 0)")
+                return h
     except Exception:
         pass
     if not _PROBE_WARNED[0]:
