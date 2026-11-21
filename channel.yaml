@@ -269,38 +269,86 @@ youtube:
   privacy: "public"
   default_language: "en"
   synthetic_media_disclosure: false   # real gameplay footage, not AI-generated
-  # metadata templates — {n} is the forever-incrementing number.
-  # OWNER RULE (2026-11-13): titles are HOOKS about XP + free skins.
-  # NO map code, NO creator code in titles — codes live in the
-  # burned-in bars + the description. Length always <= 95 chars.
-  # OWNER RULE (2026-11-14): the word "Fortnite" is IN EVERY TITLE
-  # (all combinations, both families) — a title without the game's
-  # name can never ship. metadata.py enforces it at runtime too.
-  title_templates:
-    - "How to get FREE SKINS in Fortnite 🤑 #{n}"
-    - "This Fortnite map levels you up FAST 🔥 #{n}"
-    - "The EASIEST way to level up in Fortnite ⚡ #{n}"
-    - "Fortnite free skins WITHOUT V-Bucks 💸 #{n}"
-    - "This Fortnite map gives XP while you AFK 😴 #{n}"
-    - "Max out your Fortnite Battle Pass in ONE day 🏆 #{n}"
-    - "Level up your Fortnite Battle Pass for FREE 💯 #{n}"
-    - "FREE skins are hiding in this Fortnite map 🎁 #{n}"
-    - "Stop grinding — THIS Fortnite map does it for you 💡 #{n}"
-    - "This Fortnite map should be ILLEGAL 🚫 #{n}"
-    - "The BEST Fortnite map right now 🔥 #{n}"
-    - "You won't believe this Fortnite map 😳 #{n}"
-  # used ONLY when the source was found via an XP-map query (the
-  # approved sample-1 niche) — never mislabels other footage.
-  # Same 2026-11-14 rule: "Fortnite" in every single one.
-  xp_title_templates:
-    - "This Fortnite XP map = FREE Battle Pass 🤑 #{n}"
-    - "Fortnite Level 100 in ONE DAY? 😱 #{n}"
-    - "This Fortnite XP map gives FREE skins 🎁 #{n}"
-    - "Fortnite AFK XP farm — levels while you sleep 😴 #{n}"
-    - "FREE Fortnite XP map, NO timer needed ⏱️ #{n}"
-    - "The XP map that breaks Fortnite 🔥 #{n}"
-    - "This Fortnite XP map pays your Battle Pass 💰 #{n}"
-    - "Unlimited Fortnite XP in this map 🤯 #{n}"
+  # ── THE TITLE ENGINE (owner rule 2026-11-22: "never duplicate
+  # titles") — titles are COMBINATIONS, not templates. metadata.py
+  # composes subject x predicate (+ an occasional lead) and burns
+  # each used SKELETON forever against every title ever shipped
+  # (published shorts + banked clips), so two titles can never copy
+  # each other again — same-family repetition beyond the pool gets a
+  # natural "(part k)" suffix. Still true, as before:
+  #  * OWNER RULE (2026-11-13): titles are HOOKS — NO map code, NO
+  #    creator code in titles; codes live in the burned-in bars +
+  #    the description.
+  #  * OWNER RULE (2026-11-14): the word "Fortnite" is IN EVERY
+  #    SUBJECT — every combination carries the game's name.
+  #  * Length always <= 95 chars (enforced in metadata.py).
+  #  * xp_subjects/xp_predicates serve ONLY footage found via an
+  #    XP-map query (the approved sample-1 niche) — never mislabels.
+  # Parts lists must stay grammar-safe: every subject must pair
+  # naturally with every predicate in its own family.
+  title_engine:
+    subjects:                       # generic family
+      - "This Fortnite map"
+      - "This secret Fortnite map"
+      - "This cursed Fortnite map"
+      - "This new Fortnite map"
+      - "The best Fortnite map"
+      - "This hidden Fortnite map"
+      - "This Fortnite creative map"
+      - "This Fortnite horror map"
+      - "This tiny Fortnite map"
+      - "This forgotten Fortnite map"
+      - "This Fortnite gem"
+    predicates:
+      - "levels you up FAST ⚡"
+      - "does the grinding for you 💡"
+      - "should be BANNED 🚫"
+      - "gives XP while you AFK 😴"
+      - "feels illegal to play 😳"
+      - "changes how you level up 🔥"
+      - "hides free skins 🎁"
+      - "plays itself 🤖"
+      - "hides a secret nobody found 👀"
+      - "is cursed and I love it 💀"
+      - "made me forget the Battle Pass 🤯"
+      - "rewards you for doing NOTHING 💯"
+      - "should come with a warning ⚠️"
+      - "is straight up FREE XP 🔥"
+      - "never gets boring 🎮"
+    xp_subjects:                     # XP family (XP-query footage only)
+      - "This Fortnite XP map"
+      - "This no-timer Fortnite XP map"
+      - "This AFK Fortnite XP map"
+      - "This secret Fortnite XP map"
+      - "Fortnite's CRAZIEST XP map"
+      - "This Fortnite XP glitch"
+      - "The BEST Fortnite XP map"
+      - "This hidden Fortnite XP map"
+      - "This free Fortnite XP map"
+      - "This Fortnite XP farm"
+      - "This Fortnite XP method"
+      - "This tiny Fortnite XP map"
+    xp_predicates:
+      - "levels you while you sleep 😴"
+      - "grinds your whole Battle Pass 🎖️"
+      - "maxes your level in ONE day ⚡"
+      - "prints free skins 🤑"
+      - "breaks Fortnite's economy 🤯"
+      - "feels like cheating 😳"
+      - "is FREE XP, zero grinding 💯"
+      - "pays your whole Battle Pass 💰"
+      - "is unlimited XP, no timer ⏱️"
+      - "does the leveling for you 💡"
+      - "turns AFK time into levels 😱"
+      - "farms XP faster than you play 🔥"
+      - "is the XP glitch Epic missed 👀"
+      - "stacks levels while you walk 🚶"
+    leads:                           # occasional prefix (~28% of titles)
+      - "POV:"
+      - "Insane:"
+      - "Crazy:"
+      - "No way —"
+      - "Wait for it…"
 
 daily:
   quota_budget: 10000                 # YouTube Data API units/day

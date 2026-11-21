@@ -44,11 +44,25 @@ import tempfile as _tf               # keep pyflakes quiet
 
 now_m = datetime.now(timezone.utc).strftime("%Y-%m")
 prev_m = "2026-10" if now_m != "2026-10" else "2026-09"
+# owner rule 2026-11-21: the bank is a 2-MONTH bank — a bank one month
+# back is still within its feeding horizon (not stale); only a bank
+# 2+ months back has aged out. Build the aged-out key accordingly.
+m1_back = ("2026-10" if now_m == "2026-11" else
+           "2025-12" if now_m == "2026-01" else
+           f"{int(now_m[:4]) - 1}-12" if now_m.endswith("-01") else
+           f"{now_m[:4]}-{int(now_m[5:7]) - 1:02d}")
+aged_m = ("2026-09" if m1_back == "2026-10" else
+          f"{int(m1_back[:4]) - 1}-12" if m1_back.endswith("-01") else
+          f"{m1_back[:4]}-{int(m1_back[5:7]) - 1:02d}")
 
 # ── 1. stale detection ────────────────────────────────────────────
-state = {"bank": {"month": prev_m, "clips": [{"slot": "x"}],
+state = {"bank": {"month": m1_back, "clips": [{"slot": "x"}],
                   "reserved_n": [5]}}
-check("stale() flags a previous-month bank", bank.stale(state))
+check("stale() passes a 1-month-old bank (2-month horizon)",
+      not bank.stale(state))
+state["bank"]["month"] = aged_m
+check("stale() flags a bank aged past its 2-month horizon",
+      bank.stale(state))
 state["bank"]["month"] = now_m
 check("stale() passes the current-month bank", not bank.stale(state))
 check("stale() passes a cleared bank (month None)",

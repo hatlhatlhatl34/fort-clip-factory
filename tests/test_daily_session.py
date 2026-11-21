@@ -50,60 +50,101 @@ def main() -> int:
     check("no weekend slots left", not sched.get("weekend_slots"))
     check("daily session time set",
           sched.get("daily_run_utc") == "08:33")
-    check("harvest target 124", int(cfg()["harvest"]["max_clips"]) == 124)
+    check("harvest target 250", int(cfg()["harvest"]["max_clips"]) == 250)
     check("session produces 4",
           int(cfg()["clip"]["max_clips_per_run"]) == 4)
     check("codes banned from titles", cfg()["codes"]["show_in_title"] is False)
 
-    templates = (cfg()["youtube"]["title_templates"]
-                 + cfg()["youtube"].get("xp_title_templates", []))
-    check("20 hooking title templates", len(templates) == 20)
-    ok = all("{map" not in t and "{creator" not in t for t in templates)
-    check("no {map}/{creator} in any template", ok)
-    ok = all("7992-0068-2838" not in t for t in templates)
-    check("no map code in any template", ok)
-    ok = all(len(t.format(n=999)) <= 95 for t in templates)
-    check("all titles <= 95 chars", ok)
-    # OWNER RULE (2026-11-14): the word "Fortnite" in EVERY template
-    ok = all("fortnite" in t.format(n=999).lower() for t in templates)
-    check("every template contains Fortnite", ok,
-          str([t for t in templates
-               if "fortnite" not in t.format(n=999).lower()]))
+    # ── 1b. the TITLE ENGINE (owner rule 2026-11-22: never duplicate)
+    eng = (cfg()["youtube"].get("title_engine") or {})
+    parts = [p for k in ("subjects", "predicates", "xp_subjects",
+                         "xp_predicates") for p in (eng.get(k) or [])]
+    check("title_engine parts configured", len(parts) >= 40,
+          f"{len(parts)} parts")
+    ok = all("7992-0068-2838" not in p and "H15" not in p for p in parts)
+    check("no codes in any engine part", ok)
+    # OWNER RULE (2026-11-14): the word "Fortnite" in EVERY SUBJECT
+    subs = (eng.get("subjects") or []) + (eng.get("xp_subjects") or [])
+    ok = all("fortnite" in s.lower() for s in subs)
+    check("every subject contains Fortnite", ok,
+          str([s for s in subs if "fortnite" not in s.lower()]))
+    for fam in (("subjects", "predicates"), ("xp_subjects", "xp_predicates")):
+        cap = len(eng.get(fam[0]) or []) * len(eng.get(fam[1]) or [])
+        check(f"family {fam[0]} x {fam[1]} capacity >= 150", cap >= 150,
+              f"{cap} combos")
+    # longest possible composition (lead + longest subject + longest
+    # predicate + "#999") still fits YouTube's hard 100-char limit
+    lead = max(eng.get("leads") or [""], key=len)
+    worst = max(len(f"{lead} {s} {p} #999")
+                for s, p in [(
+                    max((eng.get("subjects") or []) +
+                        (eng.get("xp_subjects") or []), key=len),
+                    max((eng.get("predicates") or []) +
+                        (eng.get("xp_predicates") or []), key=len))])
+    check("worst-case title <= 95 chars", worst <= 95, f"{worst} chars")
 
     brand = cfg().get("branding") or {}
     check("branding block present", bool(brand.get("description")))
     check("branding keywords present", len(brand.get("keywords") or []) >= 8)
 
-    # ── 2. metadata: hooking titles, no code, unique #N ─────────────
+    # ── 2. metadata: hooking titles, no code, unique skeletons ─────
+    # (owner rule 2026-11-22: no two titles may ever share a skeleton —
+    # the sim mirrors the real flow: every built title is recorded in
+    # state BEFORE the next build, exactly as bank.add does in-flight)
     state = {"shorts": [{"n": 12}], "used_sources": [],
-             "bank": {"reserved_n": [13]}}
-    titles = set()
+             "bank": {"reserved_n": [13], "clips": []}}
+    skeletons: list[str] = []
     clean = True
     fortnite_ok = True
-    for seed in range(40):
+    for seed in range(60):
         src = {"query": "fortnite xp map gameplay"} if seed % 2 else {}
         meta = metadata.build(src, state, seed)
-        titles.add(meta["title"])
-        if "1789" in meta["title"] or "H15" in meta["title"]:
+        skeletons.append(metadata._skeleton(meta["title"]))
+        if "7992" in meta["title"] or "H15" in meta["title"]:
             clean = False
         if "fortnite" not in meta["title"].lower():
             fortnite_ok = False
-    check("no code in 40 generated titles", clean)
+        state["shorts"].append({"n": meta["n"], "title": meta["title"]})
+        state["bank"]["reserved_n"].append(meta["n"])
+    check("no code in 60 generated titles", clean)
     check("every generated title contains Fortnite", fortnite_ok)
+    check("60 generated titles -> 60 distinct skeletons",
+          len(set(skeletons)) == 60, f"{len(set(skeletons))} distinct")
+    # the 250-clip bank era (owner rule 2026-11-21) needs 250+ unique
+    # skeletons without any (part k) fallback fires
+    big_state = {"shorts": [], "used_sources": [],
+                 "bank": {"reserved_n": [], "clips": []}}
+    n_fallback = 0
+    for seed in range(300):
+        src = {"query": "fortnite xp map gameplay"} if seed % 5 else {}
+        meta = metadata.build(src, big_state, seed)
+        if "(part " in meta["title"]:
+            n_fallback += 1
+        big_state["shorts"].append({"n": meta["n"],
+                                     "title": meta["title"]})
+        big_state["bank"]["reserved_n"].append(meta["n"])
+    sk = [metadata._skeleton(s["title"]) for s in big_state["shorts"]]
+    check("300-clip sim -> 300 unique skeletons",
+          len(set(sk)) == 300, f"{len(set(sk))} distinct")
+    check("no fallback part-suffix needed in 300 clips", n_fallback == 0,
+          f"{n_fallback} fallbacks")
     # the runtime repair: a Fortnite-less title can never ship even
-    # if a future template edit breaks the config rule
+    # if a future config edit breaks the engine rule
     broken = {"query": "", "title": ""}
-    saved = cfg()["youtube"]["title_templates"]
-    cfg()["youtube"]["title_templates"] = ["Free skins, no codes #{n}"]
+    saved = dict(cfg()["youtube"]["title_engine"])
+    cfg()["youtube"]["title_engine"] = dict(saved, subjects=["Secret map"])
     m = metadata.build(broken, state, 3)
-    cfg()["youtube"]["title_templates"] = saved
+    cfg()["youtube"]["title_engine"] = saved
     check("runtime guard prefixes Fortnite",
           m["title"].startswith("Fortnite"), m["title"])
-    check("40 seeds -> >= 10 distinct titles", len(titles) >= 10,
-          f"{len(titles)} distinct")
     m = metadata.build({"query": "fortnite xp map gameplay"}, state, 1)
     check("description has MAP CODE", "7992-0068-2838" in m["description"])
     check("description has CREATOR CODE", "H15" in m["description"])
+    # numbering skips reserved — checked on a PRISTINE state so the
+    # 60-title sims above haven't bumped the counters yet
+    fresh_state = {"shorts": [{"n": 12}], "used_sources": [],
+                   "bank": {"reserved_n": [13], "clips": []}}
+    m = metadata.build({"query": "fortnite xp map gameplay"}, fresh_state, 1)
     check("numbering skips reserved", m["n"] == 14,
           f"n={m['n']} (12 published, 13 reserved)")
 
@@ -123,12 +164,17 @@ def main() -> int:
          "--event", "schedule"], capture_output=True, text=True)
     first = gate.stdout.splitlines()[0] if gate.stdout else ""
     check("gate verdict well-formed",
-          first.startswith("RUN") or first.startswith("SKIP"),
+          first.startswith(("RUN", "SKIP", "HOLD")),
           first.split(" # ")[0])
     n_holes = len(targets)
-    check("gate agrees with open_targets count",
-          (f"{n_holes} open slot" in first) if n_holes
-          else first.startswith("SKIP"), first)
+    if first.startswith("HOLD"):
+        # owner rule 2026-11-21: open slots DURING the 2-day hold are
+        # expected — the gate is right to hold, nothing to fill yet
+        check("gate holds during the publishing hold", True)
+    else:
+        check("gate agrees with open_targets count",
+              (f"{n_holes} open slot" in first) if n_holes
+              else first.startswith("SKIP"), first)
 
     # ── 4. jar pool: rotation + multi-secret stitch ──────────────────
     jar_names = ["j0", "j1", "j2", "j3", "j4"]

@@ -1,16 +1,23 @@
 """Metadata — titles, descriptions, tags.
 
-OWNER RULE (2026-11-14): the word "Fortnite" is IN EVERY TITLE.
-Titles talk about XP maps + free skins FOR FORTNITE, so the game's
-name must appear in every combination. Templates in channel.yaml
-all comply; build() additionally REPAIRS any title that loses the
-word (future edit, bad merge) — the rule can never silently break.
+OWNER RULE (2026-11-22, "never duplicate titles"): no two titles may
+ever copy each other. Titles are now COMBINATIONS, not templates:
+subject x predicate (+ optional lead) drawn from the channel.yaml
+title_engine parts, checked against the SKELETON of every title
+ever shipped (published shorts + banked clips). A skeleton — the
+title with its #N, emoji and punctuation stripped — is burned
+forever once used, so two titles that differ only by their number
+can never exist again. When the combination pool runs low, the
+composer falls back to a natural "(part N)" suffix — uniqueness is
+guaranteed by construction, forever.
 
-OWNER RULE (2026-11-13): titles are pure HOOKS about XP + free
-skins — the map code NEVER appears in a title (it lives in the
-description + the burned-in top bar). Templates come from
-channel.yaml; the only filled field is {n}, the forever-incrementing
-number so no two Shorts share a title (crash-adoption safety).
+OWNER RULE (2026-11-14): the word "Fortnite" is IN EVERY TITLE.
+Every engine subject carries it; build() additionally REPAIRS any
+title that loses the word — the rule can never silently break.
+
+OWNER RULE (2026-11-13): titles are pure HOOKS — the map code and
+creator code NEVER appear in a title (they live in the description
+and the burned-in top/footer bars). build() enforces it at runtime.
 
 Description:
   * MAP CODE (huge, first line)
@@ -25,10 +32,83 @@ ingest drops). Nothing about the source video ever appears.
 from __future__ import annotations
 
 import random
+import re
 
 from . import ledger
 from .config import cfg
 
+_EMOJI = re.compile(
+    "[\U0001F000-\U0001FAFF\u2600-\u27BF\uFE0F\u2B00-\u2BFF]")
+
+# the guaranteed-clean legacy hook (engine-less fallback) — obeys
+# every title rule: Fortnite inside, no codes, <= 95 chars.
+_LEGACY_HOOK = "How to get FREE SKINS in Fortnite 🤑"
+
+
+# ── the uniqueness ledger ──────────────────────────────────────────
+
+def _skeleton(title: str) -> str:
+    """A title's skeleton: #N, emoji and punctuation stripped,
+    lowercased, whitespace collapsed. Two titles that differ ONLY
+    by their #N share a skeleton — the thing that must never
+    repeat (owner rule 2026-11-22)."""
+    t = _EMOJI.sub("", str(title or ""))
+    t = re.sub(r"#\d+\s*$", "", t).strip()
+    t = re.sub(r"[^0-9A-Za-z]+", " ", t)
+    return " ".join(t.lower().split()).strip()
+
+
+def used_skeletons(state: dict) -> set[str]:
+    """Every skeleton ever shipped: published shorts + banked clips.
+    This IS the uniqueness ledger — no separate file to lose."""
+    titles = [s.get("title") for s in (state.get("shorts") or [])]
+    for c in (state.get("bank") or {}).get("clips") or []:
+        titles.append((c.get("meta") or {}).get("title"))
+    return {_skeleton(t) for t in titles if t}
+
+
+# ── the composer ───────────────────────────────────────────────────
+
+def compose(xp: bool, used: set[str], rng: random.Random, n: int) -> str:
+    """One unique-skeleton hook title for clip #n.
+
+    Combines subject x predicate (+ an occasional lead) until the
+    skeleton is unused; after 120 misses (pool exhausted) it tags a
+    natural "(part k)" suffix. Uniqueness is structural: even the
+    fallback path walks part numbers upward, so it can never
+    return a burned skeleton while k still has fresh values.
+    """
+    eng = cfg()["youtube"].get("title_engine") or {}
+    subjects = eng.get("xp_subjects" if xp else "subjects") or []
+    predicates = eng.get("xp_predicates" if xp else "predicates") or []
+    leads = eng.get("leads") or []
+
+    if subjects and predicates:
+        for _ in range(120):
+            subj, pred = rng.choice(subjects), rng.choice(predicates)
+            lead = rng.choice(leads) if (leads and rng.random() < 0.28) else ""
+            cand = f"{lead} {subj} {pred} #{n}".strip() if lead \
+                else f"{subj} {pred} #{n}"
+            if _skeleton(cand) not in used:
+                return cand
+        # pool exhausted — a natural part suffix keeps the title
+        # unique WITHOUT recycling a burned skeleton
+        subj, pred = rng.choice(subjects), rng.choice(predicates)
+        for k in range(2, 500):
+            cand = f"{subj} {pred} (part {k}) #{n}"
+            if _skeleton(cand) not in used:
+                return cand
+
+    # engine not configured (or broken): legacy clean hook, part-
+    # numbered the moment its skeleton is already burned
+    for k in range(0, 500):
+        cand = _LEGACY_HOOK + (f" (part {k}) #{n}" if k else f" #{n}")
+        if _skeleton(cand) not in used:
+            return cand
+    return f"{_LEGACY_HOOK} #{n}"          # unreachable by construction
+
+
+# ── the description block ──────────────────────────────────────────
 
 def _description_body(codes: dict, xlinks: dict) -> str:
     """The description block built from the CURRENT codes + links —
@@ -66,30 +146,30 @@ def _description_body(codes: dict, xlinks: dict) -> str:
 def build(source: dict, state: dict, seed: int) -> dict:
     codes = cfg()["codes"]          # description + bars only, NEVER titles
     n = ledger.next_short_number(state)
-    templates = cfg()["youtube"]["title_templates"]
-    # XP-aware titling: footage found via an XP-map query gets the XP
-    # template family (the approved sample-1 niche); other footage
-    # keeps the generic family — titles never mislabel the content.
-    if "xp" in (source.get("query") or "").lower():
-        xp = cfg()["youtube"].get("xp_title_templates") or []
-        if xp:
-            templates = xp
     rng = random.Random(seed)
 
-    title = rng.choice(templates).format(n=n)
+    # XP-aware titling: footage found via an XP-map query gets the XP
+    # family (the approved sample-1 niche); other footage keeps the
+    # generic family — titles never mislabel the content.
+    xp = "xp" in (source.get("query") or "").lower()
+    used = used_skeletons(state)
+    title = compose(xp, used, rng, n)
 
-    # OWNER RULE (2026-11-13): codes NEVER appear in a title — if a
-    # template ever smuggles one in, ship a guaranteed-clean hook
-    # instead (the fallback itself obeys every title rule).
-    clean_hook = f"How to get FREE SKINS in Fortnite 🤑 #{n}"
+    # OWNER RULE (2026-11-13): codes NEVER appear in a title — if
+    # anything ever smuggles one in, ship a guaranteed-clean,
+    # still-unique hook instead (the legacy path obeys every rule).
     if (codes["map_code"].lower() in title.lower()
             or codes["creator_code"].lower() in title.lower()):
-        title = clean_hook
+        used.add(_skeleton(title))              # burn the poisoned one
+        title = compose(xp, used, rng, n)
+        if (codes["map_code"].lower() in title.lower()
+                or codes["creator_code"].lower() in title.lower()):
+            title = compose(False, used, rng, n)   # last-resort legacy
 
     # OWNER RULE (2026-11-14): the word "Fortnite" is IN EVERY TITLE.
-    # Belt and suspenders: if a template somehow lost the word, the
-    # builder repairs the title in place — a Fortnite-less title can
-    # never ship.
+    # Belt and suspenders: if a config edit somehow lost the word,
+    # the builder repairs the title in place — a Fortnite-less
+    # title can never ship.
     if "fortnite" not in title.lower():
         title = f"Fortnite: {title}"
 

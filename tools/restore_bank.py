@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import re
 import shutil
 import sys
@@ -39,30 +40,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.config import cfg  # noqa: E402
+from src.config import cfg                      # noqa: F401
+from src.metadata import (_skeleton, compose,  # noqa: F401
+                          used_skeletons as _used_skeletons)
 
 XP_HINTS = re.compile(
     r"\bxp\b|level\s?(?:up|100)|afk|v[\s-]?bucks|battle\s?pass|free skin",
     re.IGNORECASE)
 
 
-def retitle(source_title: str, n: int, gi: int, xi: int) -> str:
-    """New title for a banked clip — Fortnite in every one."""
-    y = cfg()["youtube"]
-    if XP_HINTS.search(source_title or ""):
-        fam = y.get("xp_title_templates") or y["title_templates"]
-        idx = xi
-    else:
-        fam = y["title_templates"]
-        idx = gi
-    title = fam[idx % len(fam)].format(n=n)
-    if "fortnite" not in title.lower():        # owner rule 2026-11-14
-        title = f"Fortnite: {title}"
-    codes = cfg()["codes"]
-    if (codes["map_code"].lower() in title.lower()
-            or codes["creator_code"].lower() in title.lower()):
-        title = f"How to get FREE SKINS in Fortnite 🤑 #{n}"
-    return title[:95]
+def retitle(source_title: str, n: int, used: set, rng) -> str:
+    """New engine-composed title for a banked clip — Fortnite in
+    every one, skeleton never reused (owner rule 2026-11-22)."""
+    xp = bool(XP_HINTS.search(source_title or ""))
+    return compose(xp, used, rng, n)
 
 
 def main() -> int:
@@ -91,15 +82,15 @@ def main() -> int:
                             or []) if isinstance(r, int)]
     n = (max(used_ns) + 1) if used_ns else 1
 
-    gi = xi = 0
+    # the uniqueness ledger: every skeleton ever shipped (owner
+    # rule 2026-11-22) + the engine composer's rng
+    used = _used_skeletons(state)
+    rng = random.Random(20261122)
     out, reserved = [], []
     for clip in clips:
         src_title = clip.get("source_title") or ""
-        title = retitle(src_title, n, gi, xi)
-        if XP_HINTS.search(src_title):
-            xi += 1
-        else:
-            gi += 1
+        title = retitle(src_title, n, used, rng)
+        used.add(_skeleton(title))      # burn: never reused again
         meta = dict(clip.get("meta") or {})
         meta["title"] = title
         meta["n"] = n
@@ -162,11 +153,11 @@ def main() -> int:
         "ready": True,
     }
 
-    xp_n = xi
+    xp_n = sum(1 for c in live if XP_HINTS.search(c.get("source_title") or ""))
     print(f"clips restored:   {len(live)} live of {len(clips)} banked "
           f"(n {live[0]['n']}..{live[-1]['n']})")
     print(f"provision meter:   harvested_total = {len(clips)}")
-    print(f"xp-family titles: {xp_n}, generic: {gi}")
+    print(f"xp-family titles: {xp_n}, generic: {len(live) - xp_n}")
     print(f"used_sources:     {before} -> {len(used)} "
           f"(+{len(used) - before} re-marked)")
     print(f"pointer:          run {args.run_id} / "
