@@ -609,9 +609,9 @@
     },
     "tiktok": {
      "status": "failed",
-     "attempts": 7,
+     "attempts": 8,
      "error": "Command '['ffmpeg', '-y', '-v', 'error', '-i', '/home/runner/work/fort-clip-factory/fort-clip-factory/work_backfill/short_29.mp4', '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease', '-c:v', 'libx264', '-pix_fm",
-     "ts": 1795246095
+     "ts": 1795277683
     },
     "yt_links": true
    },
@@ -1162,9 +1162,9 @@
     },
     "tiktok": {
      "status": "failed",
-     "attempts": 6,
+     "attempts": 8,
      "error": "Command '['ffmpeg', '-y', '-v', 'error', '-i', '/home/runner/work/fort-clip-factory/fort-clip-factory/work_backfill/short_73.mp4', '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease', '-c:v', 'libx264', '-pix_fm",
-     "ts": 1795246098
+     "ts": 1795277689
     },
     "yt_links": true
    }
