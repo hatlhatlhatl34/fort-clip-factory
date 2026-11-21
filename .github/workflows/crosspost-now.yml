@@ -54,6 +54,7 @@ jobs:
           COOKIES_TXT: ${{ secrets.COOKIES_TXT }}
           COOKIES_TXT2: ${{ secrets.COOKIES_TXT2 }}
           COOKIES_TXT3: ${{ secrets.COOKIES_TXT3 }}
+          COOKIES_TXT4: ${{ secrets.COOKIES_TXT4 }}
         run: |
           # stateless by design: ledger.save() writes stay on THIS
           # runner and vanish with it (no commit step below). The

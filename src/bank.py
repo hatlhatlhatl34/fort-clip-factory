@@ -151,38 +151,108 @@ def current_month() -> str:
     return datetime.now(ZoneInfo("UTC")).strftime("%Y-%m")
 
 
-def stale(state: dict) -> bool:
-    """True when the banked clips belong to a PREVIOUS month.
+def _month_diff(a: str, b: str) -> int:
+    """b - a in whole months (both 'YYYY-MM')."""
+    try:
+        ay, am = map(int, a.split("-"))
+        by, bm = map(int, b.split("-"))
+    except ValueError:
+        return 99
+    return (by - ay) * 12 + (bm - am)
 
-    OWNER RULE (2026-11-18): "harvest all the clips in the beginning
-    of the month so the machine don't use the old bank clips" — a
-    leftover bank from November must never feed December slots. The
-    daily publish path checks this BEFORE popping any clip."""
-    bm = (state.get("bank") or {}).get("month")
-    return bool(bm) and bm != current_month()
+
+def started_ts(state: dict) -> float | None:
+    """Epoch seconds of the bank's harvest start (harvest_started_ts),
+    or None for a legacy bank created before 2026-11-21."""
+    raw = (state.get("bank") or {}).get("harvest_started_ts") or ""
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        return datetime.fromisoformat(
+            raw.strip().replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def _horizon_days() -> int:
+    """The bank's feeding horizon = harvest.days_ahead (62 days —
+    a 2-month bank, owner rule 2026-11-21)."""
+    return int((cfg().get("harvest") or {}).get("days_ahead", 62))
+
+
+def within_horizon(state: dict) -> bool:
+    """True while the bank is younger than its own feeding horizon.
+
+    OWNER RULE (2026-11-21) — THE 2-MONTH BANK: harvest TWO months of
+    clips in one cycle (the bot wall makes re-harvesting unreliable,
+    so the machine provisions a 2-month buffer instead of a 1-month
+    one). A bank lives exactly its harvest.days_ahead window; a
+    legacy bank without a start ts falls back to the month key (a
+    bank whose month is 2+ months past is out of horizon)."""
+    t0 = started_ts(state)
+    if t0 is not None:
+        return time.time() < t0 + _horizon_days() * 86400
+    bm = (state.get("bank") or {}).get("month") or ""
+    return bool(bm) and _month_diff(bm, current_month()) < 2
+
+
+def hold_active(state: dict) -> bool:
+    """True while the publishing hold is on.
+
+    OWNER RULE (2026-11-21) — HARVEST-FIRST: "harvest for 2 months,
+    and after harvesting clips for 2 days start the cycle of
+    publishing on every platform." Publishing (YouTube grid +
+    IG/FB/TikTok reels) stays OFF for publishing.hold_days after
+    the bank's harvest STARTS, while the stacking guards keep
+    harvesting (never stop the harvest — that is what trips the
+    bot wall). Then the cycle runs everywhere, in parallel with
+    the stacking that continues toward the 250-clip target."""
+    t0 = started_ts(state)
+    if t0 is None:
+        return False
+    hold_days = float((cfg().get("publishing") or {}).get("hold_days", 2))
+    return time.time() < t0 + hold_days * 86400
+
+
+def stale(state: dict) -> bool:
+    """True when the bank has aged past its own feeding horizon.
+
+    OWNER RULE (2026-11-21) — supersedes the 2026-11-18 same-month
+    rule: the bank is a 2-MONTH bank now, so it is poison only when
+    its harvest window is over (clips banked for a horizon that has
+    passed). The daily publish path checks this BEFORE popping any
+    clip."""
+    return not within_horizon(state) and bool(
+        (state.get("bank") or {}).get("clips"))
 
 
 def retire(state: dict, why: str) -> None:
-    """Kill a stale (previous-month) bank: clips discarded, pointer
-    unlinked. The grid runs on the live ladder until the fresh
-    month's harvest provisions a new bank. Never raises."""
+    """Kill an aged-out bank: clips discarded, pointer unlinked. The
+    grid runs on the live ladder until the fresh harvest provisions
+    a new bank. Never raises."""
     try:
         POINTER.unlink(missing_ok=True)
     except OSError:
         pass
     state["bank"] = {"month": None, "clips": [], "reserved_n": []}
-    print(f"[bank] RETIRED the stale bank ({why}) — old-month clips "
-          "are NEVER published (owner rule 2026-11-18); the live "
-          "ladder feeds the grid until the fresh harvest lands")
+    print("[bank] RETIRED the aged-out bank ("
+          + str(why)
+          + ") — clips banked for a horizon that has passed are NEVER "
+            "published; the live ladder feeds the grid until the fresh "
+            "harvest lands")
 
 
 def reset(state: dict) -> None:
-    """Start a clean month bank (rebuild semantics — month rollover
+    """Start a clean bank cycle (rebuild semantics — horizon expired
     or an unreachable artifact). harvested_total restarts at 0 and
-    climbs with every bank.add until the month is provisioned."""
+    climbs with every bank.add until the 2-month target is hit.
+    harvest_started_ts anchors BOTH the horizon and the publishing
+    hold (owner rule 2026-11-21)."""
     ym = datetime.now(ZoneInfo("UTC")).strftime("%Y-%m")
     state["bank"] = {"month": ym, "clips": [], "reserved_n": [],
-                     "harvested_total": 0}
+                     "harvested_total": 0,
+                     "harvest_started_ts": datetime.now(
+                         ZoneInfo("UTC")).isoformat()}
 
 
 def add(state: dict, slot: str, fname: str, meta: dict, source: dict,

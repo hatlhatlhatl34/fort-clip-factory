@@ -72,6 +72,7 @@ jobs:
           COOKIES_TXT: ${{ secrets.COOKIES_TXT }}
           COOKIES_TXT2: ${{ secrets.COOKIES_TXT2 }}
           COOKIES_TXT3: ${{ secrets.COOKIES_TXT3 }}
+          COOKIES_TXT4: ${{ secrets.COOKIES_TXT4 }}
         run: |
           # freshness first: a factory/heal job may have pushed its
           # memory seconds before this checkout fetched. Pull the

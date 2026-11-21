@@ -70,7 +70,7 @@ jobs:
         id: bank
         run: |
           python - <<'PY'
-          import json, os
+          import json, os, time
           from datetime import datetime, timezone
           from pathlib import Path
           ready, name, run_id = "false", "", ""
@@ -79,16 +79,33 @@ jobs:
               try:
                   ptr = json.loads(p.read_text())
                   st = json.loads(Path("data/state.json").read_text())
-                  clips = (st.get("bank") or {}).get("clips") or []
-                  month = (st.get("bank") or {}).get("month") or ""
-                  # OWNER RULE (2026-11-18): old bank clips are POISON —
-                  # a previous-month bank is never fetched (and the
-                  # orchestrator retires it at run time anyway).
-                  now_m = datetime.now(timezone.utc).strftime("%Y-%m")
-                  if clips and month != now_m:
-                      print(f"[bank] STALE bank ({month or '-'}) — "
-                            "old-month clips are never published "
-                            "(owner rule 2026-11-18); live ladder this run")
+                  bank = st.get("bank") or {}
+                  clips = bank.get("clips") or []
+                  started = (bank.get("harvest_started_ts") or "").strip()
+                  # OWNER RULE (2026-11-21): a bank is served only
+                  # inside its 62-day feeding horizon (2-month bank);
+                  # aged-out clips are never fetched (and the
+                  # orchestrator retires them at run time anyway).
+                  try:
+                      t0 = (datetime.fromisoformat(
+                            started.replace("Z", "+00:00")).timestamp()
+                          if started else 0.0)
+                  except ValueError:
+                      t0 = 0.0
+                  if t0:
+                      within = time.time() < t0 + 62 * 86400
+                  elif bank.get("month"):
+                      now_m = datetime.now(timezone.utc).strftime("%Y-%m")
+                      by, bmo = map(int, bank["month"].split("-"))
+                      ny, nmo = map(int, now_m.split("-"))
+                      within = (ny - by) * 12 + (nmo - bmo) < 2
+                  else:
+                      within = False
+                  if clips and not within:
+                      print(f"[bank] AGED-OUT bank (month="
+                            f"{bank.get('month') or '-'} — past its "
+                            "62-day horizon, owner rule 2026-11-21) — "
+                            "never published; live ladder this run")
                   elif clips and ptr.get("artifact") and ptr.get("run_id"):
                       ready, name = "true", ptr["artifact"]
                       run_id = str(ptr["run_id"])
@@ -129,6 +146,7 @@ jobs:
           COOKIES_TXT: ${{ secrets.COOKIES_TXT }}
           COOKIES_TXT2: ${{ secrets.COOKIES_TXT2 }}
           COOKIES_TXT3: ${{ secrets.COOKIES_TXT3 }}
+          COOKIES_TXT4: ${{ secrets.COOKIES_TXT4 }}
           BANK_ARTIFACT_DIR: bank_month
         run: |
           if [ -z "$YT_REFRESH_TOKEN" ]; then

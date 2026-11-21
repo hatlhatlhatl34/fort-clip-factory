@@ -278,19 +278,20 @@ def _write_jar(work: Path, block: str, idx: int) -> Path | None:
 
 
 def _cookie_jars(work: Path) -> list[Path]:
-    """COOKIES_TXT (+ COOKIES_TXT2/3) secrets -> validated jar files
+    """COOKIES_TXT (+ COOKIES_TXT2/3/4) secrets -> validated jar files
     (never printed, never committed; deleted by the caller after the
     run).
 
-    ONE POOL, up to three secrets (GitHub caps a single secret at 48
-    KB — 5 accounts don't fit in one): the three values are stitched
+    ONE POOL, up to four secrets (GitHub caps a single secret at 48
+    KB — the accounts don't fit in one): the values are stitched
     together with a parseable '===== JAR N =====' separator before
     the jar splitter runs. Multi-account + monthly harvest rotation
     + true round-robin = each account is touched only a handful of
     times a YEAR — the smallest footprint possible.
     """
     parts = [os.environ.get(n, "").strip()
-             for n in ("COOKIES_TXT", "COOKIES_TXT2", "COOKIES_TXT3")]
+             for n in ("COOKIES_TXT", "COOKIES_TXT2", "COOKIES_TXT3",
+                       "COOKIES_TXT4")]
     parts = [p for p in parts if p]
     if not parts:
         return []

@@ -58,6 +58,17 @@ BOOKABLE_MARGIN = 40                           # minutes of render time
                                               # 2026-11-18 C5: one rule,
                                               # both sides)
 
+HOLD_HARVEST_DAYS = 2                          # OWNER RULE (2026-11-21):
+                                              # harvest-first — publishing
+                                              # waits 2 harvest days after
+                                              # the bank starts. Frozen
+                                              # here because the gate runs
+                                              # BEFORE pip install (no
+                                              # PyYAML) — keep in sync with
+                                              # channel.yaml publishing.
+                                              # hold_days and src/bank.py
+                                              # hold_active().
+
 
 def _load_state() -> dict:
     for path in (STATE, STATE_BAK):
@@ -135,6 +146,27 @@ def main() -> int:
                   f"defer until "
                   f"{time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(defer_until))}")
             return 0
+
+        # ── OWNER RULE (2026-11-21): the harvest-first hold ────────────
+        # publishing (grid session / heal / live ladder) waits until
+        # the bank's harvest cycle is hold_days old. HOLD is a SKIP
+        # for the workflows (verdict != RUN); harvesting NEVER waits.
+        raw = ((state.get("bank") or {}).get("harvest_started_ts")
+               or "").strip()
+        if isinstance(raw, str) and raw:
+            try:
+                t0 = datetime.fromisoformat(
+                    raw.replace("Z", "+00:00")).timestamp()
+            except ValueError:
+                t0 = 0
+            if t0 and time.time() < t0 + HOLD_HARVEST_DAYS * 86400:
+                rel = t0 + HOLD_HARVEST_DAYS * 86400
+                print(f"HOLD  # publishing hold (owner rule 2026-11-21): "
+                      f"harvest-first for {HOLD_HARVEST_DAYS} day(s), "
+                      f"releases "
+                      f"{time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(rel))} "
+                      "— harvesting continues")
+                return 0
 
         holes = _open_slots(state)
         if holes:

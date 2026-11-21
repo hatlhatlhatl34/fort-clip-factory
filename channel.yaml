@@ -80,6 +80,26 @@ clip:
                                       # per daily session (one upload
                                       # session schedules the day)
 
+# ── PUBLISHING HOLD (owner rule 2026-11-21) ────────────────────
+#
+# "Start harvesting for 2 months (not only one) because we will
+# hit the bot wall — but AFTER harvesting clips for 2 days, start
+# the cycle of publishing on every platform — and DON'T stop the
+# machine from harvesting, because stopping is what hits the wall."
+#
+# While the bank's harvest cycle is younger than hold_days, ALL
+# publishing waits: the daily grid session, the hourly heal, the
+# live-ladder fallback and the IG/FB/TikTok reel cross-poster
+# (due + backfill) all exit clean in seconds. The stacking guards
+# keep harvesting the whole time. The moment the hold releases,
+# the full cycle runs everywhere — YouTube grid + reels on every
+# platform — in parallel with the stacking toward the 250-clip
+# 2-month target.
+publishing:
+  hold_days: 2              # harvest-first window (owner 2026-11-21)
+                             # ALSO frozen in tools/gate.py
+                             # HOLD_HARVEST_DAYS — keep both in sync
+
 # ── THE BANK (owner idea 2026-11-11): the monthly food run ──────────
 # One IP, one long session: download + clip a month's worth of
 # Shorts (sliced downloads, human pacing, cookie-jar rotation),
@@ -111,10 +131,21 @@ clip:
 # cap makes literally-one-day impossible, so "beginning of the
 # month" = the first days, every month, without exception.
 harvest:
-  max_clips: 124              # 4/day x 31 days — the month provision
+  max_clips: 250            # OWNER RULE (2026-11-21): a 2-MONTH
+                             # bank — "start harvesting for 2 months,
+                             # not only one, because we will hit the
+                             # bot wall". 4/day x ~62 days = ~250 clips
+                             # of buffer before the wall can bite.
   slice_s: 300               # seconds of source grabbed per video
   pacing_s: [10, 35]         # human-ish pause between downloads
-  days_ahead: 31             # planning window
+  days_ahead: 62             # OWNER RULE (2026-11-21): the feeding
+                             # horizon — the bank plans slots across
+                             # the NEXT 62 DAYS (2 months), and it is
+                             # retired only when it ages past them.
+                             # (Supersedes the 2026-11-18 same-month
+                             # horizon: the 2-month buffer is worth
+                             # more than month purity when the bot
+                             # wall can stop a re-harvest cold.)
   budget_minutes: 305        # ~25 clips/session; leaves ~40 min of
                              # the 350-min job cap for the parts
                              # upload (~3 GB typ.)

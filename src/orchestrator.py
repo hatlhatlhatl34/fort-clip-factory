@@ -53,6 +53,28 @@ def run(*, dry_run: bool = False, offline: bool = False,
               f"active — exiting clean; grid retries later")
         return 0
 
+    # ── OWNER RULE (2026-11-21): HARVEST-FIRST PUBLISHING HOLD ────────
+    # "After harvesting clips for 2 days start the cycle of publishing
+    # on every platform" — while the bank's harvest cycle is younger
+    # than publishing.hold_days (channel.yaml), publishing stays OFF
+    # (grid + live ladder + reel cross-posting all wait) and the
+    # stacking guards keep harvesting toward the 2-month target.
+    # Supersedes D8 (owner order 2026-11-20) for the hold window —
+    # nothing is scheduled, so nothing can be overdue-promoted either.
+    if bank.hold_active(state):
+        _t0 = bank.started_ts(state) or time.time()
+        _hold_days = float((cfg().get("publishing") or {}).get(
+            "hold_days", 2))
+        _rel = datetime.fromtimestamp(
+            _t0 + _hold_days * 86400,
+            ZoneInfo(cfg()["schedule"]["timezone"]))
+        print(f"[hold] publishing hold ACTIVE (owner rule 2026-11-21) — "
+              f"harvest-first; the cycle of publishing on every "
+              f"platform starts {_rel:%Y-%m-%d %H:%M} Cairo "
+              f"({int(_hold_days)} harvest day(s) after the bank "
+              "started). Harvesting continues meanwhile.")
+        return 0
+
     today = datetime.now(ZoneInfo(cfg()["schedule"]["timezone"]))
     day = today.date().isoformat()
     slot_hour = today.hour
@@ -74,17 +96,16 @@ def run(*, dry_run: bool = False, offline: bool = False,
     print(f"[session] {len(targets)} open slot(s) to fill: "
           f"{', '.join(targets)}")
 
-    # ── OWNER RULE (2026-11-18): old bank clips are POISON ──────────
-    # "harvest all the clips in the beginning of the month so the
-    # machine don't use the old bank clips" — a leftover bank from
-    # a previous month must never feed this month's slots. Retire it
-    # BEFORE any manifest check: even if the daily workflow fetched
-    # the stale artifact (bank_month/manifest.json present), nothing
-    # is popped from it.
+    # ── OWNER RULE (2026-11-21): aged-out bank clips are POISON ─────
+    # the 2-month bank feeds its own horizon; once the horizon has
+    # passed nothing is popped from it (the live ladder feeds the gap
+    # until the fresh cycle's harvest lands).
     if bank.stale(state):
         bank.retire(state,
-                    f"bank.month={(state.get('bank') or {}).get('month')} "
-                    f"!= current month {bank.current_month()}")
+                    "bank aged past its "
+                    f"{int((cfg().get('harvest') or {}).get('days_ahead', 62))}"
+                    "-day horizon (started "
+                    f"{(state.get('bank') or {}).get('harvest_started_ts')})")
         ledger.save(state)
 
     # C12 (audit 2026-11-18): ROOT-anchored like every other path —
@@ -317,7 +338,7 @@ def run(*, dry_run: bool = False, offline: bool = False,
     return 0
 
 
-# ── THE MONTHLY HARVEST (owner idea 2026-11-11) ─────────────────────
+# ── THE BANK HARVEST (owner idea 2026-11-11; 2-month cycle 2026-11-21) ──
 
 def harvest(count: int | None = None,
             budget_minutes: float | None = None) -> int:
@@ -329,13 +350,19 @@ def harvest(count: int | None = None,
     guard cron retry; daily publishing continues via the live
     ladder meanwhile.
 
-    OWNER RULE (2026-11-14) — STACKING: the month must be provisioned
-    with >= max_clips total (at least 120). One session renders only
-    ~25, so a same-month bank with reachable files is APPENDED to
-    (the workflow fetched the existing artifact into bank/ first);
-    guard sessions stack until bank.harvested_total >= max_clips.
-    A rebuild (reset) happens only on a month rollover or when the
-    previous artifact is unreachable."""
+    OWNER RULE (2026-11-14) — STACKING: the cycle must be provisioned
+    with >= max_clips total. One session renders only ~25, so a
+    within-horizon bank with reachable files is APPENDED to (the
+    workflow fetched the existing artifact into bank/ first); guard
+    sessions stack until bank.harvested_total >= max_clips.
+
+    OWNER RULE (2026-11-21) — THE 2-MONTH HARVEST: "start harvesting
+    for 2 months, not only one, because we will hit the bot wall" —
+    max_clips is 250 (4/day x ~62 days) and the bank's feeding
+    horizon is harvest.days_ahead. A rebuild (reset) happens only
+    when the bank ages past its horizon or when the previous
+    artifact is unreachable; the harvest NEVER stops for publishing
+    (both run in parallel once the 2-day hold releases)."""
     state = ledger.load()
     hconf = cfg().get("harvest") or {}
     days_ahead = int(hconf.get("days_ahead", 31))
@@ -348,10 +375,11 @@ def harvest(count: int | None = None,
     work.mkdir(parents=True, exist_ok=True)
     bank_dir = ROOT / "bank"
 
-    # ── APPEND vs REBUILD (owner rule 2026-11-14) ────────────────
-    # same-month bank + fetched files -> keep the clips and STACK
-    # toward the month provision; anything else -> fresh month.
-    ym = datetime.now(ZoneInfo("UTC")).strftime("%Y-%m")
+    # ── APPEND vs REBUILD (owner rules 2026-11-14 + 2026-11-21) ──
+    # a bank within its feeding horizon + fetched files -> keep the
+    # clips and STACK toward the 2-month provision; anything else ->
+    # a fresh cycle (reset re-anchors harvest_started_ts, which is
+    # what the publishing hold and the horizon both key on).
     bankst = state.get("bank") or {}
     existing = len(bankst.get("clips") or [])
     harvested_total = int(bankst.get("harvested_total") or 0)
@@ -359,13 +387,19 @@ def harvest(count: int | None = None,
     # C2 (audit 2026-11-18): a DRAINED bank keeps month/harvested_total
     # (the provision meter) — the topup path (harvested_total already
     # >= max_clips -> target = topup_clips) must stay reachable instead
-    # of re-provisioning the whole 124 mid-month.
-    if bankst.get("month") == ym and (existing or harvested_total) \
+    # of re-provisioning the whole bank mid-cycle.
+    if bank.within_horizon(state) and (existing or harvested_total) \
             and fetched:
         print(f"[harvest] APPEND mode: keeping {existing} banked clip(s) "
               f"({len(fetched)} files fetched) — provision "
-              f"{harvested_total}/{max_clips}, stacking to the month")
+              f"{harvested_total}/{max_clips}, stacking to the 2-month "
+              "target (owner rule 2026-11-21)")
         provision_left = max(0, max_clips - harvested_total)
+        # a bank created before 2026-11-21 has no start ts — anchor it
+        # NOW so the hold/horizon clocks run for it too
+        if bank.started_ts(state) is None:
+            state["bank"]["harvest_started_ts"] = datetime.now(
+                ZoneInfo("UTC")).isoformat()
     else:
         bank.reset(state)
         shutil.rmtree(bank_dir, ignore_errors=True)
@@ -373,11 +407,10 @@ def harvest(count: int | None = None,
         provision_left = max_clips
 
     plan_slots = bank.plan(state, days=days_ahead)
-    # OWNER RULE (2026-11-18): the bank NEVER plans past its own
-    # month — clips banked near month-end for NEXT-month slots would
-    # be retired at rollover, so they are never banked in the first
-    # place. The month's bank feeds the month, exactly.
-    plan_slots = [s for s in plan_slots if s[:7] == ym]
+    # OWNER RULE (2026-11-21) — THE 2-MONTH BANK: the plan spans the
+    # full days_ahead horizon (62 days). The old same-month filter is
+    # gone: a bank's clips may serve slots beyond the month boundary —
+    # exactly what a 2-month buffer means.
     if count is not None:
         target = int(count)
     elif provision_left > 0:

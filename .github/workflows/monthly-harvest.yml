@@ -79,7 +79,7 @@ jobs:
       - id: verdict
         run: |
           python - <<'PY' | tee guard.txt
-          import json, pathlib
+          import json, pathlib, time
           from datetime import datetime, timezone
           from yaml import safe_load
           st = json.loads(pathlib.Path("data/state.json").read_text() or "{}")
@@ -87,20 +87,39 @@ jobs:
           clips = len(bank.get("clips") or [])
           harvested = bank.get("harvested_total") or 0
           month = bank.get("month") or ""
+          started = (bank.get("harvest_started_ts") or "").strip()
           ptr = pathlib.Path("data/bank_pointer.json").exists()
           hconf = (safe_load(pathlib.Path("channel.yaml").read_text())
                    .get("harvest") or {})
           thr = int(hconf.get("refill_threshold", 8))
-          target = int(hconf.get("max_clips", 124))
+          target = int(hconf.get("max_clips", 250))
+          horizon_d = int(hconf.get("days_ahead", 62))
           now_m = datetime.now(timezone.utc).strftime("%Y-%m")
-          # owner rule 2026-11-14: stack sessions until the MONTH is
-          # provisioned (harvested_total >= max_clips, i.e. >= 120+),
-          # not merely when the bank runs nearly empty.
-          provisioned = month == now_m and harvested >= target
+          # OWNER RULE (2026-11-21) — THE 2-MONTH BANK: stack sessions
+          # until the cycle is provisioned (harvested_total >= 250)
+          # AND the bank is still inside its 62-day feeding horizon.
+          # A bank that aged past its horizon is rebuilt fresh (the
+          # 2026-11-18 same-month rule is superseded — the 2-month
+          # buffer is worth more than month purity against the wall).
+          try:
+              t0 = (datetime.fromisoformat(started.replace("Z", "+00:00"))
+                    .timestamp() if started else 0.0)
+          except ValueError:
+              t0 = 0.0
+          if t0:
+              within = time.time() < t0 + horizon_d * 86400
+          elif month and "-" in month:
+              by, bm = map(int, month.split("-"))
+              ny, nm = map(int, now_m.split("-"))
+              within = (ny - by) * 12 + (nm - bm) < 2   # legacy fallback
+          else:
+              within = False
+          provisioned = within and harvested >= target
           refill = (not provisioned) or clips <= thr or not ptr
           print("RUN" if refill else "SKIP",
                 f"(month={month or '-'}, harvested={harvested}/{target}, "
-                f"clips={clips}, threshold={thr}, pointer={ptr})")
+                f"clips={clips}, threshold={thr}, pointer={ptr}, "
+                f"within_horizon={within}, started={started or '-'})")
           PY
           echo "verdict=$(head -1 guard.txt | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
     outputs:
@@ -129,11 +148,12 @@ jobs:
             || echo "::warning::deno install failed — web client may lose formats"
           echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
 
-      - name: Bank append check (keep the same-month clips?)
+      - name: Bank append check (keep the same-cycle clips?)
         id: append
         run: |
           python - <<'PY' | tee append_check.txt
-          import json, pathlib
+          import json, pathlib, time
+          from datetime import datetime, timezone
           ready, name, run_id = "false", "", ""
           p = pathlib.Path("data/bank_pointer.json")
           if p.exists():
@@ -141,9 +161,30 @@ jobs:
                   ptr = json.loads(p.read_text())
                   st = json.loads(
                       pathlib.Path("data/state.json").read_text())
-                  clips = len((st.get("bank") or {}).get("clips") or [])
-                  month = (st.get("bank") or {}).get("month") or ""
-                  if (ptr.get("ready") and clips and month
+                  bank = st.get("bank") or {}
+                  clips = len(bank.get("clips") or [])
+                  started = (bank.get("harvest_started_ts") or "").strip()
+                  # OWNER RULE (2026-11-21): the 2-month bank — APPEND
+                  # while the bank is inside its feeding horizon
+                  # (62 days from harvest start; legacy banks fall
+                  # back to the month key being < 2 months past).
+                  try:
+                      t0 = (datetime.fromisoformat(
+                            started.replace("Z", "+00:00")).timestamp()
+                          if started else 0.0)
+                  except ValueError:
+                      t0 = 0.0
+                  if t0:
+                      within = time.time() < t0 + 62 * 86400
+                  elif bank.get("month"):
+                      bm = bank["month"]
+                      now_m = datetime.now(timezone.utc).strftime("%Y-%m")
+                      by, bmo = map(int, bm.split("-"))
+                      ny, nmo = map(int, now_m.split("-"))
+                      within = (ny - by) * 12 + (nmo - bmo) < 2
+                  else:
+                      within = False
+                  if (within and ptr.get("ready") and clips
                           and ptr.get("artifact") and ptr.get("run_id")):
                       ready = "true"
                       name, run_id = ptr["artifact"], str(ptr["run_id"])
@@ -182,7 +223,7 @@ jobs:
             -of json /tmp/probe_ctrl.mp4 | head -8
           yt-dlp --version
           ffmpeg -version | head -1
-      - name: Harvest the month (one IP, one session)
+      - name: Harvest the cycle (one IP, one session)
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
@@ -191,6 +232,7 @@ jobs:
           COOKIES_TXT: ${{ secrets.COOKIES_TXT }}
           COOKIES_TXT2: ${{ secrets.COOKIES_TXT2 }}
           COOKIES_TXT3: ${{ secrets.COOKIES_TXT3 }}
+          COOKIES_TXT4: ${{ secrets.COOKIES_TXT4 }}
         run: python main.py --harvest 2>&1 | tee harvest.log
 
       - name: Read the artifact plan python wrote
@@ -271,6 +313,16 @@ jobs:
           # retries — never silent again.
           for i in 1 2 3 4 5; do
             cp data/state.json /tmp/ours.json 2>/dev/null || true
+            # D10 (live fix 2026-11-21): git reset --hard below eats
+            # files that are STAGED but unknown to origin/main — and
+            # the pointer written earlier this session is exactly
+            # such a file on every first push. The pointer has been
+            # OBSERVED eaten on every harvest run since 2026-11-18
+            # (state.json arrived, bank_pointer.json did not): the
+            # next session then skipped the append, reset the bank
+            # and re-harvested from zero — the machine never stacked.
+            # Copy it out like state.json, restore after the reset.
+            cp data/bank_pointer.json /tmp/ours_pointer.json 2>/dev/null || true
             git fetch --quiet origin main
             # D2 (live fix 2026-11-18): --soft kept the STALE session
             # tree staged — a workflow file that lands while this run
@@ -284,6 +336,10 @@ jobs:
             # memory goes on top: the memory commit can only ever
             # touch data/ + ingest/ — zero workflow surface.
             git reset --hard origin/main
+            # D10: bring OUR pointer back (reset --hard deleted the
+            # staged copy; if origin already tracks one, ours is the
+            # fresher run and overwrites it)
+            cp /tmp/ours_pointer.json data/bank_pointer.json 2>/dev/null || true
             git checkout origin/main -- data/state.json 2>/dev/null || true
             if [ -f data/state.json ]; then
               python tools/merge_state.py /tmp/ours.json data/state.json --prefer core --inplace data/state.json

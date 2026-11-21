@@ -15,6 +15,41 @@ doctrine it was ported from.
 
 ---
 
+## 0. OWNER RULE 2026-11-21 — THE 2-MONTH HARVEST + THE HOLD
+
+"Start harvesting for **2 months**, not only one, because we will
+hit the bot wall — but **after harvesting clips for 2 days**, start
+the cycle of publishing on every platform — and **don't stop the
+machine from harvesting**, because stopping is what hits the wall."
+
+* `harvest.max_clips: 250` (was 124) — the bank provisions a
+  **2-month** buffer (~4/day x 62 days). Stacking guards keep firing
+  until `harvested_total >= 250`.
+* `harvest.days_ahead: 62` — the bank's **feeding horizon**. A bank
+  is retired only when it ages past it (the 2026-11-18 same-month
+  rule is superseded; clips may serve slots beyond the month edge).
+* `publishing.hold_days: 2` — **the publishing hold**: while the
+  bank's harvest cycle is younger than 2 days, the daily grid, the
+  hourly heal, the live-ladder fallback AND the reels cross-poster
+  (due + backfill) all exit clean in seconds; `tools/gate.py`
+  prints a `HOLD` verdict. When it releases, the full cycle runs on
+  EVERY platform in parallel with the stacking (TikTok stays
+  SELF_ONLY until the Content Posting API audit passes — that is a
+  TikTok-side constraint, not a machine choice).
+* **D10 (live fix, 2026-11-21)**: the harvest memory dance's
+  `git reset --hard origin/main` ate the freshly-staged
+  `data/bank_pointer.json` on EVERY run since 2026-11-18 — state
+  arrived, the pointer did not, so the next session skipped the
+  append, reset the bank and re-harvested from zero. The dance now
+  copies the pointer to /tmp (like state.json) and restores it
+  after the reset. This was THE reason the bank never stacked.
+* **COOKIES_TXT4** — the 7th account jar (owner upload 2026-11-21,
+  cookies(6).txt, YouTube-filtered) joins COOKIES_TXT/2/3 in the
+  rotation pool (`src/downloader.py _cookie_jars`).
+
+---
+
+
 ## 1. Create the GitHub repo
 
 1. Create a new GitHub repository `fort-clip-factory` (it can be
