@@ -1404,19 +1404,31 @@ def main() -> int:
         # "after harvesting clips for 2 days start the cycle of
         # publishing on every platform" — while the hold is on, the
         # reels cross-poster (due + backfill) exits clean in seconds;
-        # harvesting continues on its own guards. (bank is imported
-        # lazily: bank.py imports this module at module level.)
-        from . import bank as _bank
-        if _bank.hold_active(state):
-            _t0 = _bank.started_ts(state) or time.time()
-            _hold = float((cfg().get("publishing") or {}).get(
-                "hold_days", 2))
-            print(f"[hold] publishing hold ACTIVE (owner rule "
-                  "2026-11-21) — reels wait until "
-                  f"{time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(_t0 + _hold * 86400))} "
-                  "(2 harvest days after the bank started); "
-                  "harvesting continues meanwhile")
-            return 0
+        # harvesting continues on its own guards.
+        # INLINED from src.bank on purpose (live-diagnosed 2026-11-22
+        # 21:43 UTC): importing bank pulls transform -> overlay -> PIL,
+        # and THIS workflow installs no Pillow — the lazy import made
+        # every hourly pass crash before the hold line could even
+        # print. The inline copy keeps the module import surface PIL-
+        # free; keep the logic in sync with bank.hold_active().
+        raw = (state.get("bank") or {}).get("harvest_started_ts") or ""
+        t0 = None
+        if isinstance(raw, str) and raw.strip():
+            try:
+                t0 = datetime.fromisoformat(
+                    raw.strip().replace("Z", "+00:00")).timestamp()
+            except ValueError:
+                t0 = None
+        if t0 is not None:
+            hold_days = float((cfg().get("publishing") or {})
+                              .get("hold_days", 2))
+            if time.time() < t0 + hold_days * 86400:
+                print(f"[hold] publishing hold ACTIVE (owner rule "
+                      "2026-11-21) — reels wait until "
+                      f"{time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(t0 + hold_days * 86400))} "
+                      "(2 harvest days after the bank started); "
+                      "harvesting continues meanwhile")
+                return 0
     if args.due:
         return run_due(state)
     if args.backfill:
