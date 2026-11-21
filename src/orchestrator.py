@@ -442,7 +442,7 @@ def harvest(count: int | None = None,
         slice_start = rng.randint(30, max_start) if max_start > 30 else 0
 
         path = downloader.download_slice(source, work, slice_start,
-                                         slice_len)
+                                         slice_len, state=state)
         if path is None:
             continue
         try:
