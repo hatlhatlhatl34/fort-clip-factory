@@ -24,7 +24,16 @@ on:
   workflow_dispatch: {}
 
 concurrency:
-  group: clip-factory
+  # OWNER RULE (2026-11-22): PUBLISHING NEVER STOPS — the heal must
+  # never queue behind a ~5h monthly-harvest in the old shared
+  # "clip-factory" group (live starvation 2026-11-22: the 16:02Z heal
+  # sat queued until auto-cancelled by the pending daily session,
+  # while the 15:53Z harvest held the group for hours). "publish"
+  # is shared with daily-factory ONLY — the factory workflows still
+  # serialize with EACH OTHER (no double slot-booking), but never
+  # with the harvest. Same fix pattern as the 2026-11-18 crosspost
+  # split above.
+  group: publish
   cancel-in-progress: false
 
 permissions:

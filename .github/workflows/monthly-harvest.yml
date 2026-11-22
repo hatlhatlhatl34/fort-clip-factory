@@ -61,7 +61,13 @@ on:
   workflow_dispatch: {}
 
 concurrency:
-  group: clip-factory       # never overlap the daily machine
+  # OWNER RULE (2026-11-22): PUBLISHING NEVER STOPS — not even
+  # during a harvest. The old shared "clip-factory" group starved
+  # the daily machine for the ~5h of every harvest run (live
+  # 2026-11-22: the 16:36Z daily session sat PENDING behind the
+  # 15:53Z harvest). Harvest now serializes only with itself.
+  # Same fix pattern as the 2026-11-18 crosspost split.
+  group: harvest            # never overlap another harvest
   cancel-in-progress: false
 
 permissions:

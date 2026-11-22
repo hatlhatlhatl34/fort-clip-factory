@@ -16,7 +16,14 @@ on:
   workflow_dispatch: {}
 
 concurrency:
-  group: clip-factory
+  # OWNER RULE (2026-11-22): PUBLISHING NEVER STOPS — the daily
+  # session must never queue behind a ~5h monthly-harvest in the
+  # old shared "clip-factory" group (live starvation 2026-11-22:
+  # this session sat PENDING 16:36Z->behind the 15:53Z harvest).
+  # "publish" is shared with hourly-heal ONLY — the factory
+  # workflows still serialize with EACH OTHER (no double
+  # slot-booking), but never with the harvest.
+  group: publish
   cancel-in-progress: false
 
 permissions:
