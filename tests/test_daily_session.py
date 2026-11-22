@@ -1,7 +1,8 @@
 """Architecture tests for the owner's redesign:
 
   1. ONE daily session at 08:33 UTC fills ALL open grid slots
-  2. 4 Shorts/day 6-hour grid (00:00/06:00/12:00/18:00 Cairo)
+  2. 4 Shorts/day 6-hour grid (01:00/07:00/13:00/19:00 Cairo —
+     US-tuned phase, owner rule 2026-11-23)
   3. hooking titles: NO map code, {n} only, <= 95 chars, "Fortnite"
      in EVERY title (owner rules 2026-11-13/14)
   4. cookie-jar pool: true round-robin rotation + multi-secret stitch

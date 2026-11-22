@@ -182,14 +182,30 @@ music:
   volume: 0.9
 
 # ── PUBLISHING GRID (owner rule 2026-11-14: 4 Shorts EVERY day, ────
-# ONE every 6 hours — 6+6+6+6 = 24h of even coverage) ────────────
+# ONE every 6 hours — 6+6+6+6 = 24h of even coverage; PHASE TUNED ─
+# to the US audience, owner rule 2026-11-23) ──────────────────────
 #
-# A Short goes live every 6 hours around the clock; the 08:33 UTC
-# session books the next 4 open slots from now (at 10:33 Cairo:
-# 12:00 + 18:00 today, 00:00 + 06:00 tomorrow).
+# A Short goes live every 6 hours around the clock — the 6+6+6+6
+# rule from 2026-11-14 is UNTOUCHED (pure phase shift). The phase
+# now aims each slot at US waking hours, where the Fortnite Shorts
+# audience lives (Cairo ≈ US East + 7h; both regions' DST switches
+# sit within ~2 weeks of each other, so the mapping holds all year):
+#
+#   01:00 Cairo  =   6 PM ET / 3 PM PT  PRIME evening + after school
+#   07:00 Cairo  =  midnight ET / 9 PM PT  late-night East + PRIME West
+#   13:00 Cairo  =   6 AM ET / 3 AM PT  early risers, feed stays warm
+#   19:00 Cairo  =  noon ET / 9 AM PT  lunch scroll East + morning West
+#
+# The slot the OLD grid wasted (12:00 Cairo = 5 AM ET) is now the
+# single most valuable one: 6 PM ET. The 08:33 UTC session books the
+# next 4 open slots from now (at 10:33 Cairo: 13:00 + 19:00 today,
+# 01:00 + 07:00 tomorrow).
 schedule:
   timezone: "Africa/Cairo"
-  slots: ["00:00", "06:00", "12:00", "18:00"]  # every 6 hours, 4/day
+  slots: ["01:00", "07:00", "13:00", "19:00"]  # every 6 hours, 4/day
+                                      # (US-tuned phase; keep in sync
+                                      # with tools/gate.py GRID and the
+                                      # daily-factory.yml comment)
   publish_lead_minutes: 25            # book only slots >=25 min out
   bookable_margin_minutes: 40          # audit 2026-11-18 (C5): the ONE
                                       # fillable-window rule shared by

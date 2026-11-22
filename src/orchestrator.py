@@ -3,7 +3,8 @@
 OWNER RULE (2026-11-13): 4 Shorts/day, ONE upload session. The daily
 fire (08:30 UTC) wakes the machine ONCE; it uploads all FOUR Shorts
 in that single session, each with publishAt = its grid slot
-(00:00/08:00/16:00/20:00 Cairo). No more 4 runs/day — one wake-up
+(01:00/07:00/13:00/19:00 Cairo — US-tuned phase,
+owner rule 2026-11-23). No more 4 runs/day — one wake-up
 schedules the whole day, exactly as the owner asked.
 
   1. memory        ledger.load() (state.json.bak ladder)

@@ -9,9 +9,10 @@ content, same rhythm.
 WHY SLOT-TIME, NOT SESSION-TIME: the 08:30 UTC session uploads all 4
 Shorts with publishAt hours ahead; the reels drop when their YouTube
 twin actually goes live. The hourly heal wakes at each 6-hour grid
-slot (00:00/06:00/12:00/18:00 Cairo) and within minutes the same file
-is live on all three platforms — no burst-posting, no platform left
-behind.
+slot (01:00/07:00/13:00/19:00 Cairo — the US-tuned phase, owner rule
+2026-11-23: 6 PM / midnight / 6 AM / noon US East) and within minutes
+the same file is live on all three platforms — no burst-posting, no
+platform left behind.
 
 HOW THE FILE SURVIVES UNTIL SLOT TIME: the session copies every
 published final into media_cache/ and the workflow ships it as a
