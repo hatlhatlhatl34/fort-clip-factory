@@ -697,10 +697,23 @@ def _ao_open_pool(source: dict, work: Path, state: dict,
         # (open pool), "ao:" + identifier (open pool, legacy), or the
         # bare YouTube id it mirrors (mirror rung) — check them all so
         # one video can never be mined twice through different rungs.
-        forms = {ident, f"ao:{ident}"}
+        # OWNER RULE (2026-11-23): archive.org ALSO hands the same item
+        # out under a DERIVATIVE identifier (identifier + _YYYYMM /
+        # _YYYYMMDD suffix — a re-upload/derive of the same footage).
+        # Fold that suffix on BOTH sides or sibling cuts of one video
+        # slip through: shorts #76 and #81 were both cut from the same
+        # April-2025 item-shop video through exactly that suffix.
+        def fold(s: str) -> str:
+            s = s.strip().lower().rstrip("/")
+            if len(s) > 11:   # never fold an 11-char YouTube id
+                s = re.sub(r"_\d{6,8}$", "", s)
+            return s
+
+        forms = {fold(ident), fold(f"ao:{ident}")}
         if ident.startswith("youtube-"):
-            forms.add(ident[len("youtube-"):])
-        return bool(forms & used)
+            forms.add(fold(ident[len("youtube-"):]))
+        used_f = {fold(u) for u in used}
+        return bool(forms & used_f)
 
     age_days = float((cfg().get("sources") or {}).get("max_age_days", 334))
 

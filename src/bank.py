@@ -64,6 +64,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import re
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -278,12 +279,37 @@ def add(state: dict, slot: str, fname: str, meta: dict, source: dict,
     bank["harvested_total"] = int(bank.get("harvested_total") or 0) + 1
 
 
+def _fold_source(sid: str) -> str:
+    """Fold archive.org DERIVATIVE suffixes (_YYYYMM / _YYYYMMDD — a
+    re-upload of the same item) so a sibling cut of an already-
+    published source is recognizable. Owner rule 2026-11-23: short
+    #81 duplicated #76's item-shop footage exactly through this
+    suffix. Never folds an 11-char YouTube id."""
+    s = (sid or "").strip().lower().rstrip("/")
+    if len(s) > 11:
+        s = re.sub(r"_\d{6,8}$", "", s)
+    return s
+
+
 def take_next(state: dict) -> dict | None:
-    """Earliest remaining banked clip (slot order), or None."""
+    """Earliest remaining banked clip (slot order), or None.
+
+    OWNER RULE (2026-11-23): a banked clip whose source (folded for
+    archive.org derivative suffixes) already backs a PUBLISHED Short
+    is POISON — skip it; it stays in the bank but never publishes
+    (belt-and-suspenders with downloader.mined's fold, so a duplicate
+    can never reach the channel again)."""
     clips = (state.get("bank") or {}).get("clips") or []
     if not clips:
         return None
-    return sorted(clips, key=lambda c: c.get("slot", ""))[0]
+    published = {_fold_source(s.get("source_id") or "")
+                 for s in state.get("shorts") or []} - {""}
+    for c in sorted(clips, key=lambda c: c.get("slot", "")):
+        sid = _fold_source(c.get("source_id") or "")
+        if sid and sid in published:
+            continue     # poison — never publish a sibling cut
+        return c
+    return None
 
 
 def remaining(state: dict) -> int:
