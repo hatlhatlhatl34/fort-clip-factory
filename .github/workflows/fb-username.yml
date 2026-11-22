@@ -1,0 +1,97 @@
+name: fb-username
+
+# One-shot manual tool: set the Facebook Page username (and optionally
+# bio) using the FB_ACCESS_TOKEN repo secret. Dispatch from Actions tab
+# or via workflow_dispatch API. No cron, never overlaps the machine.
+
+on:
+  workflow_dispatch:
+    inputs:
+      username:
+        description: "New Facebook page username"
+        required: true
+        default: "h15master"
+      bio:
+        description: "Optional new page bio (empty = leave unchanged)"
+        required: false
+        default: ""
+
+concurrency:
+  group: clip-factory-branding
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  set-username:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Set Facebook page username
+        env:
+          FB_ACCESS_TOKEN: ${{ secrets.FB_ACCESS_TOKEN }}
+          PAGE_ID: "131825308398327"
+          NEW_USERNAME: ${{ inputs.username }}
+          NEW_BIO: ${{ inputs.bio }}
+        run: |
+          python3 - <<'PY'
+          import os, json, urllib.request, urllib.parse, urllib.error
+
+          TOK = os.environ['FB_ACCESS_TOKEN']
+          PAGE_ID = os.environ['PAGE_ID']
+          NEW_USERNAME = os.environ['NEW_USERNAME']
+          NEW_BIO = os.environ['NEW_BIO'].strip()
+          GRAPH = 'https://graph.facebook.com/v22.0'
+
+          def call(path, fields=None, post=None):
+              if post is None:
+                  q = dict(fields or {})
+                  q['access_token'] = TOK
+                  url = f'{GRAPH}{path}?{urllib.parse.urlencode(q)}'
+                  data = None
+              else:
+                  body = dict(post)
+                  body['access_token'] = TOK
+                  data = urllib.parse.urlencode(body).encode()
+                  url = f'{GRAPH}{path}'
+              req = urllib.request.Request(url, data=data)
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as r:
+                      return json.load(r)
+              except urllib.error.HTTPError as e:
+                  try:
+                      return json.load(e)
+                  except Exception:
+                      return {'error': {'message': e.read().decode(errors='replace')[:300], 'code': e.code}}
+
+          cur = call(f'/{PAGE_ID}', {'fields': 'id,name,username'})
+          print('current_page:', json.dumps({k: cur.get(k) for k in ('id', 'name', 'username')}))
+          if cur.get('error'):
+              print('READ_ERROR:', json.dumps(cur)[:400])
+              raise SystemExit(1)
+
+          ok = True
+          if NEW_USERNAME and NEW_USERNAME != cur.get('username'):
+              res = call(f'/{PAGE_ID}', None, {'username': NEW_USERNAME})
+              print('set_username_result:', json.dumps(res)[:400])
+              if res.get('success') is not True:
+                  msg = (res.get('error') or {}).get('message', '')
+                  # "username already assigned to this page" is fine
+                  if 'already' in msg.lower() and NEW_USERNAME.lower() in msg.lower() and 'your page' in msg.lower():
+                      print('USERNAME_ALREADY_THIS_PAGE')
+                  else:
+                      ok = False
+          else:
+              print('username_unchanged (already set)')
+
+          if NEW_BIO:
+              res = call(f'/{PAGE_ID}', None, {'description': NEW_BIO})
+              print('set_bio_result:', json.dumps(res)[:400])
+              if res.get('success') is not True and not res.get('id'):
+                  ok = False
+
+          print('USERNAME_SET_OK' if ok else 'USERNAME_FAILED')
+          if not ok:
+              raise SystemExit(1)
+          PY
