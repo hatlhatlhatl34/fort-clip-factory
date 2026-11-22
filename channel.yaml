@@ -80,23 +80,21 @@ clip:
                                       # per daily session (one upload
                                       # session schedules the day)
 
-# ── PUBLISHING HOLD (owner rule 2026-11-21) ────────────────────
+# ── PUBLISHING NEVER STOPS (owner rule 2026-11-22) ──────────────
 #
-# "Start harvesting for 2 months (not only one) because we will
-# hit the bot wall — but AFTER harvesting clips for 2 days, start
-# the cycle of publishing on every platform — and DON'T stop the
-# machine from harvesting, because stopping is what hits the wall."
+# "Nothing published for more than 24 hours?! Don't EVER stop
+# publishing every day, forever — even while harvesting. As long as
+# there are at least 4 clips inside the bank, publishing runs."
 #
-# While the bank's harvest cycle is younger than hold_days, ALL
-# publishing waits: the daily grid session, the hourly heal, the
-# live-ladder fallback and the IG/FB/TikTok reel cross-poster
-# (due + backfill) all exit clean in seconds. The stacking guards
-# keep harvesting the whole time. The moment the hold releases,
-# the full cycle runs everywhere — YouTube grid + reels on every
-# platform — in parallel with the stacking toward the 250-clip
-# 2-month target.
+# SUPERSEDES the 2026-11-21 harvest-first hold: the daily grid
+# session, the hourly heal, the live-ladder fallback and the
+# IG/FB/TikTok reel cross-poster (due + backfill) all run EVERY day
+# in parallel with the stacking toward the 250-clip 2-month target.
+# The hold is permanently OFF (hold_days: 0); keep it that way —
+# publishing pauses only when the bank itself runs dry (< 4 clips),
+# and then the live ladder feeds the grid while the harvest refills.
 publishing:
-  hold_days: 2              # harvest-first window (owner 2026-11-21)
+  hold_days: 0              # OFF forever (owner 2026-11-22).
                              # ALSO frozen in tools/gate.py
                              # HOLD_HARVEST_DAYS — keep both in sync
 

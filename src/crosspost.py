@@ -1400,17 +1400,17 @@ def main() -> int:
         report(state)
         return 0
     if args.due or args.backfill:
-        # ── OWNER RULE (2026-11-21): the harvest-first publishing hold ──
-        # "after harvesting clips for 2 days start the cycle of
-        # publishing on every platform" — while the hold is on, the
-        # reels cross-poster (due + backfill) exits clean in seconds;
-        # harvesting continues on its own guards.
-        # INLINED from src.bank on purpose (live-diagnosed 2026-11-22
-        # 21:43 UTC): importing bank pulls transform -> overlay -> PIL,
-        # and THIS workflow installs no Pillow — the lazy import made
-        # every hourly pass crash before the hold line could even
-        # print. The inline copy keeps the module import surface PIL-
-        # free; keep the logic in sync with bank.hold_active().
+        # ── OWNER RULE (2026-11-22): PUBLISHING NEVER STOPS ──────
+        # "Don't ever stop publishing every day, forever — even when
+        # harvesting — as long as there are at least 4 clips inside the
+        # bank." Supersedes the 2026-11-21 harvest-first hold: the
+        # reels cross-poster (due + backfill) runs in parallel with
+        # the stacking. INLINED from src.bank on purpose (live-
+        # diagnosed 2026-11-22 21:43 UTC): importing bank pulls
+        # transform -> overlay -> PIL, and THIS workflow installs no
+        # Pillow — the inline copy keeps the module import surface
+        # PIL-free; keep the logic in sync with bank.hold_active()
+        # (False whenever the bank holds >= 4 clips).
         raw = (state.get("bank") or {}).get("harvest_started_ts") or ""
         t0 = None
         if isinstance(raw, str) and raw.strip():
@@ -1419,14 +1419,15 @@ def main() -> int:
                     raw.strip().replace("Z", "+00:00")).timestamp()
             except ValueError:
                 t0 = None
-        if t0 is not None:
+        clips = (state.get("bank") or {}).get("clips") or []
+        if t0 is not None and len(clips) < 4:
             hold_days = float((cfg().get("publishing") or {})
-                              .get("hold_days", 2))
-            if time.time() < t0 + hold_days * 86400:
-                print(f"[hold] publishing hold ACTIVE (owner rule "
-                      "2026-11-21) — reels wait until "
+                              .get("hold_days", 0))
+            if hold_days > 0 and time.time() < t0 + hold_days * 86400:
+                print(f"[hold] publishing hold ACTIVE (bank nearly "
+                      "empty, owner rule 2026-11-22) — reels wait until "
                       f"{time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(t0 + hold_days * 86400))} "
-                      "(2 harvest days after the bank started); "
+                      "(bank has fewer than 4 clips); "
                       "harvesting continues meanwhile")
                 return 0
     if args.due:

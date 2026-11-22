@@ -53,26 +53,28 @@ def run(*, dry_run: bool = False, offline: bool = False,
               f"active — exiting clean; grid retries later")
         return 0
 
-    # ── OWNER RULE (2026-11-21): HARVEST-FIRST PUBLISHING HOLD ────────
-    # "After harvesting clips for 2 days start the cycle of publishing
-    # on every platform" — while the bank's harvest cycle is younger
-    # than publishing.hold_days (channel.yaml), publishing stays OFF
-    # (grid + live ladder + reel cross-posting all wait) and the
-    # stacking guards keep harvesting toward the 2-month target.
-    # Supersedes D8 (owner order 2026-11-20) for the hold window —
-    # nothing is scheduled, so nothing can be overdue-promoted either.
+    # ── OWNER RULE (2026-11-22): PUBLISHING NEVER STOPS ───────
+    # "Don't ever stop publishing every day, forever — even when
+    # harvesting — as long as there are at least 4 clips inside the
+    # bank." Supersedes the 2026-11-21 harvest-first hold: the grid
+    # session, live ladder and reel cross-poster all run in parallel
+    # with the stacking toward the 250-clip target. hold_active()
+    # now answers False whenever the bank holds >= 4 clips, so this
+    # branch is a near-empty-bank safety net only (the live ladder
+    # feeds the grid while the harvest refills).
     if bank.hold_active(state):
         _t0 = bank.started_ts(state) or time.time()
         _hold_days = float((cfg().get("publishing") or {}).get(
-            "hold_days", 2))
+            "hold_days", 0))
         _rel = datetime.fromtimestamp(
             _t0 + _hold_days * 86400,
             ZoneInfo(cfg()["schedule"]["timezone"]))
-        print(f"[hold] publishing hold ACTIVE (owner rule 2026-11-21) — "
-              f"harvest-first; the cycle of publishing on every "
+        print(f"[hold] publishing hold ACTIVE (bank nearly empty) — "
+              f"the cycle of publishing on every "
               f"platform starts {_rel:%Y-%m-%d %H:%M} Cairo "
-              f"({int(_hold_days)} harvest day(s) after the bank "
-              "started). Harvesting continues meanwhile.")
+              f"(owner rule 2026-11-22: publishing only ever waits "
+              "when the bank itself has fewer than 4 clips). "
+              "Harvesting continues meanwhile.")
         return 0
 
     today = datetime.now(ZoneInfo(cfg()["schedule"]["timezone"]))

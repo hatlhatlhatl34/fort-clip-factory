@@ -197,20 +197,23 @@ def within_horizon(state: dict) -> bool:
 
 
 def hold_active(state: dict) -> bool:
-    """True while the publishing hold is on.
+    """True only while a publishing hold is on.
 
-    OWNER RULE (2026-11-21) — HARVEST-FIRST: "harvest for 2 months,
-    and after harvesting clips for 2 days start the cycle of
-    publishing on every platform." Publishing (YouTube grid +
-    IG/FB/TikTok reels) stays OFF for publishing.hold_days after
-    the bank's harvest STARTS, while the stacking guards keep
-    harvesting (never stop the harvest — that is what trips the
-    bot wall). Then the cycle runs everywhere, in parallel with
-    the stacking that continues toward the 250-clip target."""
+    OWNER RULE (2026-11-22) — PUBLISHING NEVER STOPS: "don't ever stop
+    publishing every day, forever — even when harvesting — as long as
+    there are at least 4 clips inside the bank." Supersedes the
+    2026-11-21 harvest-first hold: while the bank holds >= 4 clips
+    (one day of grid) the hold is ALWAYS off; publishing (YouTube
+    grid + IG/FB/TikTok reels) runs in parallel with the stacking.
+    The hold only exists for a nearly-empty bank (the live ladder
+    feeds the grid while the harvest refills it)."""
+    clips = (state.get("bank") or {}).get("clips") or []
+    if len(clips) >= 4:
+        return False
     t0 = started_ts(state)
     if t0 is None:
         return False
-    hold_days = float((cfg().get("publishing") or {}).get("hold_days", 2))
+    hold_days = float((cfg().get("publishing") or {}).get("hold_days", 0))
     return time.time() < t0 + hold_days * 86400
 
 

@@ -58,12 +58,14 @@ BOOKABLE_MARGIN = 40                           # minutes of render time
                                               # 2026-11-18 C5: one rule,
                                               # both sides)
 
-HOLD_HARVEST_DAYS = 2                          # OWNER RULE (2026-11-21):
-                                              # harvest-first — publishing
-                                              # waits 2 harvest days after
-                                              # the bank starts. Frozen
-                                              # here because the gate runs
-                                              # BEFORE pip install (no
+HOLD_HARVEST_DAYS = 0                          # OWNER RULE (2026-11-22):
+                                              # publishing NEVER stops —
+                                              # not even during a harvest.
+                                              # Supersedes the 2026-11-21
+                                              # harvest-first 2-day hold
+                                              # (0 = hold OFF forever).
+                                              # Frozen here because the gate
+                                              # runs BEFORE pip install (no
                                               # PyYAML) — keep in sync with
                                               # channel.yaml publishing.
                                               # hold_days and src/bank.py
