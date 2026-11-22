@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fort Clip Factory — Live Status</title>
+<style>
+  :root{--bg:#0d1117;--card:#161b22;--bd:#30363d;--tx:#e6edf3;--mut:#8b949e;--acc:#a371f7;--ok:#3fb950;--warn:#d29922;--bad:#f85149;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--tx);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;min-height:100vh;padding:28px 20px 60px}
+  .wrap{max-width:980px;margin:0 auto}
+  header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:6px}
+  h1{font-size:20px;letter-spacing:2px}
+  h1 .accent{color:var(--acc)}
+  .badge{font-size:11px;color:#0d1117;background:linear-gradient(90deg,#a371f7,#58a6ff);padding:3px 10px;border-radius:20px;font-weight:700;letter-spacing:1px}
+  .sub{color:var(--mut);font-size:12px;margin-bottom:22px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px;margin-bottom:26px}
+  .card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:16px 18px}
+  .card .label{color:var(--mut);font-size:11px;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+  .card .big{font-size:26px;font-weight:700}
+  .card .big small{font-size:13px;color:var(--mut);font-weight:400}
+  .card .foot{font-size:11px;margin-top:6px;color:var(--mut)}
+  .bar{height:5px;background:#21262d;border-radius:3px;margin-top:10px;overflow:hidden}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,#a371f7,#58a6ff);border-radius:3px;width:0%;transition:width .6s}
+  .bar.ok i{background:linear-gradient(90deg,#3fb950,#56d364)}
+  .bar.warn i{background:linear-gradient(90deg,#d29922,#f0883e)}
+  h2{font-size:13px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);margin:6px 0 10px}
+  .runs{background:var(--card);border:1px solid var(--bd);border-radius:10px;overflow:hidden}
+  .row{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--bd);font-size:12px}
+  .row:last-child{border-bottom:none}
+  .dot{width:8px;height:8px;border-radius:50%;flex:none}
+  .dot.ok{background:var(--ok)}
+  .dot.bad{background:var(--bad)}
+  .dot.live{background:var(--warn);animation:pulse 1.2s infinite}
+  .dot.queued{background:#58a6ff}
+  @keyframes pulse{50%{opacity:.35}}
+  .row .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .ev,.row .ago{color:var(--mut)}
+  footer{margin-top:26px;color:var(--mut);font-size:11px;line-height:1.7}
+  a{color:#58a6ff;text-decoration:none}
+  .err{color:var(--warn)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>FORT CLIP <span class="accent">FACTORY</span></h1>
+    <span class="badge">FREE TIER · $0</span>
+  </header>
+  <div class="sub">live status · auto-refresh 60s · data: data/state.json @ main</div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="label">Bank — clips ready</div>
+      <div class="big"><span id="bank">—</span> <small>/ 250</small></div>
+      <div class="bar" id="bankwrap"><i id="bankbar"></i></div>
+      <div class="foot" id="armed">status…</div>
+    </div>
+    <div class="card">
+      <div class="label">Sources harvested</div>
+      <div class="big"><span id="harv">—</span> <small>/ 250</small></div>
+      <div class="bar" id="harvwrap"><i id="harvbar"></i></div>
+      <div class="foot">monthly target</div>
+    </div>
+    <div class="card">
+      <div class="label">YouTube API quota</div>
+      <div class="big"><span id="quota">—</span> <small>/ 10,000</small></div>
+      <div class="bar" id="quotawrap"><i id="quotabar"></i></div>
+      <div class="foot" id="quotadate">resets 08:00 UTC</div>
+    </div>
+    <div class="card">
+      <div class="label">Shorts published</div>
+      <div class="big"><span id="pub">—</span> <small>total</small></div>
+      <div class="foot">one per slot · fully auto</div>
+    </div>
+    <div class="card">
+      <div class="label">Last factory run</div>
+      <div class="big" style="font-size:19px" id="lastrun">—</div>
+      <div class="foot" id="lastrunrel">—</div>
+    </div>
+    <div class="card">
+      <div class="label">Month</div>
+      <div class="big" style="font-size:19px" id="month">—</div>
+      <div class="foot">bank cycle</div>
+    </div>
+  </div>
+
+  <h2>Recent workflow runs</h2>
+  <div class="runs" id="runs">
+    <div class="row"><span class="dot queued"></span><span class="nm">loading…</span></div>
+  </div>
+
+  <footer>
+    stack: GitHub Actions (public repo, free) · GitHub Pages (free) · client-side fetch — zero paid tiers, zero trackers, zero dependencies.<br>
+    data: <a href="https://raw.githubusercontent.com/hatlhatlhatl34/fort-clip-factory/main/data/state.json" target="_blank">raw state.json</a> · runs: <a href="https://github.com/hatlhatlhatl34/fort-clip-factory/actions" target="_blank">actions log</a> · repo: <a href="https://github.com/hatlhatlhatl34/fort-clip-factory" target="_blank">hatlhatlhatl34/fort-clip-factory</a>
+  </footer>
+</div>
+
+<script>
+var STATE_URL='https://raw.githubusercontent.com/hatlhatlhatl34/fort-clip-factory/main/data/state.json';
+var RUNS_URL='https://api.github.com/repos/hatlhatlhatl34/fort-clip-factory/actions/runs?per_page=6';
+function $(id){return document.getElementById(id);}
+function ago(ts){
+  var s=Math.max(0,(Date.now()-ts)/1000);
+  if(s<60)return Math.floor(s)+'s ago';
+  if(s<3600)return Math.floor(s/60)+'m ago';
+  if(s<86400)return Math.floor(s/3600)+'h ago';
+  return Math.floor(s/86400)+'d ago';
+}
+function setBar(barId,wrapId,pct,cls){
+  var b=$(barId);b.style.width=Math.min(100,pct)+'%';
+  $(wrapId).className='bar'+(cls?' '+cls:'');
+}
+function loadState(){
+  fetch(STATE_URL,{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(d){
+    var bank=(d.bank&&d.bank.clips)||[];
+    var harv=(d.used_sources||[]).length;
+    var quota=(d.quota&&d.quota.units_used)||0;
+    var qdate=(d.quota&&d.quota.date)||'';
+    var pub=(d.stats&&d.stats.shorts_published)||0;
+    $('bank').textContent=bank.length;
+    setBar('bankbar','bankwrap',bank.length/250*100,bank.length>=4?'ok':'warn');
+    $('armed').innerHTML=bank.length>=4
+      ?'<span style="color:#3fb950">ARMED — publishing never stops (bank ≥ 4)</span>'
+      :'<span style="color:#f85149">HOLD — bank below 4</span>';
+    $('harv').textContent=harv;
+    setBar('harvbar','harvwrap',harv/250*100,'');
+    $('quota').textContent=quota.toLocaleString();
+    var qp=quota/10000*100;
+    setBar('quotabar','quotawrap',qp,qp>90?'warn':'');
+    $('quotadate').textContent=(qdate?'day '+qdate+' · ':'')+'resets 08:00 UTC';
+    $('pub').textContent=pub;
+    if(d.last_run_ts){
+      var dt=new Date(d.last_run_ts*1000);
+      $('lastrun').textContent=dt.toISOString().slice(0,16).replace('T',' ')+' UTC';
+      $('lastrunrel').textContent=ago(d.last_run_ts*1000);
+    }
+    $('month').textContent=(d.bank&&d.bank.month)||'—';
+  }).catch(function(){
+    $('lastrunrel').innerHTML='<span class="err">state fetch failed — retrying next cycle</span>';
+  });
+}
+function loadRuns(){
+  fetch(RUNS_URL,{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(d){
+    var runs=(d.workflow_runs||[]).slice(0,6);
+    $('runs').innerHTML=runs.map(function(x){
+      var st=x.status!=='completed'?(x.status==='queued'?'queued':'live'):(x.conclusion==='success'?'ok':'bad');
+      var nm=((x.path||'').split('/').pop())||x.name;
+      return '<div class="row"><span class="dot '+st+'"></span><span class="nm">'+nm
+        +'</span><span class="ev">'+x.event+'</span><span class="ago">'+ago(new Date(x.created_at).getTime())+'</span></div>';
+    }).join('')||'<div class="row"><span class="nm">no runs yet</span></div>';
+  }).catch(function(){
+    $('runs').innerHTML='<div class="row"><span class="nm"><span class="err">runs fetch failed (API rate limit?) — retrying</span></span></div>';
+  });
+}
+loadState();
+loadRuns();
+setInterval(loadState,60000);
+setInterval(loadRuns,300000);
+</script>
+</body>
+</html>
