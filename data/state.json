@@ -1494,10 +1494,26 @@
    },
    "crosspost": {
     "ig": {
-     "status": "pending"
+     "status": "done",
+     "media_id": "18146835043607705",
+     "ts": 1795390918,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/DgEAl_5jai8/"
     },
     "fb": {
-     "status": "pending"
+     "status": "done",
+     "media_id": "1868409221022004",
+     "ts": 1795390931,
+     "attempts": 1,
+     "permalink": ""
+    },
+    "tiktok": {
+     "status": "done",
+     "publish_id": "v_pub_file~v2-1.7711145038726465543",
+     "error": "upload in flight — re-check before re-post",
+     "ts": 1795390959,
+     "media_id": "v_pub_file~v2-1.7711145038726465543",
+     "attempts": 1
     }
    }
   },
