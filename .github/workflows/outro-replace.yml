@@ -1,0 +1,240 @@
+name: outro-replace
+# One-off (2026-11-23 evening): shorts #82/#83/#84 went up at 12:38 UTC
+# WITHOUT the owner's outro card (the ffmpeg 8.0.1 concat-filter bug,
+# fixed in commit 74d20ef). This swaps all three for card-carrying
+# renders BEFORE their reels crosspost (all still pending):
+#   - fetches the exact published bytes from the media-cache artifact
+#   - appends the 5s card via the FIXED src/outro.py (verified 3/3 on
+#     this very runner type in workflow outro-debug round 4)
+#   - #82 (slot already live) -> new video PUBLIC now
+#   - #83 -> new video private + publishAt 01:00 Cairo (native)
+#   - #84 -> new video private + publishAt 07:00 Cairo (native)
+#   - deletes the three old ids, resets crosspost + giveaway flags,
+#     re-caches the card bytes for the reels, commits memory
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  replace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ffmpeg + deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet --upgrade pip
+          pip install --quiet -r requirements.txt
+
+      - name: Fetch the published media cache (run 45176289701)
+        uses: actions/download-artifact@v4
+        with:
+          name: media-cache-2026-11-23
+          run-id: "45176289701"
+          path: media_cache_old
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: The swap (upload-with-card -> delete old -> state surgery)
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          ls -la media_cache_old 2>/dev/null || { echo "media cache fetch FAILED"; exit 1; }
+          python - <<'PY' 2>&1
+          import json, subprocess, sys, time, urllib.error, urllib.request
+          from pathlib import Path
+          sys.path.insert(0, '.')
+          from src import crosspost, ledger, metadata, outro, youtube
+          from src.config import cfg
+
+          state = ledger.load()
+          print(f"[replace] quota now: {ledger.quota_remaining(state)} units left "
+                f"({state.get('quota', {}).get('units_used')} used)")
+
+          # (n, mode) — publishAt targets use the record's own slot
+          PLAN = [(83, 'publishat'), (84, 'publishat'), (82, 'public_now')]
+          token = youtube.get_access_token()
+          yconf = cfg()["youtube"]
+          made_kids = bool(yconf.get("made_for_kids", False))
+
+          def api(url, data=None, method=None):
+              req = urllib.request.Request(url, data=data, method=method,
+                  headers={"Authorization": f"Bearer {token}",
+                           "Content-Type": "application/json"})
+              with urllib.request.urlopen(req, timeout=60) as r:
+                  raw = r.read()
+                  return json.loads(raw) if raw else {}
+
+          def old_snippet(vid):
+              doc = api(f"https://www.googleapis.com/youtube/v3/videos"
+                        f"?part=snippet,status&id={vid}")
+              items = doc.get("items") or []
+              return items[0] if items else None
+
+          for n, mode in PLAN:
+              rec = next((s for s in state.get("shorts", [])
+                          if s.get("n") == n and s.get("video_id")), None)
+              if not rec:
+                  print(f"[replace] #{n}: no short record — SKIPPED"); continue
+              old_vid = rec["video_id"]
+              f = Path(f"media_cache_old/short_{n}.mp4")
+              if not f.exists() or f.stat().st_size < 500_000:
+                  print(f"[replace] #{n}: cached bytes missing/too small — SKIPPED "
+                        f"(old video stays)"); continue
+              dur = subprocess.run(["ffprobe","-v","error","-show_entries",
+                                    "format=duration","-of","csv=p=0",str(f)],
+                                   capture_output=True, text=True).stdout.strip()
+              if not dur or float(dur) < 20:
+                  print(f"[replace] #{n}: cached bytes look broken ({dur}s) — SKIPPED"); continue
+
+              print(f"\n[replace] #{n}: swapping {old_vid} (slot {rec.get('slot')})")
+              sn = old_snippet(old_vid)
+              meta = {
+                  "title": (sn or {}).get("snippet", {}).get("title")
+                          or rec.get("title", ""),
+                  "description": (sn or {}).get("snippet", {}).get("description")
+                          or metadata.refresh_description({})["description"],
+                  "tags": (sn or {}).get("snippet", {}).get("tags") or [],
+                  "categoryId": str((sn or {}).get("snippet", {})
+                                    .get("categoryId") or yconf.get("category_id", "20")),
+              }
+              print(f"  title: {meta['title']!r}")
+
+              f2 = outro.apply(f)
+              if not str(f2).endswith("_og.mp4"):
+                  print(f"  OUTRO FAILED for #{n} — old video STAYS, no swap"); continue
+              print(f"  card version: {f2.name} ({f2.stat().st_size/1e6:.1f} MB)")
+
+              if ledger.quota_remaining(state) < youtube.UPLOAD_UNITS + 100:
+                  print("  quota floor — STOP the swap here (old videos stay)"); break
+
+              # status variants: publishAt (slot iso, then Z form), or public
+              slot_iso = str(rec.get("slot") or "")
+              z_iso = slot_iso.replace("+02:00", "Z") if slot_iso else ""
+              import datetime as _dt
+              try:
+                  z_iso = _dt.datetime.fromisoformat(slot_iso).astimezone(
+                      _dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+              except Exception:
+                  z_iso = ""
+              if mode == 'public_now':
+                  variants = [{"privacyStatus": "public",
+                                "madeForKids": made_kids,
+                                "selfDeclaredMadeForKids": made_kids}]
+              else:
+                  variants = [
+                      {"privacyStatus": "private", "publishAt": slot_iso,
+                       "madeForKids": made_kids, "selfDeclaredMadeForKids": made_kids},
+                      {"privacyStatus": "private", "publishAt": z_iso,
+                       "madeForKids": made_kids, "selfDeclaredMadeForKids": made_kids},
+                  ]
+              new_vid = None
+              last_err = ""
+              for st in variants:
+                  try:
+                      new_vid = youtube._upload_video(token, f2, meta, st)
+                      if new_vid:
+                          print(f"  uploaded {new_vid} "
+                                f"(privacy={st.get('privacyStatus')} "
+                                f"publishAt={st.get('publishAt', '-')})")
+                          break
+                  except RuntimeError as e:
+                      last_err = str(e)
+                      print(f"  upload variant rejected: {last_err[:200]}")
+                      continue
+              if not new_vid:
+                  print(f"  UPLOAD FAILED for #{n} — old video STAYS"); continue
+              ledger.spend_quota(state, youtube.UPLOAD_UNITS)
+              ledger.save(state)
+
+              # delete the old video (3 tries — a dead old id would double-
+              # publish at the slot through the flip pass)
+              for t in range(3):
+                  try:
+                      req = urllib.request.Request(
+                          f"https://www.googleapis.com/youtube/v3/videos?id={old_vid}",
+                          method="DELETE",
+                          headers={"Authorization": f"Bearer {token}"})
+                      with urllib.request.urlopen(req, timeout=60) as r:
+                          r.read()
+                      print(f"  old {old_vid} DELETED")
+                      break
+                  except urllib.error.HTTPError as e:
+                      if e.code == 404:
+                          print("  old already gone (404)"); break
+                      print(f"  delete retry {t+1} (HTTP {e.code})"); time.sleep(8)
+                  except Exception as e:
+                      print(f"  delete retry {t+1} ({e})"); time.sleep(8)
+              ledger.spend_quota(state, 50)
+              ledger.save(state)
+
+              # state surgery: point at the new id, reset flags, re-cache
+              rec["video_id"] = new_vid
+              rec.pop("verified", None)
+              rec.pop("giveaway_comment", None)
+              rec["crosspost"] = {}
+              rec["outro_replace"] = "2026-11-23"
+              crosspost.cache_video(state, rec, f2)
+              ledger.save(state)
+              print(f"  #{n} DONE: {old_vid} -> {new_vid}")
+
+          print(f"\n[replace] quota after: {ledger.quota_remaining(state)} left")
+          ledger.save(state)
+          PY
+
+      - name: Resolve the cache artifact name
+        id: mcache
+        run: echo "name=media-cache-$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Ship the re-cached card bytes for the reels
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.mcache.outputs.name }}
+          path: media_cache
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Commit memory back
+        if: always()
+        run: |
+          git config user.name "fort-clip-factory"
+          git config user.email "actions@github.com"
+          git add -A data ingest 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "memory unchanged"; exit 0
+          fi
+          for i in 1 2 3; do
+            cp data/state.json /tmp/ours.json 2>/dev/null || true
+            git fetch --quiet origin main
+            git reset --soft origin/main
+            git checkout origin/main -- data/state.json 2>/dev/null || true
+            if [ -f data/state.json ]; then
+              python tools/merge_state.py /tmp/ours.json data/state.json --prefer core --inplace data/state.json
+              cp data/state.json data/state.json.bak
+            else
+              cp /tmp/ours.json data/state.json
+            fi
+            git add -A data ingest
+            git commit -m "memory: outro card swap run $(date -u +%Y-%m-%d)" || true
+            if git push --quiet origin HEAD:main; then
+              echo "memory pushed (attempt $i)"
+              exit 0
+            fi
+            echo "::warning::memory push lost the race (attempt $i)"
+          done
+          echo "::error::memory push failed 3x — the next run reconciles"
+          exit 1
