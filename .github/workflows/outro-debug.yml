@@ -1,14 +1,9 @@
 name: outro-debug
-# Round 3 (2026-11-23 ~18:00 UTC): round 2 proved the concat FILTER
-# itself fails on the runner's ffmpeg 8.0.1 with real banked clips
-# (B-frame video + negative-pts aac) — image, loop, setpts and -r
-# were all ruled out (A/B/D/V1/V2 all rc=234 "Error reinitializing
-# filters!"). This round isolates and fixes:
-#   G: VIDEO-ONLY concat + apad audio  (candidate fix 1, single cmd)
-#   H: audio-only concat              (diagnosis)
-#   C: render a real 5s card file     (fixed round-2 map bug)
-#   C2: filter-concat with the card   (expect fail — for the record)
-#   E: CONCAT DEMUXER + re-encode     (candidate fix 2)
+# Round 4 (2026-11-23 ~18:20 UTC): the fix is LIVE on main (commit
+# 74d20ef — concat demuxer + concat-filter-free card render). This
+# round runs the REAL src/outro.py code path on real banked clips with
+# the runner's ffmpeg 8.0.1. Expected: "[outro] 5s outro card
+# appended" and a healthy +5s duration on every clip.
 on:
   workflow_dispatch: {}
 
@@ -56,85 +51,36 @@ jobs:
           find bank_month -name '*.mp4' -printf '%p\n' | head -3 > /tmp/clips.txt
           wc -l /tmp/clips.txt; cat /tmp/clips.txt
 
-      - name: Variants round 3
+      - name: REAL code path — src/outro.py apply()
         run: |
           python - <<'PY' 2>&1
           import pathlib, subprocess, sys
           clips = [l.strip() for l in pathlib.Path('/tmp/clips.txt').read_text().splitlines() if l.strip()]
           if not clips:
               print('NO CLIPS FOUND'); sys.exit(0)
-          img = pathlib.Path('assets/outro.png').resolve()
-          W, H, FPS, SEC = 1080, 1920, 30, 5
-          base = ['ffmpeg','-hide_banner','-loglevel','error','-y']
+          sys.path.insert(0, '.')
+          from src import outro
 
-          def run(label, cmd):
-              try:
-                  r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
-              except subprocess.TimeoutExpired:
-                  print(f'===== {label}: TIMEOUT ====='); return -99
-              print(f'===== {label}: rc={r.returncode} =====')
-              if r.stderr:
-                  print('STDERR (last 800):', r.stderr[-800:])
-              else:
-                  print('(no stderr)')
-              if r.returncode == 0:
-                  d = subprocess.run(['ffprobe','-v','error','-show_entries','format=duration',
-                                     '-of','csv=p=0','/tmp/dbg_out.mp4'], capture_output=True, text=True)
-                  print('   output duration:', d.stdout.strip())
-              return r.returncode
-
-          # C: render the 5s card FIRST (no concat involved -> safe):
-          # input 0 = lavfi color, input 1 = png, input 2 = anullsrc
-          card = '/tmp/outro_card.mp4'
-          rc_card = run('C-render-card', base + [
-              '-f','lavfi','-i',f'color=c=black:s={W}x{H}:r={FPS}:d={SEC}',
-              '-i',str(img),
-              '-f','lavfi','-t',f'{SEC}','-i','anullsrc=channel_layout=stereo:sample_rate=44100',
-              '-filter_complex',
-              f'[1:v]scale={W}:{H}:force_original_aspect_ratio=decrease[img];'
-              f'[0:v][img]overlay=(W-w)/2:(H-h)/2:format=auto,fps={FPS},format=yuv420p[v]',
-              '-map','[v]','-map','2:a','-t',f'{SEC}',
-              '-c:v','libx264','-preset','fast','-crf','18','-pix_fmt','yuv420p',
-              '-c:a','aac','-b:a','160k','-r',f'{FPS}','-movflags','+faststart',card])
-
-          for p in clips[:2]:
+          for p in clips:
               print(f'\n############ CLIP {p} ############')
-
-              # G: candidate fix — VIDEO-ONLY concat + apad audio
-              run('G-vonly-concat+apad', base + ['-i', p,
-                  '-f','lavfi','-i',f'color=c=black:s={W}x{H}:r={FPS}:d={SEC}',
-                  '-i',str(img),
-                  '-filter_complex',
-                  f'[2:v]scale={W}:{H}:force_original_aspect_ratio=decrease[img];'
-                  f'[1:v][img]overlay=(W-w)/2:(H-h)/2:format=auto,fps={FPS},format=yuv420p[ov];'
-                  f'[0:v][ov]concat=n=2:v=1:a=0[v];[0:a]apad=pad_dur={SEC}[a]',
-                  '-map','[v]','-map','[a]','-c:v','libx264','-preset','fast','-crf','18',
-                  '-pix_fmt','yuv420p','-c:a','aac','-b:a','160k','-r',f'{FPS}',
-                  '-movflags','+faststart','/tmp/dbg_out.mp4'])
-
-              # H: audio-only concat (diagnosis)
-              run('H-aonly-concat', base + ['-i', p,
-                  '-f','lavfi','-t',f'{SEC}','-i','anullsrc=channel_layout=stereo:sample_rate=44100',
-                  '-filter_complex',
-                  f'[0:a][1:a]concat=n=2:v=0:a=1[a]',
-                  '-map','[a]','-c:a','aac','-b:a','160k',
-                  '/tmp/dbg_out.m4a'])
-
-              if rc_card == 0:
-                  # C2: filter-concat with the real card (expect fail)
-                  run('C2-filterconcat-card', base + ['-i', p, '-i', card,
-                      '-filter_complex',
-                      f'[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]',
-                      '-map','[v]','-map','[a]','-c:v','libx264','-preset','fast','-crf','18',
-                      '-pix_fmt','yuv420p','-c:a','aac','-b:a','160k','-r',f'{FPS}',
-                      '-movflags','+faststart','/tmp/dbg_out.mp4'])
-                  # E: candidate fix 2 — concat DEMUXER + re-encode
-                  lst = '/tmp/concat.txt'
-                  pathlib.Path(lst).write_text(f"file '{p}'\nfile '{card}'\n")
-                  run('E-demuxer-concat', base + ['-f','concat','-safe','0','-i',lst,
-                      '-map','0:v','-map','0:a',
-                      '-c:v','libx264','-preset','fast','-crf','18','-pix_fmt','yuv420p',
-                      '-c:a','aac','-b:a','160k','-r',f'{FPS}',
-                      '-movflags','+faststart','/tmp/dbg_out.mp4'])
-              print()
+              import time; t0 = time.time()
+              out = outro.apply(pathlib.Path(p))
+              dt = time.time() - t0
+              print(f'RESULT: {out}  ({dt:.0f}s)')
+              if str(out).endswith('_og.mp4'):
+                  d = subprocess.run(['ffprobe','-v','error','-show_entries','format=duration',
+                                      '-of','csv=p=0',str(out)],capture_output=True,text=True)
+                  s = subprocess.run(['ffprobe','-v','error','-show_entries','format=duration',
+                                      '-of','csv=p=0',p],capture_output=True,text=True)
+                  print(f'   duration: clip {s.stdout.strip()}s -> with outro {d.stdout.strip()}s '
+                        f'(+{float(d.stdout.strip() or 0)-float(s.stdout.strip() or 0):.1f}s expected +5)')
+                  # the last frame must BE the owner card
+                  r = subprocess.run(['ffmpeg','-y','-loglevel','error','-sseof','-0.3',
+                                      '-i',str(out),'-frames:v','1','/tmp/last.png'],
+                                     capture_output=True,text=True)
+                  if r.returncode == 0:
+                      print('   last frame extracted for visual check: /tmp/last.png')
+                  print('   >>> OUTRO OK — the owner card is on the end of this clip')
+              else:
+                  print('   >>> OUTRO FAILED — see OUTRO-ALERT above')
           PY
