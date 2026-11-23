@@ -20,3 +20,9 @@ cookies.txt
 *.secret
 .env
 client_secret*.json
+
+# OAuth token material (refresh/access tokens) — NEVER commit.
+# repo/secrets/ holds local OAuth exchange output.
+secrets/
+oauth_tokens.json
+token_exchange.json
