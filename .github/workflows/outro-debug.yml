@@ -1,0 +1,137 @@
+name: outro-debug
+# One-off diagnostic (2026-11-23): the 5s outro card failed on every
+# banked publish in the 12:38 UTC session
+# ("libx264/aac ... Task finished with error code: -22 Invalid
+# argument") and src/outro.py truncates stderr to 300 chars, hiding
+# the root error. This reproduces the failure on REAL banked clips with
+# the runner's own ffmpeg, prints the FULL stderr, then tests
+# candidate fixes (timestamp sanitization etc.).
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ffmpeg version
+        run: ffmpeg -version | head -3
+
+      - name: Resolve the bank pointer
+        id: ptr
+        run: |
+          python - <<'PY'
+          import json, os
+          ptr = json.load(open('data/bank_pointer.json'))
+          print('pointer:', ptr)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+              fh.write(f"artifact={ptr['artifact']}\n")
+              fh.write(f"run-id={ptr['run_id']}\n")
+          PY
+
+      - name: Fetch the banked clips
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ steps.ptr.outputs.artifact }}*
+          merge-multiple: true
+          run-id: ${{ steps.ptr.outputs.run-id }}
+          path: bank_month
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Pick clips
+        run: |
+          ls bank_month | head -5 || true
+          find bank_month -name '*.mp4' -printf '%p\n' | head -20 > /tmp/clips.txt
+          wc -l /tmp/clips.txt
+          head -3 /tmp/clips.txt
+
+      - name: Probe + reproduce + candidate fixes
+        run: |
+          sudo apt-get install -y -qq ffmpeg || true
+          python - <<'PY' 2>&1
+          import json, pathlib, subprocess, sys
+          clips = [l.strip() for l in pathlib.Path('/tmp/clips.txt').read_text().splitlines() if l.strip()]
+          if not clips:
+              print('NO CLIPS FOUND — bank fetch failed?'); sys.exit(0)
+          img = pathlib.Path('assets/outro.png').resolve()
+          print('outro image:', img, img.stat().st_size if img.exists() else 'MISSING')
+          W, H, FPS, SEC = 1080, 1920, 30, 5
+
+          def probe(p):
+              r = subprocess.run(['ffprobe','-v','error','-show_entries',
+                  'stream=index,codec_type,codec_name,width,height,pix_fmt,r_frame_rate,sample_rate,channels,start_time:format=start_time,duration',
+                  '-of','json',p], capture_output=True, text=True)
+              print('PROBE', p)
+              print(json.dumps(json.loads(r.stdout), indent=1)[:1500])
+              for sel, label in (('v:0','video'), ('a:0','audio')):
+                  r2 = subprocess.run(['ffprobe','-v','error','-select_streams',sel,
+                      '-show_entries','packet=pts_time,duration_time',
+                      '-read_intervals','%+#4',p], capture_output=True, text=True)
+                  print(f'first {label} packets:\n', r2.stdout[:600])
+
+          def run(label, cmd):
+              try:
+                  r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
+              except subprocess.TimeoutExpired:
+                  print(f'===== {label}: TIMEOUT ====='); return -99
+              print(f'===== {label}: rc={r.returncode} =====')
+              print('FULL STDERR (last 3000):')
+              print(r.stderr[-3000:] if r.stderr else '(no stderr)')
+              return r.returncode
+
+          base = ['ffmpeg','-hide_banner','-loglevel','error','-y']
+
+          for p in clips[:3]:
+              print(f'\n############ CLIP {p} ############')
+              probe(p)
+              # A: EXACT current src/outro.py command
+              cmd = base + ['-i', p,
+                  '-loop','1','-t',f'{SEC}','-i',str(img),
+                  '-f','lavfi','-t',f'{SEC}','-i','anullsrc=channel_layout=stereo:sample_rate=44100',
+                  '-filter_complex',
+                  f'[1:v]scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:black,fps={FPS},format=yuv420p[ov];[0:v][0:a][ov][2:a]concat=n=2:v=1:a=1[v][a]',
+                  '-map','[v]','-map','[a]','-c:v','libx264','-preset','fast','-crf','18',
+                  '-pix_fmt','yuv420p','-c:a','aac','-b:a','160k','-r',f'{FPS}',
+                  '-movflags','+faststart','/tmp/dbg_og.mp4']
+              rc = run('A-exact-current-command', cmd)
+              if rc != 0:
+                  # V1: sanitize timestamps (classic concat EINVAL fix)
+                  cmd1 = base + ['-i', p,
+                      '-loop','1','-t',f'{SEC}','-i',str(img),
+                      '-f','lavfi','-t',f'{SEC}','-i','anullsrc=channel_layout=stereo:sample_rate=44100',
+                      '-filter_complex',
+                      f'[0:v]setpts=PTS-STARTPTS[v0];[0:a]asetpts=PTS-STARTPTS[a0];'
+                      f'[1:v]scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:black,fps={FPS},format=yuv420p,setpts=PTS-STARTPTS[ov];'
+                      f'[2:a]asetpts=PTS-STARTPTS[a2];'
+                      f'[v0][a0][ov][a2]concat=n=2:v=1:a=1[v][a]',
+                      '-map','[v]','-map','[a]','-c:v','libx264','-preset','fast','-crf','18',
+                      '-pix_fmt','yuv420p','-c:a','aac','-b:a','160k','-r',f'{FPS}',
+                      '-movflags','+faststart','/tmp/dbg_v1.mp4']
+                  run('V1-setpts-sanitized', cmd1)
+                  # V2: no -r output option
+                  cmd2 = list(cmd)
+                  i = cmd2.index('-r')
+                  del cmd2[i:i+2]
+                  run('V2-no-output-r', cmd2)
+              else:
+                  print('>>> A SUCCEEDED?! the bug is elsewhere')
+          PY
+
+      - name: Real code path (src/outro.py apply)
+        run: |
+          CLIP=$(head -1 /tmp/clips.txt)
+          echo "testing src/outro.py on $CLIP"
+          python - "$CLIP" <<'PY'
+          import sys
+          from pathlib import Path
+          from src import outro
+          p = outro.apply(Path(sys.argv[1]))
+          print('RESULT path:', p)
+          PY
