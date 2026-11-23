@@ -138,7 +138,7 @@ def next_slot(state: dict) -> str | None:
     """Next free FUTURE grid slot (ISO, Cairo) for publishAt.
 
     Grid = channel.yaml schedule.slots (01:00/07:00/13:00/19:00
-    Cairo, US-tuned phase). Scans today/tomorrow/day-after, skipping
+    Cairo, US-tuned phase). Scans the next 8 days, skipping
     slots already booked in state.slots AND every slot whose time
     already passed. A missed slot just means the next Short takes
     the next open one — the grid self-heals.
@@ -162,7 +162,11 @@ def next_slot(state: dict) -> str | None:
         sched.get("publish_lead_minutes", 25)))
     # OWNER RULE 2026-11-23: past slots are written off — never
     # backfilled, never published live off-schedule.
-    for day_offset in (0, 1, 2):
+    # 2026-11-23 widening: scan 8 days (was 3) — a fully-booked
+    # 3-day window could strand a video private with NO publishAt
+    # ("private, not scheduled", live-diagnosed 2026-11-23); an
+    # 8-day horizon makes a slotless upload unreachable in practice.
+    for day_offset in range(0, 8):
         base = (now + timedelta(days=day_offset)).date()
         day_slots = slots + (weekend_slots
                              if base.weekday() in weekend_days else [])
@@ -281,8 +285,10 @@ def upload_short(filepath: Path, meta: dict, state: dict) -> str | None:
     # OWNER RULE 2026-11-23 (supersedes D8 2026-11-20): every upload
     # is PRIVATE with a future publishAt (next_slot only returns
     # future slots now) — public exactly at the grid slot, one Short
-    # at a time. A no-slot edge (grid fully booked 3 days out) keeps
-    # the video private rather than publishing off-schedule.
+    # at a time. A no-slot edge (grid fully booked 8 days out —
+    # unreachable in practice) keeps the video private rather than
+    # publishing off-schedule, and screams below so it is never
+    # invisible.
     status = {
         "privacyStatus": "private",
         "madeForKids": bool(yconf.get("made_for_kids", False)),
@@ -344,7 +350,11 @@ def upload_short(filepath: Path, meta: dict, state: dict) -> str | None:
         # C3 (audit 2026-11-18): book the slot + burn local quota ONLY
         # on a real id — a blind-poll "" booked the slot forever while
         # the clip re-published next session (invisible grid hole)
-        tail = f"publishAt {slot}" if slot else "no slot (kept private)"
+        if slot:
+            tail = f"publishAt {slot}"
+        else:
+            tail = ("NO OPEN SLOT within 8 days — video kept private "
+                    "(UPLOAD-ALERT: inspect state.slots booking)")
         print(f"[youtube] uploaded short {video_id} ({tail})")
         if slot:
             _book_slot(state, slot)

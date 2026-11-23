@@ -11,6 +11,11 @@ can never exist again. When the combination pool runs low, the
 composer falls back to a natural "(part N)" suffix — uniqueness is
 guaranteed by construction, forever.
 
+OWNER RULE (2026-11-23): NO numbering in titles. The "#N" suffix is
+permanently gone from every future clip (the banked titles were
+retro-scrubbed the same day). The internal clip number n lives in
+state records and file names only — never in what viewers see.
+
 OWNER RULE (2026-11-14): the word "Fortnite" is IN EVERY TITLE.
 Every engine subject carries it; build() additionally REPAIRS any
 title that loses the word — the rule can never silently break.
@@ -70,7 +75,8 @@ def used_skeletons(state: dict) -> set[str]:
 # ── the composer ───────────────────────────────────────────────────
 
 def compose(xp: bool, used: set[str], rng: random.Random, n: int) -> str:
-    """One unique-skeleton hook title for clip #n.
+    """One unique-skeleton hook title (numbering-free, owner rule
+    2026-11-23 — n is bookkeeping only, never part of the title).
 
     Combines subject x predicate (+ an occasional lead) until the
     skeleton is unused; after 120 misses (pool exhausted) it tags a
@@ -87,25 +93,25 @@ def compose(xp: bool, used: set[str], rng: random.Random, n: int) -> str:
         for _ in range(120):
             subj, pred = rng.choice(subjects), rng.choice(predicates)
             lead = rng.choice(leads) if (leads and rng.random() < 0.28) else ""
-            cand = f"{lead} {subj} {pred} #{n}".strip() if lead \
-                else f"{subj} {pred} #{n}"
+            cand = (f"{lead} {subj} {pred}" if lead
+                    else f"{subj} {pred}").strip()
             if _skeleton(cand) not in used:
                 return cand
         # pool exhausted — a natural part suffix keeps the title
         # unique WITHOUT recycling a burned skeleton
         subj, pred = rng.choice(subjects), rng.choice(predicates)
         for k in range(2, 500):
-            cand = f"{subj} {pred} (part {k}) #{n}"
+            cand = f"{subj} {pred} (part {k})"
             if _skeleton(cand) not in used:
                 return cand
 
     # engine not configured (or broken): legacy clean hook, part-
     # numbered the moment its skeleton is already burned
     for k in range(0, 500):
-        cand = _LEGACY_HOOK + (f" (part {k}) #{n}" if k else f" #{n}")
+        cand = _LEGACY_HOOK + (f" (part {k})" if k else "")
         if _skeleton(cand) not in used:
             return cand
-    return f"{_LEGACY_HOOK} #{n}"          # unreachable by construction
+    return _LEGACY_HOOK          # unreachable by construction
 
 
 # ── the description block ──────────────────────────────────────────

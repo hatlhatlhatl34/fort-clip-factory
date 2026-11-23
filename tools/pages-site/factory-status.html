@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fort Clip Factory — Grid Status</title>
+<meta name="description" content="Live status dashboard for the Fort Clip Factory clip pipeline. Client-side only, free-tier hosting on GitHub Pages.">
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2129; --border:#30363d;
+    --text:#c9d1d9; --muted:#8b949e; --faint:#6e7681;
+    --green:#3fb950; --amber:#d29922; --red:#f85149; --blue:#58a6ff; --purple:#bc8cff;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.45}
+  a{color:var(--blue);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1080px;margin:0 auto;padding:20px 16px 60px}
+  header{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:14px}
+  h1{font-size:19px;margin:0;letter-spacing:.4px}
+  h1 .dot{color:var(--green)}
+  .sub{color:var(--muted);font-size:12px}
+  .refresh{margin-left:auto;color:var(--faint);font-size:12px;font-family:var(--mono)}
+  .refresh button{background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer}
+  .refresh button:hover{border-color:var(--blue)}
+  .banner{display:none;border:1px solid var(--red);background:#2d1517;color:var(--red);border-radius:6px;padding:8px 12px;margin-bottom:12px;font-family:var(--mono);font-size:12px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+  .card .label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+  .card .value{font-family:var(--mono);font-size:22px;font-weight:600}
+  .card .value small{font-size:12px;color:var(--faint);font-weight:400}
+  .card .note{color:var(--faint);font-size:11px;margin-top:4px}
+  .bar{height:5px;background:#21262d;border-radius:3px;margin-top:8px;overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:3px;background:var(--green)}
+  .bar i.warn{background:var(--amber)} .bar i.bad{background:var(--red)} .bar i.info{background:var(--blue)}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:800px){.cols{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:12px}
+  .panel h2{font-size:13px;margin:0 0 10px;color:var(--text);letter-spacing:.5px;text-transform:uppercase}
+  .panel h2 .hint{color:var(--faint);text-transform:none;letter-spacing:0;font-weight:400;font-size:11px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{color:var(--muted);text-align:left;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:4px 8px;border-bottom:1px solid var(--border)}
+  td{padding:5px 8px;border-bottom:1px solid #21262d;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  .mono{font-family:var(--mono)}
+  .dim{color:var(--muted)}
+  .trunc{max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .badge{display:inline-block;font-family:var(--mono);font-size:10.5px;border-radius:10px;padding:1px 8px;border:1px solid}
+  .b-ok{color:var(--green);border-color:rgba(63,185,80,.4);background:rgba(63,185,80,.08)}
+  .b-run{color:var(--blue);border-color:rgba(88,166,255,.4);background:rgba(88,166,255,.08)}
+  .b-fail{color:var(--red);border-color:rgba(248,81,73,.4);background:rgba(248,81,73,.08)}
+  .b-warn{color:var(--amber);border-color:rgba(210,153,34,.4);background:rgba(210,153,34,.08)}
+  .b-off{color:var(--muted);border-color:var(--border);background:transparent}
+  .chip{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:2px;vertical-align:middle}
+  .c-ok{background:var(--green)} .c-run{background:var(--blue)} .c-fail{background:var(--red)}
+  .c-warn{background:var(--amber)} .c-off{background:#30363d}
+  footer{color:var(--faint);font-size:11.5px;margin-top:18px;border-top:1px solid var(--border);padding-top:12px;line-height:1.6}
+  footer .rule{color:var(--muted)}
+  .pulse{animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="dot">&#9679;</span> FORT CLIP FACTORY <span class="dim">— grid status</span></h1>
+    <span class="sub">auto-refresh 60s &middot; sources: raw state.json + public GitHub API</span>
+    <span class="refresh"><span id="stamp">—</span> <button onclick="loadAll()">refresh</button></span>
+  </header>
+  <div id="banner" class="banner"></div>
+
+  <div class="grid" id="kpis"></div>
+
+  <div class="cols">
+    <div class="panel" id="runsPanel">
+      <h2>Recent workflow runs <span class="hint">&middot; GitHub Actions (public repo, free tier)</span></h2>
+      <div id="runsErr" class="dim" style="font-size:12px"></div>
+      <table id="runsTable"><tbody><tr><td class="dim">loading…</td></tr></tbody></table>
+    </div>
+    <div>
+      <div class="panel">
+        <h2>Backstop health</h2>
+        <table id="health"><tbody><tr><td class="dim">loading…</td></tr></tbody></table>
+      </div>
+      <div class="panel">
+        <h2>Bank queue <span class="hint">&middot; next slots, Cairo time (+02:00)</span></h2>
+        <table id="queue"><tbody><tr><td class="dim">loading…</td></tr></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Scheduled shorts <span class="hint">&middot; booked grid slots &middot; each goes live automatically at its slot (Cairo time)</span></h2>
+    <table id="sched"><tbody><tr><td class="dim">loading…</td></tr></tbody></table>
+  </div>
+
+  <div class="panel">
+    <h2>Last published shorts <span class="hint">&middot; newest first &middot; chips: IG / FB / TT</span></h2>
+    <table id="live"><tbody><tr><td class="dim">loading…</td></tr></tbody></table>
+  </div>
+
+  <footer>
+    <span class="rule">Owner rule 2026-11-22:</span> publishing never stops while bank &ge; 4 clips.
+    <span class="rule">Owner rule 2026-11-23:</span> strict grid — every upload is private + publishAt (YouTube-native schedule); no numbering in titles.
+    <span class="rule">Owner rule 2026-11-23:</span> poison clips (archive sibling derivatives) are permanently skipped.
+    &middot; Quota resets 08:00 UTC (Pacific midnight). &middot; Costs: <b>$0</b> — public repo Actions, GitHub Pages, client-side rendering.
+    &middot; Code: <a href="https://github.com/hatlhatlhatl34/fort-clip-factory" target="_blank" rel="noopener">hatlhatlhatl34/fort-clip-factory</a>
+    &middot; Data: <a href="https://raw.githubusercontent.com/hatlhatlhatl34/fort-clip-factory/main/data/state.json" target="_blank" rel="noopener">state.json</a>
+  </footer>
+</div>
+
+<script>
+var STATE_URL='https://raw.githubusercontent.com/hatlhatlhatl34/fort-clip-factory/main/data/state.json';
+var RUNS_URL='https://api.github.com/repos/hatlhatlhatl34/fort-clip-factory/actions/runs?per_page=15';
+var BANK_TARGET=250, HARVEST_TARGET=250, QUOTA_MAX=10000;
+var lastState=null, lastRuns=null;
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function banner(msg){var b=document.getElementById('banner');if(!msg){b.style.display='none';return;}b.textContent=msg;b.style.display='block';}
+function stamp(){document.getElementById('stamp').textContent=new Date().toISOString().slice(11,19)+' UTC';}
+function trunc(s,n){s=String(s||'');return s.length>n?s.slice(0,n-1)+'…':s;}
+function ageOf(iso){if(!iso)return null;var ms=Date.now()-Date.parse(iso);if(ms<0)ms=0;var m=Math.floor(ms/60000);if(m<60)return m+'m';var h=Math.floor(m/60);return h+'h '+(m%60)+'m';}
+function slotLabel(iso){return String(iso||'').slice(5,10).replace('-','/')+' '+String(iso||'').slice(11,16);}
+function cdbar(pct,cls){return '<div class="bar"><i class="'+(cls||'')+'" style="width:'+Math.min(100,Math.max(0,pct))+'%"></i></div>';}
+
+function chip(st){
+  var map={done:['c-ok',''],pending:['c-warn',''],in_flight:['c-run','pulse'],gave_up:['c-off',''],in_progress:['c-run','pulse']};
+  var m=map[st]||['c-off',''];
+  return '<span class="chip '+m[0]+' '+(m[1]||'')+'" title="'+esc(st)+'"></span>';
+}
+function badge(st,con){
+  if(st==='in_progress'||st==='queued'||st==='waiting')return '<span class="badge b-run pulse">'+esc(st.toUpperCase())+'</span>';
+  if(con==='success')return '<span class="badge b-ok">OK</span>';
+  if(con==='failure')return '<span class="badge b-fail">FAIL</span>';
+  if(con==='cancelled')return '<span class="badge b-off">CANCEL</span>';
+  if(con==='timed_out')return '<span class="badge b-fail">TIMEOUT</span>';
+  return '<span class="badge b-off">'+esc((con||st||'?').toUpperCase())+'</span>';
+}
+
+function renderKpis(){
+  var s=lastState; if(!s)return;
+  var bank=(s.bank&&s.bank.clips)?s.bank.clips.length:0;
+  var harvested=(s.bank&&s.bank.harvested_total)||0;
+  var pool=(s.bank&&s.bank.pool)?s.bank.pool.length:0;
+  var used=(s.quota&&s.quota.units_used)||0;
+  var qDate=(s.quota&&s.quota.date)||'—';
+  var pub=(s.stats&&s.stats.shorts_published)||0;
+  var qPct=used/QUOTA_MAX*100;
+  var qCls=qPct>90?'bad':(qPct>70?'warn':'');
+  var slot=null,slotN=null;
+  if(s.bank&&s.bank.clips){
+    var now=Date.now();
+    var fut=s.bank.clips.filter(function(c){return c.slot&&Date.parse(c.slot)>now;});
+    fut.sort(function(a,b){return Date.parse(a.slot)-Date.parse(b.slot);});
+    if(fut.length){slot=fut[0].slot;slotN=fut[0].n;
+      var ms=Date.parse(slot)-now;
+      var h=Math.floor(ms/3600000),m=Math.floor(ms%3600000/60000);
+      slot=slotLabel(slot)+' · in '+(h>0?h+'h ':'')+m+'m';
+    } else {slot='queue empty — harvest';}
+  }
+  var hPct=harvested/HARVEST_TARGET*100;
+  var hDone=hPct>=100;
+  document.getElementById('kpis').innerHTML=
+    '<div class="card"><div class="label">Bank</div><div class="value">'+bank+'<small>/'+BANK_TARGET+'</small></div><div class="note">ready clips queued</div>'+cdbar(bank/BANK_TARGET*100)+'</div>'+
+    '<div class="card"><div class="label">Harvested (month)</div><div class="value">'+harvested+'<small>/'+HARVEST_TARGET+'</small></div><div class="note">'+(hDone?'monthly goal reached':'harvest target')+'</div>'+cdbar(hPct,hDone?'':'info')+'</div>'+
+    '<div class="card"><div class="label">YT API quota</div><div class="value">'+used+'<small>/'+QUOTA_MAX+'</small></div><div class="note">'+qDate+' · resets 08:00 UTC</div>'+cdbar(qPct,qCls)+'</div>'+
+    '<div class="card"><div class="label">Shorts live</div><div class="value">'+pub+'</div><div class="note">published to YouTube</div></div>'+
+    '<div class="card"><div class="label">Source pool</div><div class="value">'+pool+'</div><div class="note">videos left to mine</div></div>'+
+    '<div class="card"><div class="label">Next slot</div><div class="value" style="font-size:16px">'+(slot?esc(slot):'—')+'</div><div class="note">'+(slotN?'clip #'+slotN:'')+'</div></div>';
+}
+
+function renderHealth(){
+  var rs=lastRuns;
+  if(!rs){document.getElementById('health').innerHTML='<tbody><tr><td class="dim">runs data unavailable (API rate limit) — state.json still refreshing normally</td></tr></tbody>';return;}
+  function lastOf(name,completedOnly){
+    for(var i=0;i<rs.length;i++){var r=rs[i];
+      if(r.name===name){ if(completedOnly&&r.status!=='completed')continue; return r; }
+    } return null;
+  }
+  var heal=lastOf('hourly-heal',true);
+  var harv=lastOf('monthly-bank-harvest',false);
+  var harvRun=harv&&harv.status==='in_progress';
+  var rows='';
+  rows+='<tr><td class="dim">hourly-heal</td><td>'+(heal?badge(heal.status,heal.conclusion)+' <span class="mono dim">'+ageOf(heal.created_at)+' ago</span>':'<span class="dim">no completed run</span>')+'</td></tr>';
+  rows+='<tr><td class="dim">monthly-harvest</td><td>'+(harv?(harvRun?'<span class="badge b-run pulse">RUNNING</span> <span class="mono dim">started '+ageOf(harv.created_at)+' ago</span>':badge(harv.status,harv.conclusion)+' <span class="mono dim">'+ageOf(harv.created_at)+' ago</span>'):'<span class="dim">never</span>')+'</td></tr>';
+  var ok=true;
+  if(heal&&Date.now()-Date.parse(heal.created_at)>110*60000)ok=false;
+  if(!harv)ok=false;
+  rows+='<tr><td class="dim">verdict</td><td>'+(ok?'<span class="badge b-ok">HEALTHY</span>':'<span class="badge b-warn">CHECK BACKSTOP</span>')+' <span class="dim" style="font-size:11px">heal &gt; 75m old or harvest stalled → cron backstop fires</span></td></tr>';
+  document.getElementById('health').innerHTML='<tbody>'+rows+'</tbody>';
+}
+
+function renderRuns(){
+  var rs=lastRuns; if(!rs)return;
+  var out='';
+  rs.forEach(function(r){
+    out+='<tr><td class="mono dim" style="white-space:nowrap">'+esc(new Date(r.created_at).toISOString().slice(5,16).replace('T',' '))+'Z</td>'+
+      '<td>'+esc(r.name)+'</td><td>'+badge(r.status,r.conclusion)+'</td></tr>';
+  });
+  document.getElementById('runsTable').innerHTML='<tbody>'+out+'</tbody>';
+  document.getElementById('runsErr').textContent='';
+}
+
+function renderQueue(){
+  var s=lastState; if(!s||!s.bank||!s.bank.clips)return;
+  var now=Date.now();
+  var fut=s.bank.clips.filter(function(c){return c.slot&&Date.parse(c.slot)>now;});
+  fut.sort(function(a,b){return Date.parse(a.slot)-Date.parse(b.slot);});
+  var out='';
+  fut.slice(0,8).forEach(function(c){
+    out+='<tr><td class="mono dim" style="white-space:nowrap">'+slotLabel(c.slot)+'</td>'+
+      '<td class="mono">#'+esc(c.n)+'</td>'+
+      '<td class="trunc" title="'+esc(c.meta&&c.meta.title)+'">'+esc(trunc(c.meta&&c.meta.title,64))+'</td></tr>';
+  });
+  if(!out)out='<tr><td class="dim">no future slots scheduled — daily-factory should run next (08:33 UTC)</td></tr>';
+  document.getElementById('queue').innerHTML='<tbody>'+out+'</tbody>';
+}
+
+function renderScheduled(){
+  var s=lastState; if(!s||!s.shorts)return;
+  var now=Date.now();
+  var fut=s.shorts.filter(function(x){return x.video_id&&!x.owner_deleted&&x.slot&&Date.parse(x.slot)>now&&!x.verified;});
+  fut.sort(function(a,b){return Date.parse(a.slot)-Date.parse(b.slot);});
+  var out='';
+  fut.forEach(function(x){
+    var ms=Date.parse(x.slot)-now,h=Math.floor(ms/3600000),m=Math.floor(ms%3600000/60000);
+    out+='<tr>'+
+      '<td class="mono dim" style="white-space:nowrap">'+slotLabel(x.slot)+'</td>'+
+      '<td class="mono">#'+esc(x.n)+'</td>'+
+      '<td class="trunc" title="'+esc(x.title)+'">'+esc(trunc(x.title,56))+'</td>'+
+      '<td><span class="badge b-run">SCHEDULED</span> <span class="dim">in '+(h>0?h+'h ':'')+m+'m</span></td>'+
+      '<td style="white-space:nowrap"><a href="https://youtu.be/'+esc(x.video_id)+'" target="_blank" rel="noopener">yt &#8599;</a></td></tr>';
+  });
+  if(!out)out='<tr><td class="dim">no pending scheduled shorts — the daily session (08:33 UTC) books the next 4 slots</td></tr>';
+  document.getElementById('sched').innerHTML='<tbody>'+out+'</tbody>';
+}
+function renderLive(){
+  var s=lastState; if(!s||!s.shorts)return;
+  var list=s.shorts.filter(function(x){return x.video_id&&!x.owner_deleted;});
+  list.sort(function(a,b){
+    var ta=a.verified?Date.parse(a.verified):0, tb=b.verified?Date.parse(b.verified):0;
+    return tb-ta;
+  });
+  var out='';
+  list.slice(0,8).forEach(function(x){
+    var cp=x.crosspost||{};
+    var ig=cp.ig&&cp.ig.status, fb=cp.fb&&cp.fb.status, tt=cp.tiktok&&cp.tiktok.status;
+    out+='<tr>'+
+      '<td class="mono dim">#'+esc(x.n)+'</td>'+
+      '<td class="trunc" title="'+esc(x.title)+'">'+esc(trunc(x.title,58))+'</td>'+
+      '<td class="mono" style="white-space:nowrap">'+chip(ig)+' '+chip(fb)+' '+chip(tt)+'</td>'+
+      '<td style="white-space:nowrap"><a href="https://youtu.be/'+esc(x.video_id)+'" target="_blank" rel="noopener">yt &#8599;</a>'+
+      (fb==='done'&&cp.fb.permalink?' <a href="'+esc(cp.fb.permalink)+'" target="_blank" rel="noopener">fb &#8599;</a>':'')+
+      (ig==='done'&&cp.ig.permalink?' <a href="'+esc(cp.ig.permalink)+'" target="_blank" rel="noopener">ig &#8599;</a>':'')+
+      '</td></tr>';
+  });
+  if(!out)out='<tr><td class="dim">nothing published yet</td></tr>';
+  document.getElementById('live').innerHTML='<tbody>'+out+'</tbody>';
+}
+
+function jget(u){return fetch(u,{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error(u.split('?')[0]+' → HTTP '+r.status);return r.json();});}
+
+function loadState(){
+  jget(STATE_URL+'?t='+Date.now()).then(function(s){
+    lastState=s; banner(''); stamp();
+    renderKpis(); renderQueue(); renderScheduled(); renderLive(); renderHealth();
+  }).catch(function(e){banner('state.json fetch failed — '+e.message+' (raw CDN caches ~5 min; retry or open directly)');stamp();});
+}
+function loadRuns(){
+  jget(RUNS_URL).then(function(d){
+    lastRuns=(d&&d.workflow_runs)||[]; renderRuns(); renderHealth();
+  }).catch(function(e){
+    lastRuns=null;
+    document.getElementById('runsErr').textContent='runs API unavailable ('+e.message+') — unauthenticated GitHub API allows 60 req/hr per IP; retrying in 5 min';
+    renderRuns&&renderHealth();
+  });
+}
+function loadAll(){loadState();loadRuns();}
+loadAll();
+setInterval(loadState,60000);
+setInterval(loadRuns,300000);
+</script>
+</body>
+</html>
