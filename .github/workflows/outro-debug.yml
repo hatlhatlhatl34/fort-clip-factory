@@ -1,11 +1,14 @@
 name: outro-debug
-# One-off diagnostic (2026-11-23): the 5s outro card failed on every
-# banked publish in the 12:38 UTC session
-# ("libx264/aac ... Task finished with error code: -22 Invalid
-# argument") and src/outro.py truncates stderr to 300 chars, hiding
-# the root error. This reproduces the failure on REAL banked clips with
-# the runner's own ffmpeg, prints the FULL stderr, then tests
-# candidate fixes (timestamp sanitization etc.).
+# Round 2 (2026-11-23 17:5x UTC): root error on the runner (ffmpeg
+# 8.0.1, ubuntu-latest) is "[fc#0] Error reinitializing filters!" —
+# the -loop 1 PNG input triggers a mid-run graph reinit that concat
+# cannot survive. This round tests the fix variants (no image loop):
+#   B: lavfi color source + static PNG overlay + filter concat
+#   C: pre-rendered 5s card file + filter concat (two-step)
+#   D: no-image control (testsrc2 segment) — isolates the overlay
+#   E: concat demuxer + re-encode (fallback)
+# plus the current command (A, expected fail) as the control, and the
+# REAL src/outro.py code path.
 on:
   workflow_dispatch: {}
 
@@ -20,8 +23,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: ffmpeg version
-        run: ffmpeg -version | head -3
+      - name: Install ffmpeg then print version
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          ffmpeg -version | head -2
 
       - name: Resolve the bank pointer
         id: ptr
@@ -47,34 +53,20 @@ jobs:
 
       - name: Pick clips
         run: |
-          ls bank_month | head -5 || true
-          find bank_month -name '*.mp4' -printf '%p\n' | head -20 > /tmp/clips.txt
-          wc -l /tmp/clips.txt
-          head -3 /tmp/clips.txt
+          find bank_month -name '*.mp4' -printf '%p\n' | head -4 > /tmp/clips.txt
+          wc -l /tmp/clips.txt; cat /tmp/clips.txt
 
-      - name: Probe + reproduce + candidate fixes
+      - name: Variants
         run: |
-          sudo apt-get install -y -qq ffmpeg || true
           python - <<'PY' 2>&1
-          import json, pathlib, subprocess, sys
+          import pathlib, subprocess, sys
           clips = [l.strip() for l in pathlib.Path('/tmp/clips.txt').read_text().splitlines() if l.strip()]
           if not clips:
-              print('NO CLIPS FOUND — bank fetch failed?'); sys.exit(0)
+              print('NO CLIPS FOUND'); sys.exit(0)
           img = pathlib.Path('assets/outro.png').resolve()
           print('outro image:', img, img.stat().st_size if img.exists() else 'MISSING')
           W, H, FPS, SEC = 1080, 1920, 30, 5
-
-          def probe(p):
-              r = subprocess.run(['ffprobe','-v','error','-show_entries',
-                  'stream=index,codec_type,codec_name,width,height,pix_fmt,r_frame_rate,sample_rate,channels,start_time:format=start_time,duration',
-                  '-of','json',p], capture_output=True, text=True)
-              print('PROBE', p)
-              print(json.dumps(json.loads(r.stdout), indent=1)[:1500])
-              for sel, label in (('v:0','video'), ('a:0','audio')):
-                  r2 = subprocess.run(['ffprobe','-v','error','-select_streams',sel,
-                      '-show_entries','packet=pts_time,duration_time',
-                      '-read_intervals','%+#4',p], capture_output=True, text=True)
-                  print(f'first {label} packets:\n', r2.stdout[:600])
+          base = ['ffmpeg','-hide_banner','-loglevel','error','-y']
 
           def run(label, cmd):
               try:
@@ -82,46 +74,79 @@ jobs:
               except subprocess.TimeoutExpired:
                   print(f'===== {label}: TIMEOUT ====='); return -99
               print(f'===== {label}: rc={r.returncode} =====')
-              print('FULL STDERR (last 3000):')
-              print(r.stderr[-3000:] if r.stderr else '(no stderr)')
+              print('STDERR (last 1200):')
+              print(r.stderr[-1200:] if r.stderr else '(none)')
+              if r.returncode == 0:
+                  d = subprocess.run(['ffprobe','-v','error','-show_entries','format=duration',
+                                     '-of','csv=p=0','/tmp/dbg_out.mp4'], capture_output=True, text=True)
+                  print('   output duration:', d.stdout.strip())
               return r.returncode
 
-          base = ['ffmpeg','-hide_banner','-loglevel','error','-y']
-
-          for p in clips[:3]:
+          for p in clips[:2]:
               print(f'\n############ CLIP {p} ############')
-              probe(p)
-              # A: EXACT current src/outro.py command
-              cmd = base + ['-i', p,
+
+              # A: control — the exact current src/outro.py command
+              run('A-current(loop-image) CONTROL', base + ['-i', p,
                   '-loop','1','-t',f'{SEC}','-i',str(img),
                   '-f','lavfi','-t',f'{SEC}','-i','anullsrc=channel_layout=stereo:sample_rate=44100',
                   '-filter_complex',
                   f'[1:v]scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:black,fps={FPS},format=yuv420p[ov];[0:v][0:a][ov][2:a]concat=n=2:v=1:a=1[v][a]',
                   '-map','[v]','-map','[a]','-c:v','libx264','-preset','fast','-crf','18',
                   '-pix_fmt','yuv420p','-c:a','aac','-b:a','160k','-r',f'{FPS}',
-                  '-movflags','+faststart','/tmp/dbg_og.mp4']
-              rc = run('A-exact-current-command', cmd)
-              if rc != 0:
-                  # V1: sanitize timestamps (classic concat EINVAL fix)
-                  cmd1 = base + ['-i', p,
-                      '-loop','1','-t',f'{SEC}','-i',str(img),
-                      '-f','lavfi','-t',f'{SEC}','-i','anullsrc=channel_layout=stereo:sample_rate=44100',
+                  '-movflags','+faststart','/tmp/dbg_out.mp4'])
+
+              # B: FIX CANDIDATE — lavfi color source + static overlay, no image loop
+              run('B-lavfi-color-overlay', base + ['-i', p,
+                  '-f','lavfi','-i',f'color=c=black:s={W}x{H}:r={FPS}:d={SEC}',
+                  '-i',str(img),
+                  '-f','lavfi','-t',f'{SEC}','-i','anullsrc=channel_layout=stereo:sample_rate=44100',
+                  '-filter_complex',
+                  f'[2:v]scale={W}:{H}:force_original_aspect_ratio=decrease[img];'
+                  f'[1:v][img]overlay=(W-w)/2:(H-h)/2:format=auto,fps={FPS},format=yuv420p[ov];'
+                  f'[0:v][0:a][ov][3:a]concat=n=2:v=1:a=1[v][a]',
+                  '-map','[v]','-map','[a]','-c:v','libx264','-preset','fast','-crf','18',
+                  '-pix_fmt','yuv420p','-c:a','aac','-b:a','160k','-r',f'{FPS}',
+                  '-movflags','+faststart','/tmp/dbg_out.mp4'])
+
+              # D: no-image control — is concat-with-clip itself ok on ffmpeg 8?
+              run('D-no-image-control', base + ['-i', p,
+                  '-f','lavfi','-i',f'testsrc2=size={W}x{H}:rate={FPS}:duration={SEC}',
+                  '-f','lavfi','-t',f'{SEC}','-i','anullsrc=channel_layout=stereo:sample_rate=44100',
+                  '-filter_complex',
+                  f'[1:v]format=yuv420p,fps={FPS}[ov];[0:v][0:a][ov][2:a]concat=n=2:v=1:a=1[v][a]',
+                  '-map','[v]','-map','[a]','-c:v','libx264','-preset','fast','-crf','18',
+                  '-pix_fmt','yuv420p','-c:a','aac','-b:a','160k','-r',f'{FPS}',
+                  '-movflags','+faststart','/tmp/dbg_out.mp4'])
+
+              # C: two-step — render the 5s card as a real file, then concat
+              card = '/tmp/outro_card.mp4'
+              rc_card = run('C1-render-card(lavfi overlay)', base + [
+                  '-f','lavfi','-i',f'color=c=black:s={W}x{H}:r={FPS}:d={SEC}',
+                  '-i',str(img),
+                  '-f','lavfi','-t',f'{SEC}','-i','anullsrc=channel_layout=stereo:sample_rate=44100',
+                  '-filter_complex',
+                  f'[2:v]scale={W}:{H}:force_original_aspect_ratio=decrease[img];'
+                  f'[1:v][img]overlay=(W-w)/2:(H-h)/2:format=auto,fps={FPS},format=yuv420p[ov]',
+                  '-map','[ov]','-map','3:a','-t',f'{SEC}',
+                  '-c:v','libx264','-preset','fast','-crf','18','-pix_fmt','yuv420p',
+                  '-c:a','aac','-b:a','160k','-r',f'{FPS}','-movflags','+faststart',card])
+              if rc_card == 0:
+                  run('C2-concat-card', base + ['-i', p, '-i', card,
                       '-filter_complex',
-                      f'[0:v]setpts=PTS-STARTPTS[v0];[0:a]asetpts=PTS-STARTPTS[a0];'
-                      f'[1:v]scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:black,fps={FPS},format=yuv420p,setpts=PTS-STARTPTS[ov];'
-                      f'[2:a]asetpts=PTS-STARTPTS[a2];'
-                      f'[v0][a0][ov][a2]concat=n=2:v=1:a=1[v][a]',
+                      f'[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]',
                       '-map','[v]','-map','[a]','-c:v','libx264','-preset','fast','-crf','18',
                       '-pix_fmt','yuv420p','-c:a','aac','-b:a','160k','-r',f'{FPS}',
-                      '-movflags','+faststart','/tmp/dbg_v1.mp4']
-                  run('V1-setpts-sanitized', cmd1)
-                  # V2: no -r output option
-                  cmd2 = list(cmd)
-                  i = cmd2.index('-r')
-                  del cmd2[i:i+2]
-                  run('V2-no-output-r', cmd2)
-              else:
-                  print('>>> A SUCCEEDED?! the bug is elsewhere')
+                      '-movflags','+faststart','/tmp/dbg_out.mp4'])
+                  # E: concat demuxer + re-encode
+                  lst = '/tmp/concat.txt'
+                  pathlib.Path(lst).write_text(
+                      f"file '{p}'\nfile '{card}'\n")
+                  run('E-concat-demuxer', base + ['-f','concat','-safe','0','-i',lst,
+                      '-map','0:v','-map','0:a',
+                      '-c:v','libx264','-preset','fast','-crf','18','-pix_fmt','yuv420p',
+                      '-c:a','aac','-b:a','160k','-r',f'{FPS}',
+                      '-movflags','+faststart','/tmp/dbg_out.mp4'])
+              print()
           PY
 
       - name: Real code path (src/outro.py apply)
