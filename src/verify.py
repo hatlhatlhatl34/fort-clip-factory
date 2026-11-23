@@ -13,6 +13,7 @@ import time
 import urllib.error
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from . import ledger, youtube
 from .config import cfg
@@ -36,6 +37,25 @@ def oembed_public(video_id: str) -> bool | None:
         return None
     except Exception:
         return None
+
+
+def _slot_due(s: dict, now: datetime) -> bool:
+    """True when the short's grid slot time has already passed."""
+    try:
+        return datetime.fromisoformat(str(s.get("slot"))) <= now
+    except (TypeError, ValueError):
+        return False
+
+
+def _videos_status(token: str, ids: list) -> dict:
+    """privacyStatus map for a batch of video ids (1 quota unit)."""
+    req = urllib.request.Request(
+        "https://www.googleapis.com/youtube/v3/videos?part=status&id="
+        + ",".join(ids[:50]),
+        headers={"Authorization": f"Bearer {token}"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        doc = json.loads(r.read())
+    return {v["id"]: v["status"] for v in doc.get("items", [])}
 
 
 def run(state: dict, *, today: date | None = None,
@@ -138,6 +158,57 @@ def run(state: dict, *, today: date | None = None,
     except Exception as e:                       # noqa: BLE001
         print(f"[giveaway] ensure pass skipped ({e}) — next heal "
               "retries")
+
+    # ── SLOT-DUE FLIP (owner order 2026-11-23) ──────────────────
+    # STRICT GRID SCHEDULING, self-healing side: a Short whose grid
+    # slot time has ALREADY passed but whose video is still PRIVATE
+    # goes public HERE — at slot cadence, one at a time, never in
+    # bursts. Why this exists: a video that has been public once can
+    # never carry a publishAt again (YouTube rejects it with
+    # invalidPublishAt), so the 2026-11-23 burst (three past holes
+    # published live within two minutes) was re-privatized and rides
+    # THIS pass instead. Normal publishAt-scheduled videos are
+    # already public once their slot passes, so this never touches
+    # them; future slots never flip. Best-effort like every ensure
+    # loop here — a failure retries at the next heal.
+    try:
+        now_local = datetime.now(ZoneInfo(cfg()["schedule"]["timezone"]))
+        due = [s for s in state.get("shorts", [])
+               if s.get("video_id") and s.get("slot")
+               and not s.get("owner_deleted")
+               and _slot_due(s, now_local)]
+        if due:
+            token = youtube.get_access_token()
+            yconf = cfg()["youtube"]
+            doc = _videos_status(token, [s["video_id"] for s in due])
+            for s in due:
+                st = doc.get(s["video_id"])
+                if not st or st.get("privacyStatus") != "private":
+                    continue
+                body = json.dumps({"id": s["video_id"], "status": {
+                    "privacyStatus": "public",
+                    "madeForKids": bool(yconf.get("made_for_kids", False)),
+                    "selfDeclaredMadeForKids":
+                        bool(yconf.get("made_for_kids", False)),
+                }}).encode()
+                req = urllib.request.Request(
+                    "https://www.googleapis.com/youtube/v3/videos"
+                    "?part=status", data=body, method="PUT",
+                    headers={"Authorization": f"Bearer {token}",
+                             "Content-Type": "application/json"})
+                try:
+                    with urllib.request.urlopen(req, timeout=60) as r:
+                        r.read()
+                    print(f"[flip] short #{s.get('n')} {s['video_id']} "
+                          f"went public at slot {s.get('slot')} "
+                          "(slot-due flip, owner order 2026-11-23)")
+                except urllib.error.HTTPError as e:
+                    print(f"[flip] short #{s.get('n')} failed "
+                          f"({e.code}) — next heal retries")
+    except youtube.AuthError as e:
+        print(f"[flip] auth not ready ({e}) — next heal retries")
+    except Exception as e:                       # noqa: BLE001
+        print(f"[flip] pass skipped ({e}) — next heal retries")
 
     if dirty:
         try:

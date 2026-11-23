@@ -135,19 +135,20 @@ def verify_credentials() -> dict:
 # ── scheduling ──────────────────────────────────────────────────────
 
 def next_slot(state: dict) -> str | None:
-    """Next free grid slot (ISO, Cairo) for publishAt.
+    """Next free FUTURE grid slot (ISO, Cairo) for publishAt.
 
-    Grid = 00:00/06:00/12:00/18:00 Cairo EVERY day (owner rule
-    2026-11-14: one Short every 6 hours, 4/day). Scans today/tomorrow/
-    day-after, skipping slots already booked in state.slots. A missed
-    slot just means the next Short takes the next open one — the grid
-    self-heals.
+    Grid = channel.yaml schedule.slots (01:00/07:00/13:00/19:00
+    Cairo, US-tuned phase). Scans today/tomorrow/day-after, skipping
+    slots already booked in state.slots AND every slot whose time
+    already passed. A missed slot just means the next Short takes
+    the next open one — the grid self-heals.
 
-    D8 (owner order 2026-11-20): a TODAY slot whose time already
-    passed unbooked is returned FIRST — upload_short turns a past
-    slot into an immediate LIVE publish (no publishAt; the API
-    rejects past times). Slots from previous days stay written off:
-    only today's holes heal.
+    OWNER RULE 2026-11-23 (supersedes D8 2026-11-20): past slots are
+    NEVER returned — no off-schedule LIVE publishes, no backfilling.
+    Every Short is uploaded private with a future publishAt and
+    goes public exactly at its slot, one at a time. The 2026-11-23
+    burst (three past holes published live within two minutes
+    after the channel swap) must never happen again.
     """
     from zoneinfo import ZoneInfo
     sched = cfg()["schedule"]
@@ -159,16 +160,8 @@ def next_slot(state: dict) -> str | None:
     now = datetime.now(tz)
     lead = timedelta(minutes=int(
         sched.get("publish_lead_minutes", 25)))
-    # D8: earliest overdue unbooked slot of TODAY first — the next
-    # Short publishes LIVE immediately to close the hole.
-    today_slots = slots + (weekend_slots
-                           if now.date().weekday() in weekend_days else [])
-    for hhmm in today_slots:
-        hh, mm = map(int, hhmm.split(":"))
-        slot_dt = datetime(now.year, now.month, now.day,
-                           hh, mm, tzinfo=tz)
-        if slot_dt <= now and slot_dt.isoformat() not in booked:
-            return slot_dt.isoformat()
+    # OWNER RULE 2026-11-23: past slots are written off — never
+    # backfilled, never published live off-schedule.
     for day_offset in (0, 1, 2):
         base = (now + timedelta(days=day_offset)).date()
         day_slots = slots + (weekend_slots
@@ -341,26 +334,18 @@ def upload_short(filepath: Path, meta: dict, state: dict) -> str | None:
 
     yconf = cfg()["youtube"]
     slot = next_slot(state)
-    # D8: an OVERDUE slot (its time already passed) publishes LIVE
-    # immediately — no publishAt (the API rejects past times), just
-    # public. "With the first downloaded video clip it and publish
-    # it — I will not wait."
-    overdue = False
-    if slot:
-        try:
-            _when = datetime.fromisoformat(slot)
-            overdue = _when <= datetime.now(_when.tzinfo)
-        except ValueError:
-            overdue = False
+    # OWNER RULE 2026-11-23 (supersedes D8 2026-11-20): every upload
+    # is PRIVATE with a future publishAt (next_slot only returns
+    # future slots now) — public exactly at the grid slot, one Short
+    # at a time. A no-slot edge (grid fully booked 3 days out) keeps
+    # the video private rather than publishing off-schedule.
     status = {
         "privacyStatus": "private",
         "madeForKids": bool(yconf.get("made_for_kids", False)),
         "selfDeclaredMadeForKids": bool(yconf.get("made_for_kids", False)),
     }
-    if slot and not overdue:
+    if slot:
         status["publishAt"] = slot
-    else:
-        status["privacyStatus"] = yconf.get("privacy", "public")
     if yconf.get("synthetic_media_disclosure", False):
         status["containsSyntheticMedia"] = True
 
@@ -415,8 +400,7 @@ def upload_short(filepath: Path, meta: dict, state: dict) -> str | None:
         # C3 (audit 2026-11-18): book the slot + burn local quota ONLY
         # on a real id — a blind-poll "" booked the slot forever while
         # the clip re-published next session (invisible grid hole)
-        tail = (f"LIVE now — overdue slot {slot}" if overdue and slot else
-                f"publishAt {slot}" if slot else "now")
+        tail = f"publishAt {slot}" if slot else "no slot (kept private)"
         print(f"[youtube] uploaded short {video_id} ({tail})")
         if slot:
             _book_slot(state, slot)

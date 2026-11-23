@@ -118,36 +118,14 @@ def run(*, dry_run: bool = False, offline: bool = False,
     published = 0
     hard_failures = 0
 
-    # ── D8 (owner order 2026-11-20): publish NOW — never wait ────
-    # "With the first downloaded video clip it and publish it. I
-    # will not wait for the bank." When TODAY has an overdue open
-    # slot (a hole the schedule can't reach) and this quota window
-    # can't fund a fresh upload (1600 units), flip the earliest
-    # scheduled Short to LIVE immediately (~50 units) — published
-    # content today beats a perfect grid tomorrow. With quota
-    # available, the ladder below handles it the direct way: the
-    # overdue slot gets the FIRST downloaded video, clipped and
-    # published LIVE on the spot.
-    if not dry_run:
-        try:
-            _now = datetime.now(ZoneInfo(cfg()["schedule"]["timezone"]))
-            _overdue = [t for t in targets
-                        if datetime.fromisoformat(t) <= _now]
-            # one promote per calendar day — never strip the schedule:
-            # the shorts behind the promoted one keep their own slots
-            _promoted_today = state.get("last_promote_day") == day
-            if (_overdue and not _promoted_today
-                    and ledger.quota_remaining(state) < 1800):
-                _vid = youtube.promote_scheduled(state)
-                if _vid:
-                    state["last_promote_day"] = day
-                    published += 1
-                    print(f"[session] D8 catch-up: promoted {_vid} LIVE "
-                          f"for the overdue {_overdue[0]} slot")
-        except Exception as e:
-            print(f"[session] D8 promote skipped "
-                  f"({type(e).__name__}: {e}) — session continues")
-
+    # ── OWNER RULE 2026-11-23 (supersedes D8 2026-11-20) ──────────
+    # STRICT GRID SCHEDULING — no off-schedule LIVE publishes, ever:
+    # a missed/overdue slot is simply written off and Shorts go
+    # public only at their booked publishAt, one at a time (the
+    # 2026-11-23 burst: three past holes published live within two
+    # minutes after the channel swap). open_targets only returns
+    # future slots, so no overdue promote can fire here;
+    # promote_scheduled stays in youtube.py but nothing calls it.
     for i, _slot in enumerate(targets):
         if i >= int(cfg()["clip"].get("max_clips_per_run", 4)):
             break
