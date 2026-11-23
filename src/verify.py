@@ -14,7 +14,7 @@ import urllib.error
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
 
-from . import ledger
+from . import ledger, youtube
 from .config import cfg
 
 _OEMBED = "https://www.youtube.com/oembed"
@@ -114,6 +114,31 @@ def run(state: dict, *, today: date | None = None,
     if defer_active:
         print("[verify] quota defer active — alerts suppressed")
     print(f"[verify] {confirmed} confirmed public, {late} late")
+
+    # ── GIVEAWAY COMMENT ensure-loop (owner rule 2026-11-22, ────────
+    # PERMANENT): every recent short must carry the giveaway
+    # comment. Self-healing: a fresh live video gets it within the
+    # hour; a publishAt-scheduled video gets it as soon as it is
+    # live; a failed post retries the next heal. The flag lives in
+    # the short record so a comment is never posted twice.
+    try:
+        gconf = cfg().get("giveaway") or {}
+        if gconf.get("enabled", True) and state.get("shorts"):
+            token = youtube.get_access_token()
+            for s in recent:
+                if s.get("giveaway_comment") or s.get("owner_deleted"):
+                    continue
+                if not s.get("video_id"):
+                    continue
+                if youtube.post_giveaway_comment(token, s["video_id"]):
+                    s["giveaway_comment"] = now_iso
+                    dirty = True
+    except youtube.AuthError as e:
+        print(f"[giveaway] auth not ready ({e}) — next heal retries")
+    except Exception as e:                       # noqa: BLE001
+        print(f"[giveaway] ensure pass skipped ({e}) — next heal "
+              "retries")
+
     if dirty:
         try:
             ledger.save(state)

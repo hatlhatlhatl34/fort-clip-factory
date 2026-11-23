@@ -36,7 +36,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from . import bank, clipper, downloader, ledger, metadata, music
-from . import crosspost, overlay, sources, transform, verify, youtube
+from . import crosspost, overlay, outro, sources, transform, verify, youtube
 from .config import ROOT, cfg
 from .rng import seed_for
 
@@ -243,6 +243,14 @@ def run(*, dry_run: bool = False, offline: bool = False,
             final = work / final_name
             transform.render(src_path, start, dur, (top_p, foot_p),
                              wav, final)
+
+            # 4b. PERMANENT OWNER RULE (2026-11-22): "put it for 5
+            # seconds in the end of ANY video or clip or short or
+            # reel that will be published in the future FOREVER" —
+            # applied before the upload AND before
+            # crosspost.cache_video, so the YouTube Short, the IG
+            # Reel and the FB Reel all ship the outro version
+            final = outro.apply(final)
 
             # 5. metadata
             meta = metadata.build(source, state, seed)

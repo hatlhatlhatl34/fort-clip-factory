@@ -70,7 +70,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from . import crosspost, ledger, metadata, transform, youtube
+from . import crosspost, ledger, metadata, outro, transform, youtube
 from .config import ROOT, cfg
 
 POINTER = ROOT / "data" / "bank_pointer.json"
@@ -410,6 +410,12 @@ def publish(bank_dir: Path, clip: dict, state: dict,
     # re-burn the code bars with the CURRENT codes (opaque cover of
     # the harvest-time bars) — best-effort, never blocks a publish
     f = transform.restamp_current(f)
+    # PERMANENT OWNER RULE (2026-11-22): the 5s outro card goes on
+    # the end of EVERY published video, forever — banked clips get
+    # it at publish time (before upload + before the reels cache, so
+    # every surface carries it), NOT at harvest time (a clip banked
+    # before the rule still ships with the outro)
+    f = outro.apply(f)
     slots_before = len((state.get("slots") or {}).get("short") or [])
     try:
         video_id = youtube.upload_short(f, meta, state)

@@ -426,3 +426,54 @@ def upload_short(filepath: Path, meta: dict, state: dict) -> str | None:
         print("UPLOAD-ALERT: upload finished with no video id — slot "
               "NOT booked, local quota NOT spent; the grid retries")
     return video_id
+
+
+# ── GIVEAWAY COMMENT (owner rule 2026-11-22, PERMANENT) ─────────────
+# Every video's comment section gets the giveaway comment: use the
+# creator code, screenshot the proof on Instagram & tag the channel —
+# the winner gets a free Gold/Rare account or 2,000 V-Bucks.
+# Posted by the verify pass (hourly heal) so it is self-healing:
+# scheduled (publishAt) videos get it once they are live, and any
+# failure is retried the next hour. Never raises, never blocks.
+
+GIVEAWAY_FALLBACK = (
+    "\U0001F381 GIVEAWAY \U0001F381 Use our creator code H15, "
+    "screenshot your proof on Instagram & tag us — winner gets a "
+    "FREE Gold/Rare account or 2,000 V-Bucks! \U0001F3C6\u2728")
+
+
+def post_giveaway_comment(token: str, video_id: str) -> bool:
+    """Best-effort: post the giveaway comment on one video.
+
+    Returns True when the comment is confirmed created (id received).
+    Any failure just returns False — the hourly heal retries next
+    pass, and a disabled/absent config is a clean False, never an
+    alert-worthy error."""
+    try:
+        gconf = cfg().get("giveaway") or {}
+        if not gconf.get("enabled", True):
+            return False
+        text = str(gconf.get("comment") or GIVEAWAY_FALLBACK)
+        body = json.dumps({"snippet": {
+            "videoId": video_id,
+            "topLevelComment": {"snippet": {"textOriginal": text}}}})
+        qs = urllib.parse.urlencode({"part": "snippet"})
+        status, _, raw = _post(
+            f"{API_BASE}/commentThreads?{qs}", body.encode(), {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"})
+        if status in (200, 201):
+            cid = json.loads(raw or b"{}").get("id", "")
+            print(f"[giveaway] comment posted on {video_id} "
+                  f"(id {str(cid)[:18]}…)")
+            return True
+        if status == 409:
+            # duplicate — our comment already exists: success state
+            print(f"[giveaway] comment already exists on {video_id}")
+            return True
+        print(f"[giveaway] comment deferred on {video_id} "
+              f"({status}: {raw.decode()[:180]}) — the heal retries")
+    except Exception as e:                       # noqa: BLE001
+        print(f"[giveaway] comment failed on {video_id} ({e}) — "
+              "the heal retries next pass")
+    return False

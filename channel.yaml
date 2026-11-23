@@ -221,6 +221,29 @@ schedule:
                                       # :33 minute dodges GitHub's
                                       # :00/:30 cron congestion)
 
+# ── OUTRO CARD (owner rule 2026-11-22, PERMANENT): "put it for 5 ──
+# seconds in the end of any video or clip or short or reel that will
+# be published in the future FOREVER." Applied by src/outro.py at
+# BOTH publish ladders (live render + banked clip), BEFORE upload
+# and BEFORE the reels crosspost cache — so the YouTube Short, the
+# IG Reel and the FB Reel all end with it. Replace assets/outro.png
+# with the real card anytime (same path + name); seconds are the
+# on-screen duration.
+outro:
+  enabled: true
+  image: "assets/outro.png"
+  seconds: 5.0
+
+# ── GIVEAWAY COMMENT (owner rule 2026-11-22, PERMANENT): every ────
+# video's comment section gets the giveaway comment — use the
+# creator code, screenshot the proof on Instagram & tag the channel;
+# the winner gets a free Gold/Rare account or 2,000 V-Bucks.
+# Posted by the verify pass in the hourly heal (self-healing, never
+# double-posted, never blocks a publish).
+giveaway:
+  enabled: true
+  comment: "\U0001F381 GIVEAWAY \U0001F381 Use our creator code H15, screenshot your proof on Instagram & tag us — winner gets a FREE Gold/Rare account or 2,000 V-Bucks! \U0001F3C6\u2728"
+
 # ── CROSS-POSTING (owner rule 2026-11-15: the SAME Short goes to ──
 # YouTube + Instagram Reel + Facebook Reel) ──────────────────────
 #
