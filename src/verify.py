@@ -163,14 +163,17 @@ def run(state: dict, *, today: date | None = None,
     # STRICT GRID SCHEDULING, self-healing side: a Short whose grid
     # slot time has ALREADY passed but whose video is still PRIVATE
     # goes public HERE — at slot cadence, one at a time, never in
-    # bursts. Why this exists: a video that has been public once can
-    # never carry a publishAt again (YouTube rejects it with
-    # invalidPublishAt), so the 2026-11-23 burst (three past holes
-    # published live within two minutes) was re-privatized and rides
-    # THIS pass instead. Normal publishAt-scheduled videos are
-    # already public once their slot passes, so this never touches
-    # them; future slots never flip. Best-effort like every ensure
-    # loop here — a failure retries at the next heal.
+    # bursts (HARD CAP: at most ONE flip per pass, earliest slot
+    # first; extra riders wait for the next hourly pass). Why this
+    # exists: a video that has been public once can never carry a
+    # publishAt again (YouTube rejects it with invalidPublishAt), so
+    # the 2026-11-23 burst (three past holes published live within
+    # two minutes) was re-privatized and rides THIS pass instead.
+    # Normal publishAt-scheduled videos are already public once
+    # their slot passes, so this never touches them; future slots
+    # never flip. Best-effort like every ensure loop here — a
+    # failure retries at the next heal (tools/slotcare.py runs this
+    # pass at every heal fire, slot-anchored crons included).
     try:
         now_local = datetime.now(ZoneInfo(cfg()["schedule"]["timezone"]))
         due = [s for s in state.get("shorts", [])
@@ -181,7 +184,19 @@ def run(state: dict, *, today: date | None = None,
             token = youtube.get_access_token()
             yconf = cfg()["youtube"]
             doc = _videos_status(token, [s["video_id"] for s in due])
-            for s in due:
+            # still-private riders only, EARLIEST slot first — and
+            # at most ONE flip per pass (owner order 2026-11-23:
+            # never in bursts; the rest ride the next hourly pass)
+            riders = sorted(
+                (s for s in due
+                 if (doc.get(s["video_id"]) or {}).get("privacyStatus")
+                 == "private"),
+                key=lambda s: str(s.get("slot") or ""))
+            for s in riders[1:]:
+                print(f"[flip] short #{s.get('n')} waits for a later "
+                      f"pass (slot {s.get('slot')}) — one flip per "
+                      "pass, never in bursts")
+            for s in riders[:1]:
                 st = doc.get(s["video_id"])
                 if not st or st.get("privacyStatus") != "private":
                     continue

@@ -12,6 +12,19 @@
 # sat live on YouTube with zero reels for hours. Reel posting no
 # longer serializes behind factory/harvest runs. This workflow keeps
 # the gate + factory jobs only.
+#
+# 2026-11-23 SLOT CARETAKER: a fourth job, slotcare, runs on EVERY
+# fire regardless of the gate verdict (owner order 2026-11-23,
+# strict grid scheduling). The gate only RUNs the factory when an
+# OPEN slot would expire before the next 08:33 session — at a
+# BOOKED slot's publish moment the verdict is SKIP, so nothing else
+# runs at slot time. slotcare closes that hole: it runs the verify
+# pass (oEmbed confirm + giveaway ensure + at most ONE slot-due flip
+# per pass) so rider Shorts (public once, re-privatized, can never
+# carry publishAt again) go public at their slot, and fresh
+# publishAt Shorts get confirmed/comments within minutes. The four
+# slot-anchored crons below wake it 3 minutes after each 6-hour
+# grid slot.
 
 name: hourly-heal
 
@@ -21,6 +34,18 @@ on:
     # old "0 * * * *" lost whole runs to cron skipping (no heal fired
     # between 18:04 and 21:33 on 2026-11-17)
     - cron: "17 * * * *"
+    # SLOT-ANCHORED fires (owner order 2026-11-23, strict grid
+    # scheduling): the 6-hour grid slots are 01/07/13/19 Cairo =
+    # 23:00/05:00/11:00/17:00 UTC; these four crons wake the machine
+    # 3 minutes AFTER each slot so the slotcare job can flip any
+    # slot-due rider Short public and drop missing giveaway comments
+    # within minutes of the slot. The gate alone would SKIP these
+    # hours — the slot is BOOKED, so the factory job never runs at a
+    # slot's publish moment.
+    - cron: "3 23 * * *"
+    - cron: "3 5 * * *"
+    - cron: "3 11 * * *"
+    - cron: "3 17 * * *"
   workflow_dispatch: {}
 
 concurrency:
@@ -238,3 +263,72 @@ jobs:
           done
           echo "::error::memory push failed 5x — watch data/state.json; the next heal reconciles"
           exit 1
+
+  # ── SLOT CARETAKER (owner order 2026-11-23, strict grid ────────
+  # scheduling) — runs on EVERY fire, gate verdict irrelevant. The
+  # slot-due flip and the giveaway ensure-loop must fire at SLOT
+  # TIME, but the factory job above only runs when the gate sees an
+  # OPEN slot expiring before the next 08:33 session — at a booked
+  # slot's publish moment the verdict is SKIP and nothing else in
+  # this workflow runs. This job closes that hole: zero quota unless
+  # a flip is due (50 units) or a comment is missing. It can never
+  # upload, book a slot, or pop a clip — tools/slotcare.py only runs
+  # the verify pass (oEmbed confirm + giveaway ensure + AT MOST ONE
+  # slot-due flip per pass, earliest slot first — never in bursts).
+  slotcare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run the slot caretaker (verify + flip + giveaway)
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: |
+          if [ -z "$YT_REFRESH_TOKEN" ]; then
+            echo "::warning::YT_REFRESH_TOKEN not set — nothing to care for yet"
+            exit 0
+          fi
+          pip install --quiet PyYAML
+          set -o pipefail
+          python tools/slotcare.py 2>&1 | tee slotcare.log
+      - name: Commit memory back (data/state.json only, union merge)
+        if: always()
+        run: |
+          git config user.name "fort-clip-factory"
+          git config user.email "actions@github.com"
+          git add -A data 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "memory unchanged"
+            exit 0
+          fi
+          # same D1/D2 race-safe dance as every state writer: rebuild
+          # on fresh origin/main, union through merge_state, retry —
+          # a concurrent factory/crosspost commit can never swallow
+          # a flip's stamp (and vice versa).
+          for i in 1 2 3 4 5; do
+            cp data/state.json /tmp/ours.json 2>/dev/null || true
+            git fetch --quiet origin main
+            git reset --hard origin/main
+            git checkout origin/main -- data/state.json 2>/dev/null || true
+            if [ -f data/state.json ]; then
+              python tools/merge_state.py /tmp/ours.json data/state.json --prefer core --inplace data/state.json
+              cp data/state.json data/state.json.bak
+            else
+              cp /tmp/ours.json data/state.json
+            fi
+            git add -A data
+            git commit -m "memory: slotcare run" || true
+            if git push --quiet origin HEAD:main; then
+              echo "memory pushed (attempt $i)"
+              exit 0
+            fi
+            echo "::warning::slotcare memory push lost the race (attempt $i)"
+            sleep $((i * 4))
+          done
+          echo "::warning::slotcare memory push failed 5x — the next writer reconciles"
+          exit 0

@@ -125,7 +125,9 @@ def run(*, dry_run: bool = False, offline: bool = False,
     # 2026-11-23 burst: three past holes published live within two
     # minutes after the channel swap). open_targets only returns
     # future slots, so no overdue promote can fire here;
-    # promote_scheduled stays in youtube.py but nothing calls it.
+    # promote_scheduled was REMOVED from youtube.py entirely — the
+    # owner's "publish now" was ONE-TIME and is retired; the grid is
+    # the only publishing rhythm the machine knows.
     for i, _slot in enumerate(targets):
         if i >= int(cfg()["clip"].get("max_clips_per_run", 4)):
             break

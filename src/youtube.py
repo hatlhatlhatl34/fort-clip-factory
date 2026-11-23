@@ -182,70 +182,14 @@ def _book_slot(state: dict, slot_iso: str) -> None:
     ledger.save(state)
 
 
-def promote_scheduled(state: dict) -> str | None:
-    """D8 (owner order 2026-11-20): publish NOW — never make the
-    owner wait for content that already exists.
-
-    Flips the earliest still-scheduled (future publishAt) uploaded
-    Short to public: it goes LIVE the moment the API call lands, for
-    ~50 quota units instead of 1600 for a fresh upload. Returns the
-    video id, or None when nothing is scheduled or the flip fails —
-    a None is a no-op for the caller, never a session failure.
-    """
-    from zoneinfo import ZoneInfo
-    tz = ZoneInfo(cfg()["schedule"]["timezone"])
-    now = datetime.now(tz)
-    cands = []
-    for s in state.get("shorts", []):
-        if not (s.get("video_id") and s.get("slot")):
-            continue
-        try:
-            when = datetime.fromisoformat(s["slot"])
-        except (TypeError, ValueError):
-            continue
-        if when > now:
-            cands.append((when, s))
-    if not cands:
-        print("[youtube] promote: nothing scheduled in the future — "
-              "no short to flip live")
-        return None
-    cands.sort(key=lambda pair: pair[0])
-    when, s = cands[0]
-    token = get_access_token()
-    yconf = cfg()["youtube"]
-    body = json.dumps({
-        "id": s["video_id"],
-        "status": {
-            "privacyStatus": "public",
-            "madeForKids": bool(yconf.get("made_for_kids", False)),
-            "selfDeclaredMadeForKids":
-                bool(yconf.get("made_for_kids", False)),
-        },
-    }).encode()
-    req = urllib.request.Request(
-        f"{API_BASE}/videos?part=status", data=body, method="PUT",
-        headers={"Authorization": f"Bearer {token}",
-                 "Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            resp.read()
-    except urllib.error.HTTPError as e:
-        print(f"[youtube] promote failed ({e.code}): "
-              f"{e.read().decode()[:400]}")
-        return None
-    except Exception as e:                    # network, token, whatever
-        print(f"[youtube] promote failed: {e}")
-        return None
-    s["slot"] = now.isoformat()
-    # the guard lives HERE (not only in the orchestrator): any caller
-    # — standalone publish-now trigger included — stamps the day, so
-    # a later session can never flip a second short the same day
-    state["last_promote_day"] = now.date().isoformat()
-    ledger.spend_quota(state, 50)
-    ledger.save(state)
-    print(f"[youtube] PROMOTE {s['video_id']} -> LIVE now "
-          f"(was scheduled {when.isoformat()})")
-    return s["video_id"]
+# promote_scheduled (D8 2026-11-20 "publish NOW") was REMOVED entirely
+# (owner order 2026-11-23): the publish-now request was ONE-TIME — "The
+# publish now was one time request and forget about it the rest will
+# be according to plan and schedules." Nothing in the machine can
+# publish off-grid anymore: every upload is private + publishAt on the
+# 6-hour grid, and the ONLY off-schedule flip left in the codebase is
+# the slot-due rider pass in src/verify.py (fires at slot time, at
+# most one per pass — re-privatized burst Shorts riding their slots).
 
 
 # ── resumable upload ────────────────────────────────────────────────
