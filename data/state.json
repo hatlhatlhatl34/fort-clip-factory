@@ -94,11 +94,28 @@
    },
    "crosspost": {
     "ig": {
-     "status": "pending"
+     "status": "done",
+     "media_id": "17872261758661452",
+     "ts": 1795600632,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/DgKQkAaTFCd/"
     },
     "fb": {
-     "status": "pending"
-    }
+     "status": "done",
+     "media_id": "3204262083103337",
+     "ts": 1795600644,
+     "attempts": 1,
+     "permalink": "https://www.facebook.com/reel/3204262083103337/"
+    },
+    "tiktok": {
+     "status": "done",
+     "publish_id": "v_pub_file~v2-1.7712045947660584966",
+     "error": "upload in flight — re-check before re-post",
+     "ts": 1795600670,
+     "media_id": "v_pub_file~v2-1.7712045947660584966",
+     "attempts": 1
+    },
+    "yt_links": true
    },
    "verified": "2026-11-25T05:12:16+00:00",
    "giveaway_comment": "2026-11-25T05:12:16+00:00"
@@ -1609,7 +1626,7 @@
      "permalink": "https://www.facebook.com/reel/1012532071893543/"
     },
     "tiktok": {
-     "status": "failed",
+     "status": "gave_up",
      "attempts": 8,
      "error": "Command '['ffmpeg', '-y', '-v', 'error', '-i', '/home/runner/work/fort-clip-factory/fort-clip-factory/work_backfill/short_82.mp4', '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease', '-c:v', 'libx264', '-pix_fm",
      "ts": 1795568209
@@ -5890,7 +5907,8 @@
  },
  "alerts_sent": {
   "tiktok-73": "2026-11-22",
-  "tiktok-29": "2026-11-22"
+  "tiktok-29": "2026-11-22",
+  "tiktok-82": "2026-11-25"
  },
  "one_time_fix": {
   "deleted": [
