@@ -1935,11 +1935,25 @@
    },
    "crosspost": {
     "ig": {
-     "status": "pending"
+     "status": "failed",
+     "attempts": 2,
+     "error": "rupload -> 400: {\"debug_info\":{\"retriable\":false,\"type\":\"ProcessingFailedError\",\"message\":\"Request processing failed\"}}",
+     "ts": 1795662129
     },
     "fb": {
-     "status": "pending"
-    }
+     "status": "done",
+     "media_id": "900726516464200",
+     "ts": 1795661928,
+     "attempts": 1,
+     "permalink": "https://www.facebook.com/reel/900726516464200/"
+    },
+    "tiktok": {
+     "status": "failed",
+     "attempts": 2,
+     "error": "Command '['ffmpeg', '-y', '-v', 'error', '-i', '/home/runner/work/fort-clip-factory/fort-clip-factory/work_backfill/short_89.mp4', '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease', '-c:v', 'libx264', '-pix_fm",
+     "ts": 1795662129
+    },
+    "yt_links": true
    },
    "verified": "2026-11-26T00:50:47+00:00",
    "giveaway_comment": "2026-11-26T00:50:47+00:00"
@@ -2253,7 +2267,7 @@
  "query_cursor": 6,
  "quota": {
   "date": "2026-11-25",
-  "units_used": 6502
+  "units_used": 6553
  },
  "last_run": "2026-11-24",
  "last_run_ts": 1795535232,
