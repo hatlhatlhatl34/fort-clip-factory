@@ -1935,7 +1935,7 @@
    },
    "crosspost": {
     "ig": {
-     "status": "failed",
+     "status": "gave_up",
      "attempts": 8,
      "error": "rupload -> 400: {\"debug_info\":{\"retriable\":false,\"type\":\"ProcessingFailedError\",\"message\":\"Request processing failed\"}}",
      "ts": 1795756765
@@ -1948,7 +1948,7 @@
      "permalink": "https://www.facebook.com/reel/900726516464200/"
     },
     "tiktok": {
-     "status": "failed",
+     "status": "gave_up",
      "attempts": 8,
      "error": "Command '['ffmpeg', '-y', '-v', 'error', '-i', '/home/runner/work/fort-clip-factory/fort-clip-factory/work_backfill/short_89.mp4', '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease', '-c:v', 'libx264', '-pix_fm",
      "ts": 1795756765
@@ -6219,7 +6219,9 @@
  "alerts_sent": {
   "tiktok-73": "2026-11-22",
   "tiktok-29": "2026-11-22",
-  "tiktok-82": "2026-11-25"
+  "tiktok-82": "2026-11-25",
+  "ig-89": "2026-11-27",
+  "tiktok-89": "2026-11-27"
  },
  "one_time_fix": {
   "deleted": [
