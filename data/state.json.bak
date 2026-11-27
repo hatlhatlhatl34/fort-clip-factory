@@ -1936,9 +1936,9 @@
    "crosspost": {
     "ig": {
      "status": "failed",
-     "attempts": 6,
+     "attempts": 8,
      "error": "rupload -> 400: {\"debug_info\":{\"retriable\":false,\"type\":\"ProcessingFailedError\",\"message\":\"Request processing failed\"}}",
-     "ts": 1795732507
+     "ts": 1795756765
     },
     "fb": {
      "status": "done",
@@ -1949,9 +1949,9 @@
     },
     "tiktok": {
      "status": "failed",
-     "attempts": 6,
+     "attempts": 8,
      "error": "Command '['ffmpeg', '-y', '-v', 'error', '-i', '/home/runner/work/fort-clip-factory/fort-clip-factory/work_backfill/short_89.mp4', '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease', '-c:v', 'libx264', '-pix_fm",
-     "ts": 1795732507
+     "ts": 1795756765
     },
     "yt_links": true
    },
@@ -2108,11 +2108,28 @@
    },
    "crosspost": {
     "ig": {
-     "status": "pending"
+     "status": "done",
+     "media_id": "18654534103040033",
+     "ts": 1795756444,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/DgO5wblpwaW/"
     },
     "fb": {
-     "status": "pending"
-    }
+     "status": "done",
+     "media_id": "2659389577841295",
+     "ts": 1795756455,
+     "attempts": 1,
+     "permalink": "https://www.facebook.com/reel/2659389577841295/"
+    },
+    "tiktok": {
+     "status": "done",
+     "publish_id": "v_pub_file~v2-1.7712714548742064129",
+     "error": "upload in flight — re-check before re-post",
+     "ts": 1795756482,
+     "media_id": "v_pub_file~v2-1.7712714548742064129",
+     "attempts": 1
+    },
+    "yt_links": true
    },
    "verified": "2026-11-27T00:56:47+00:00",
    "giveaway_comment": "2026-11-27T00:56:47+00:00"
@@ -2137,11 +2154,28 @@
    },
    "crosspost": {
     "ig": {
-     "status": "pending"
+     "status": "done",
+     "media_id": "18111857270579473",
+     "ts": 1795756527,
+     "attempts": 1,
+     "permalink": "https://www.instagram.com/reel/DgO560OJKfD/"
     },
     "fb": {
-     "status": "pending"
-    }
+     "status": "done",
+     "media_id": "1119267430945683",
+     "ts": 1795756536,
+     "attempts": 1,
+     "permalink": "https://www.facebook.com/reel/1119267430945683/"
+    },
+    "tiktok": {
+     "status": "done",
+     "publish_id": "v_pub_file~v2-1.7712715021893240852",
+     "error": "upload in flight — re-check before re-post",
+     "ts": 1795756565,
+     "media_id": "v_pub_file~v2-1.7712715021893240852",
+     "attempts": 1
+    },
+    "yt_links": true
    }
   }
  ],
@@ -2388,7 +2422,7 @@
  "query_cursor": 6,
  "quota": {
   "date": "2026-11-26",
-  "units_used": 4902
+  "units_used": 5004
  },
  "last_run": "2026-11-26",
  "last_run_ts": 1795696221,
