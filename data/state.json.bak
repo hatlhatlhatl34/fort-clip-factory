@@ -2261,9 +2261,9 @@
     },
     "tiktok": {
      "status": "failed",
-     "attempts": 4,
+     "attempts": 6,
      "error": "Command '['ffmpeg', '-y', '-v', 'error', '-i', '/home/runner/work/fort-clip-factory/fort-clip-factory/work_backfill/short_95.mp4', '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease', '-c:v', 'libx264', '-pix_fm",
-     "ts": 1795853178
+     "ts": 1795885151
     },
     "yt_links": true
    },
